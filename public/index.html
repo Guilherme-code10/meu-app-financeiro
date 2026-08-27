@@ -3,544 +3,824 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meu App Financeiro</title>
+
+  <title>Meu Financeiro</title>
+
   <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
 
-  <aside class="sidebar">
+  <!-- ===================================================== -->
+  <!-- TELA DE LOGIN -->
+  <!-- ===================================================== -->
 
-    <div class="brand">
-      <div class="brand-icon">R$</div>
+  <div id="loginScreen" class="login-screen">
 
-      <div>
-        <strong>Meu Financeiro</strong>
-        <span>Open Finance</span>
+    <div class="login-card">
+
+      <div class="login-logo">
+        R$
       </div>
+
+      <h1>Meu Financeiro</h1>
+
+      <p class="login-subtitle">
+        Entre para acessar suas finanças.
+      </p>
+
+      <form id="loginForm">
+
+        <label for="loginEmail">
+          E-mail
+        </label>
+
+        <input
+          type="email"
+          id="loginEmail"
+          placeholder="seu@email.com"
+          autocomplete="username"
+          required
+        >
+
+        <label for="loginSenha">
+          Senha
+        </label>
+
+        <input
+          type="password"
+          id="loginSenha"
+          placeholder="Digite sua senha"
+          autocomplete="current-password"
+          required
+        >
+
+        <button
+          type="submit"
+          id="loginButton"
+          class="login-button"
+        >
+          Entrar
+        </button>
+
+        <p
+          id="loginError"
+          class="login-error"
+          style="display:none;"
+        ></p>
+
+      </form>
+
     </div>
 
-    <nav>
-
-      <button class="nav-item active"
-        data-section="dashboard">
-        🏠 <span>Dashboard</span>
-      </button>
-
-      <button class="nav-item"
-        data-section="contas">
-        🏦 <span>Contas</span>
-      </button>
-
-      <button class="nav-item"
-        data-section="transacoes">
-        ↔ <span>Transações</span>
-      </button>
-
-      <button class="nav-item"
-        data-section="fixas">
-        🗓️ <span>Contas fixas</span>
-      </button>
-
-      <button class="nav-item"
-        data-section="caixinhas">
-        💰 <span>Caixinhas</span>
-      </button>
-
-    </nav>
-
-    <div class="connection">
-
-      <span class="dot"></span>
-
-      <div>
-        <strong>Pierre conectado</strong>
-        <small id="connectionText">Verificando...</small>
-      </div>
-
-    </div>
-
-  </aside>
+  </div>
 
 
-  <main class="main">
+  <!-- ===================================================== -->
+  <!-- APLICAÇÃO -->
+  <!-- ===================================================== -->
 
-    <header class="topbar">
+  <div
+    id="appShell"
+    class="app-shell"
+    style="display:none;"
+  >
 
-      <div>
-        <p class="eyebrow">VISÃO GERAL</p>
-        <h1 id="pageTitle">Dashboard</h1>
-      </div>
+    <!-- =================================================== -->
+    <!-- SIDEBAR -->
+    <!-- =================================================== -->
 
-      <button class="refresh" id="refreshBtn">
-        ↻ Atualizar
-      </button>
+    <aside class="sidebar">
 
-    </header>
+      <div class="brand">
 
+        <div class="brand-icon">
+          R$
+        </div>
 
-    <!-- ========================= -->
-    <!-- DASHBOARD -->
-    <!-- ========================= -->
+        <div>
 
-    <section id="dashboard" class="section active">
-
-      <div class="cards">
-
-        <article class="card highlight">
-
-          <span>Saldo das contas</span>
-
-          <strong id="totalBalance">
-            R$ 0,00
+          <strong>
+            Meu Financeiro
           </strong>
 
-          <small>
-            Somatório dos saldos retornados pelo Pierre
-          </small>
+          <span>
+            Open Finance
+          </span>
 
-        </article>
-
-
-        <article class="card">
-
-          <span>Entradas</span>
-
-          <strong id="totalIncome">
-            R$ 0,00
-          </strong>
-
-          <small>
-            Período dos últimos 3 meses
-          </small>
-
-        </article>
-
-
-        <article class="card">
-
-          <span>Saídas</span>
-
-          <strong id="totalExpense">
-            R$ 0,00
-          </strong>
-
-          <small>
-            Período dos últimos 3 meses
-          </small>
-
-        </article>
-
-
-        <article class="card">
-
-          <span>Contas fixas</span>
-
-          <strong id="fixedTotal">
-            R$ 0,00
-          </strong>
-
-          <small id="fixedCount">
-            0 cadastradas
-          </small>
-
-        </article>
+        </div>
 
       </div>
 
 
-      <div class="grid-2">
+      <!-- USUÁRIO LOGADO -->
 
-        <article class="panel">
+      <div class="logged-user">
 
-          <div class="panel-head">
+        <div>
+          <strong id="loggedUserName">
+            Usuário
+          </strong>
 
-            <div>
-              <h2>Últimas movimentações</h2>
-              <p>Dados vindos do Open Finance</p>
+          <small id="loggedUserEmail">
+            —
+          </small>
+        </div>
+
+        <button
+          type="button"
+          id="logoutBtn"
+          class="logout-button"
+        >
+          Sair
+        </button>
+
+      </div>
+
+
+      <!-- MENU -->
+
+      <nav>
+
+        <button
+          class="nav-item active"
+          data-section="dashboard"
+        >
+          🏠
+          <span>
+            Dashboard
+          </span>
+        </button>
+
+
+        <button
+          class="nav-item"
+          data-section="contas"
+        >
+          🏦
+          <span>
+            Contas
+          </span>
+        </button>
+
+
+        <button
+          class="nav-item"
+          data-section="transacoes"
+        >
+          ↔
+          <span>
+            Transações
+          </span>
+        </button>
+
+
+        <button
+          class="nav-item"
+          data-section="fixas"
+        >
+          🗓️
+          <span>
+            Contas fixas
+          </span>
+        </button>
+
+
+        <button
+          class="nav-item"
+          data-section="caixinhas"
+        >
+          💰
+          <span>
+            Caixinhas
+          </span>
+        </button>
+
+      </nav>
+
+
+      <!-- CONEXÃO -->
+
+      <div class="connection">
+
+        <span class="dot"></span>
+
+        <div>
+
+          <strong>
+            Pierre conectado
+          </strong>
+
+          <small id="connectionText">
+            Verificando...
+          </small>
+
+        </div>
+
+      </div>
+
+    </aside>
+
+
+    <!-- =================================================== -->
+    <!-- CONTEÚDO PRINCIPAL -->
+    <!-- =================================================== -->
+
+    <main class="main">
+
+      <header class="topbar">
+
+        <div>
+
+          <p class="eyebrow">
+            VISÃO GERAL
+          </p>
+
+          <h1 id="pageTitle">
+            Dashboard
+          </h1>
+
+        </div>
+
+
+        <button
+          class="refresh"
+          id="refreshBtn"
+        >
+          ↻ Atualizar
+        </button>
+
+      </header>
+
+
+      <!-- ================================================= -->
+      <!-- DASHBOARD -->
+      <!-- ================================================= -->
+
+      <section
+        id="dashboard"
+        class="section active"
+      >
+
+        <div class="cards">
+
+
+          <article class="card highlight">
+
+            <span>
+              Saldo das contas
+            </span>
+
+            <strong id="totalBalance">
+              R$ 0,00
+            </strong>
+
+            <small>
+              Somatório dos saldos retornados pelo Pierre
+            </small>
+
+          </article>
+
+
+          <article class="card">
+
+            <span>
+              Entradas
+            </span>
+
+            <strong id="totalIncome">
+              R$ 0,00
+            </strong>
+
+            <small>
+              Período dos últimos 3 meses
+            </small>
+
+          </article>
+
+
+          <article class="card">
+
+            <span>
+              Saídas
+            </span>
+
+            <strong id="totalExpense">
+              R$ 0,00
+            </strong>
+
+            <small>
+              Período dos últimos 3 meses
+            </small>
+
+          </article>
+
+
+          <article class="card">
+
+            <span>
+              Contas fixas
+            </span>
+
+            <strong id="fixedTotal">
+              R$ 0,00
+            </strong>
+
+            <small id="fixedCount">
+              0 cadastradas
+            </small>
+
+          </article>
+
+        </div>
+
+
+        <div class="grid-2">
+
+
+          <article class="panel">
+
+            <div class="panel-head">
+
+              <div>
+
+                <h2>
+                  Últimas movimentações
+                </h2>
+
+                <p>
+                  Dados vindos do Open Finance
+                </p>
+
+              </div>
+
+
+              <button
+                class="link-btn"
+                data-go="transacoes"
+              >
+                Ver todas
+              </button>
+
             </div>
 
+
+            <div
+              id="recentTransactions"
+              class="transactions"
+            ></div>
+
+          </article>
+
+
+          <article class="panel">
+
+            <div class="panel-head">
+
+              <div>
+
+                <h2>
+                  Gastos por categoria
+                </h2>
+
+                <p>
+                  Somente débitos do período
+                </p>
+
+              </div>
+
+            </div>
+
+
+            <div
+              id="categoryChart"
+              class="category-chart"
+            ></div>
+
+          </article>
+
+        </div>
+
+      </section>
+
+
+      <!-- ================================================= -->
+      <!-- CONTAS -->
+      <!-- ================================================= -->
+
+      <section
+        id="contas"
+        class="section"
+      >
+
+        <div class="section-title">
+
+          <div>
+
+            <h2>
+              Minhas contas
+            </h2>
+
+            <p>
+              Contas e produtos financeiros encontrados pelo Pierre.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div
+          id="accountsGrid"
+          class="accounts-grid"
+        ></div>
+
+      </section>
+
+
+      <!-- ================================================= -->
+      <!-- TRANSAÇÕES -->
+      <!-- ================================================= -->
+
+      <section
+        id="transacoes"
+        class="section"
+      >
+
+        <div class="section-title">
+
+          <div>
+
+            <h2>
+              Transações
+            </h2>
+
+            <p>
+              Histórico retornado pela API do Pierre.
+            </p>
+
+          </div>
+
+
+          <div class="filters">
+
+            <label>
+
+              De
+
+              <input
+                type="date"
+                id="startDate"
+              >
+
+            </label>
+
+
+            <label>
+
+              Até
+
+              <input
+                type="date"
+                id="endDate"
+              >
+
+            </label>
+
+
             <button
-              class="link-btn"
-              data-go="transacoes">
-              Ver todas
+              class="primary"
+              id="filterBtn"
+            >
+              Filtrar
             </button>
 
           </div>
 
-          <div
-            id="recentTransactions"
-            class="transactions">
-          </div>
-
-        </article>
+        </div>
 
 
-        <article class="panel">
-
-          <div class="panel-head">
-
-            <div>
-              <h2>Gastos por categoria</h2>
-              <p>Somente débitos do período</p>
-            </div>
-
-          </div>
+        <div class="panel table-panel">
 
           <div
-            id="categoryChart"
-            class="category-chart">
+            id="transactionTable"
+            class="table-wrap"
+          ></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ================================================= -->
+      <!-- CONTAS FIXAS -->
+      <!-- ================================================= -->
+
+      <section
+        id="fixas"
+        class="section"
+      >
+
+        <div class="section-title">
+
+          <div>
+
+            <h2>
+              Contas fixas
+            </h2>
+
+            <p>
+              Cadastre uma vez e controle mês a mês.
+              Estes dados ficam salvos neste navegador.
+            </p>
+
           </div>
 
-        </article>
-
-      </div>
-
-    </section>
-
-
-    <!-- ========================= -->
-    <!-- CONTAS -->
-    <!-- ========================= -->
-
-    <section id="contas" class="section">
-
-      <div class="section-title">
-
-        <div>
-
-          <h2>Minhas contas</h2>
-
-          <p>
-            Contas e produtos financeiros encontrados pelo Pierre.
-          </p>
-
-        </div>
-
-      </div>
-
-      <div
-        id="accountsGrid"
-        class="accounts-grid">
-      </div>
-
-    </section>
-
-
-    <!-- ========================= -->
-    <!-- TRANSAÇÕES -->
-    <!-- ========================= -->
-
-    <section id="transacoes" class="section">
-
-      <div class="section-title">
-
-        <div>
-
-          <h2>Transações</h2>
-
-          <p>
-            Histórico retornado pela API do Pierre.
-          </p>
-
         </div>
 
 
-        <div class="filters">
-
-          <label>
-            De
-            <input
-              type="date"
-              id="startDate">
-          </label>
-
-          <label>
-            Até
-            <input
-              type="date"
-              id="endDate">
-          </label>
-
-          <button
-            class="primary"
-            id="filterBtn">
-            Filtrar
-          </button>
-
-        </div>
-
-      </div>
+        <div class="fixed-layout">
 
 
-      <div class="panel table-panel">
+          <!-- FORMULÁRIO -->
 
-        <div
-          id="transactionTable"
-          class="table-wrap">
-        </div>
+          <form
+            id="fixedForm"
+            class="panel form-panel"
+          >
 
-      </div>
-
-    </section>
-
-
-    <!-- ========================= -->
-    <!-- CONTAS FIXAS -->
-    <!-- ========================= -->
-
-    <section id="fixas" class="section">
-
-      <div class="section-title">
-
-        <div>
-
-          <h2>Contas fixas</h2>
-
-          <p>
-            Cadastre uma vez e controle mês a mês.
-            Estes dados ficam salvos neste navegador.
-          </p>
-
-        </div>
-
-      </div>
+            <h2>
+              Nova conta fixa
+            </h2>
 
 
-      <div class="fixed-layout">
+            <label>
+
+              Nome
+
+              <input
+                id="fixedName"
+                required
+                placeholder="Ex.: Internet"
+              >
+
+            </label>
 
 
-        <!-- FORMULÁRIO DE CONTA FIXA -->
+            <label>
 
-        <form
-          id="fixedForm"
-          class="panel form-panel">
+              Valor
 
-          <h2>Nova conta fixa</h2>
+              <input
+                id="fixedAmount"
+                required
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="120,00"
+              >
 
-
-          <label>
-            Nome
-
-            <input
-              id="fixedName"
-              required
-              placeholder="Ex.: Internet">
-          </label>
+            </label>
 
 
-          <label>
-            Valor
+            <label>
 
-            <input
-              id="fixedAmount"
-              required
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="120,00">
-          </label>
+              Dia do vencimento
 
+              <input
+                id="fixedDay"
+                required
+                type="number"
+                min="1"
+                max="31"
+                placeholder="10"
+              >
 
-          <label>
-            Dia do vencimento
-
-            <input
-              id="fixedDay"
-              required
-              type="number"
-              min="1"
-              max="31"
-              placeholder="10">
-          </label>
+            </label>
 
 
-          <label>
-            Categoria
+            <label>
 
-            <select id="fixedCategory">
+              Categoria
 
-              <option>Moradia</option>
+              <select id="fixedCategory">
 
-              <option>Contas</option>
+                <option>
+                  Moradia
+                </option>
 
-              <option>Educação</option>
+                <option>
+                  Contas
+                </option>
 
-              <option>Assinaturas</option>
+                <option>
+                  Educação
+                </option>
 
-              <option>Transporte</option>
+                <option>
+                  Assinaturas
+                </option>
 
-              <option>Outros</option>
+                <option>
+                  Transporte
+                </option>
 
-            </select>
+                <option>
+                  Outros
+                </option>
 
-          </label>
+              </select>
 
-
-          <button
-            class="primary"
-            type="submit">
-
-            Adicionar conta fixa
-
-          </button>
-
-        </form>
+            </label>
 
 
-        <!-- LISTA DE CONTAS FIXAS -->
+            <button
+              class="primary"
+              type="submit"
+            >
+              Adicionar conta fixa
+            </button>
 
-        <div class="panel">
+          </form>
 
-          <div class="panel-head">
 
-            <div>
+          <!-- LISTA -->
 
-              <h2>Minhas contas fixas</h2>
+          <div class="panel">
 
-              <p>
-                Você poderá marcar cada mês como paga posteriormente.
-              </p>
+            <div class="panel-head">
+
+              <div>
+
+                <h2>
+                  Minhas contas fixas
+                </h2>
+
+                <p>
+                  Você poderá marcar cada mês como paga posteriormente.
+                </p>
+
+              </div>
 
             </div>
 
+
+            <div
+              id="fixedList"
+              class="fixed-list"
+            ></div>
+
           </div>
 
+        </div>
 
-          <div
-            id="fixedList"
-            class="fixed-list">
+      </section>
+
+
+      <!-- ================================================= -->
+      <!-- CAIXINHAS -->
+      <!-- ================================================= -->
+
+      <section
+        id="caixinhas"
+        class="section"
+      >
+
+        <div class="section-title">
+
+          <div>
+
+            <h2>
+              Minhas caixinhas
+            </h2>
+
+            <p>
+              Organize seus objetivos e acompanhe quanto vocês já guardaram.
+            </p>
+
           </div>
 
         </div>
 
 
-      </div>
-
-    </section>
+        <div class="fixed-layout">
 
 
-    <!-- ========================= -->
-    <!-- CAIXINHAS -->
-    <!-- ========================= -->
+          <!-- FORMULÁRIO -->
 
-    <section id="caixinhas" class="section">
+          <form
+            id="caixinhaForm"
+            class="panel form-panel"
+          >
 
-      <div class="section-title">
-
-        <div>
-
-          <h2>Minhas caixinhas</h2>
-
-          <p>
-            Organize seus objetivos e acompanhe quanto vocês já guardaram.
-          </p>
-
-        </div>
-
-      </div>
+            <h2>
+              Nova caixinha
+            </h2>
 
 
-      <div class="fixed-layout">
+            <label>
+
+              Nome
+
+              <input
+                id="caixinhaNome"
+                type="text"
+                required
+                placeholder="Ex.: Reserva de emergência"
+              >
+
+            </label>
 
 
-        <!-- FORMULÁRIO DA CAIXINHA -->
+            <label>
 
-        <form
-          id="caixinhaForm"
-          class="panel form-panel">
+              Meta
 
-          <h2>Nova caixinha</h2>
+              <input
+                id="caixinhaMeta"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                placeholder="10000,00"
+              >
 
-
-          <label>
-            Nome
-
-            <input
-              id="caixinhaNome"
-              type="text"
-              required
-              placeholder="Ex.: Reserva de emergência">
-          </label>
+            </label>
 
 
-          <label>
-            Meta
+            <label>
 
-            <input
-              id="caixinhaMeta"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              placeholder="10000,00">
-          </label>
+              Descrição
 
+              <input
+                id="caixinhaDescricao"
+                type="text"
+                placeholder="Ex.: Dinheiro para o casamento"
+              >
 
-        
+            </label>
 
 
-          <label>
-            Descrição
+            <button
+              class="primary"
+              type="submit"
+            >
+              Criar caixinha
+            </button>
 
-            <input
-              id="caixinhaDescricao"
-              type="text"
-              placeholder="Ex.: Dinheiro para o casamento">
-          </label>
-
-
-          <button
-            class="primary"
-            type="submit">
-
-            Criar caixinha
-
-          </button>
-
-        </form>
+          </form>
 
 
-        <!-- LISTA DAS CAIXINHAS -->
+          <!-- LISTA -->
 
-        <div class="panel">
+          <div class="panel">
 
-          <div class="panel-head">
+            <div class="panel-head">
 
-            <div>
+              <div>
 
-              <h2>Minhas caixinhas</h2>
+                <h2>
+                  Minhas caixinhas
+                </h2>
 
-              <p>
-                Acompanhe o saldo e o progresso de cada objetivo.
-              </p>
+                <p>
+                  Acompanhe o saldo e o progresso de cada objetivo.
+                </p>
+
+              </div>
 
             </div>
 
-          </div>
 
+            <div
+              id="caixinhasList"
+              class="fixed-list"
+            ></div>
 
-          <div
-            id="caixinhasList"
-            class="fixed-list">
           </div>
 
         </div>
 
+      </section>
 
-      </div>
+    </main>
 
-    </section>
+  </div>
 
 
-  </main>
-
+  <!-- ===================================================== -->
+  <!-- TOAST -->
+  <!-- ===================================================== -->
 
   <div
     id="toast"
-    class="toast">
-  </div>
+    class="toast"
+  ></div>
 
+
+  <!-- ===================================================== -->
+  <!-- JAVASCRIPT -->
+  <!-- ===================================================== -->
 
   <script src="/app.js"></script>
 

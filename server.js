@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 
 const { createClient } = require("@supabase/supabase-js");
 
@@ -17,46 +18,624 @@ const PIERRE_API_URL =
   "https://www.pierre.finance/tools/api";
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+
+app.use(
+  express.static(
+    path.join(__dirname, "public")
+  )
+);
+
+// ==========================================
+// AUTENTICAÇÃO
+// ==========================================
+
+const sessoes = new Map();
+
+const TEMPO_SESSAO =
+  1000 * 60 * 60 * 24 * 7;
+
+function gerarTokenSessao() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function obterTokenDaRequisicao(req) {
+  const autorizacao =
+    req.headers.authorization || "";
+
+  if (
+    autorizacao.startsWith("Bearer ")
+  ) {
+    return autorizacao
+      .slice(7)
+      .trim();
+  }
+
+  return null;
+}
+
+// ==========================================
+// VERIFICAR USUÁRIO ADMIN
+// ==========================================
+
+async function verificarUsuarioAdmin(token) {
+  if (!token) {
+    return {
+      autorizado: false,
+      erro:
+        "Usuário não autenticado.",
+    };
+  }
+
+  const sessao =
+    sessoes.get(token);
+
+  if (!sessao) {
+    return {
+      autorizado: false,
+      erro:
+        "Sessão inválida ou expirada.",
+    };
+  }
+
+  if (
+    Date.now() >
+    sessao.expiraEm
+  ) {
+    sessoes.delete(token);
+
+    return {
+      autorizado: false,
+      erro:
+        "Sessão expirada.",
+    };
+  }
+
+  try {
+    const {
+      data: {
+        user,
+      },
+      error:
+        erroUsuario,
+    } =
+      await supabase.auth.getUser(
+        sessao.accessToken
+      );
+
+    if (
+      erroUsuario ||
+      !user
+    ) {
+      sessoes.delete(token);
+
+      return {
+        autorizado: false,
+        erro:
+          "Usuário não autenticado.",
+      };
+    }
+
+    // ==========================================
+    // PERFIL
+    // ==========================================
+
+    const {
+      data: perfil,
+      error:
+        erroPerfil,
+    } =
+      await supabase
+        .from("perfis")
+        .select(
+          "id, nome, tipo, ativo"
+        )
+        .eq(
+          "id",
+          user.id
+        )
+        .maybeSingle();
+
+    if (
+      erroPerfil
+    ) {
+      console.error(
+        "Erro ao consultar perfil:",
+        erroPerfil.message
+      );
+
+      return {
+        autorizado: false,
+        erro:
+          "Não foi possível verificar o perfil.",
+      };
+    }
+
+    if (!perfil) {
+      return {
+        autorizado: false,
+        erro:
+          "Usuário sem perfil autorizado.",
+      };
+    }
+
+    if (
+      perfil.ativo !== true
+    ) {
+      return {
+        autorizado: false,
+        erro:
+          "Este usuário está inativo.",
+      };
+    }
+
+    // ==========================================
+    // VERIFICAR ADMIN
+    // ==========================================
+
+    const tipoPerfil =
+      String(
+        perfil.tipo || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      tipoPerfil !== "ADMIN" &&
+      tipoPerfil !==
+        "ADMINISTRADOR"
+    ) {
+      return {
+        autorizado: false,
+        erro:
+          "Acesso permitido somente para administradores.",
+      };
+    }
+
+    return {
+      autorizado: true,
+
+      user,
+
+      perfil,
+    };
+
+  } catch (erro) {
+
+    console.error(
+      "Erro ao verificar usuário:",
+      erro.message
+    );
+
+    return {
+      autorizado: false,
+      erro:
+        "Erro ao validar autenticação.",
+    };
+  }
+}
+
+// ==========================================
+// MIDDLEWARE DE AUTENTICAÇÃO
+// ==========================================
+
+async function exigirAdmin(
+  req,
+  res,
+  next
+) {
+  const token =
+    obterTokenDaRequisicao(req);
+
+  const resultado =
+    await verificarUsuarioAdmin(
+      token
+    );
+
+  if (
+    !resultado.autorizado
+  ) {
+    return res
+      .status(401)
+      .json({
+        sucesso: false,
+        erro:
+          resultado.erro ||
+          "Não autorizado.",
+      });
+  }
+
+  req.usuario =
+    resultado.user;
+
+  req.perfil =
+    resultado.perfil;
+
+  req.tokenSessao =
+    token;
+
+  next();
+}
+
+// ==========================================
+// LOGIN
+// ==========================================
+
+app.post(
+  "/api/auth/login",
+  async (req, res) => {
+    try {
+
+      const {
+        email,
+        senha,
+      } = req.body;
+
+      if (
+        !email ||
+        !senha
+      ) {
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
+            erro:
+              "E-mail e senha são obrigatórios.",
+          });
+      }
+
+      const emailNormalizado =
+        String(email)
+          .trim()
+          .toLowerCase();
+
+      // ==========================================
+      // AUTENTICAR NO SUPABASE
+      // ==========================================
+
+      const {
+        data,
+        error,
+      } =
+        await supabase.auth
+          .signInWithPassword({
+            email:
+              emailNormalizado,
+
+            password:
+              senha,
+          });
+
+      if (
+        error ||
+        !data?.user ||
+        !data?.session
+      ) {
+        console.error(
+          "ERRO REAL DO SUPABASE:",
+          error?.message ||
+            "Sem detalhes"
+        );
+
+        console.error(
+          "CÓDIGO DO SUPABASE:",
+          error?.code ||
+            "Sem código"
+        );
+
+        return res
+          .status(401)
+          .json({
+            sucesso: false,
+            erro:
+              "E-mail ou senha inválidos.",
+          });
+      }
+
+      // ==========================================
+      // VERIFICAR PERFIL
+      // ==========================================
+
+      const {
+        data: perfil,
+        error:
+          erroPerfil,
+      } =
+        await supabase
+          .from("perfis")
+          .select(
+            "id, nome, tipo, ativo"
+          )
+          .eq(
+            "id",
+            data.user.id
+          )
+          .maybeSingle();
+
+      if (
+        erroPerfil
+      ) {
+        console.error(
+          "Erro ao consultar perfil:",
+          erroPerfil.message
+        );
+
+        await supabase.auth.signOut();
+
+        return res
+          .status(500)
+          .json({
+            sucesso: false,
+            erro:
+              "Erro ao verificar o perfil do usuário.",
+          });
+      }
+
+      if (!perfil) {
+
+        await supabase.auth.signOut();
+
+        return res
+          .status(403)
+          .json({
+            sucesso: false,
+            erro:
+              "Usuário autenticado, mas sem perfil autorizado.",
+          });
+      }
+
+      if (
+        perfil.ativo !== true
+      ) {
+
+        await supabase.auth.signOut();
+
+        return res
+          .status(403)
+          .json({
+            sucesso: false,
+            erro:
+              "Este usuário está inativo.",
+          });
+      }
+
+      const tipoPerfil =
+        String(
+          perfil.tipo || ""
+        )
+          .trim()
+          .toUpperCase();
+
+      if (
+        tipoPerfil !== "ADMIN" &&
+        tipoPerfil !==
+          "ADMINISTRADOR"
+      ) {
+
+        await supabase.auth.signOut();
+
+        return res
+          .status(403)
+          .json({
+            sucesso: false,
+            erro:
+              "Acesso permitido somente para administradores.",
+          });
+      }
+
+      // ==========================================
+      // CRIAR SESSÃO DO NOSSO APP
+      // ==========================================
+
+      const tokenSessao =
+        gerarTokenSessao();
+
+      sessoes.set(
+        tokenSessao,
+        {
+          accessToken:
+            data.session
+              .access_token,
+
+          userId:
+            data.user.id,
+
+          expiraEm:
+            Date.now() +
+            TEMPO_SESSAO,
+        }
+      );
+
+      res.json({
+        sucesso: true,
+
+        mensagem:
+          "Login realizado com sucesso.",
+
+        token:
+          tokenSessao,
+
+        usuario: {
+          id:
+            data.user.id,
+
+          email:
+            data.user.email,
+
+          nome:
+            perfil.nome ||
+            data.user.email,
+
+          // Mantemos "role" na resposta
+          // para não quebrar o app.js.
+          role:
+            perfil.tipo,
+
+          ativo:
+            perfil.ativo,
+        },
+      });
+
+    } catch (erro) {
+
+      console.error(
+        "Erro no login:",
+        erro.message
+      );
+
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            "Erro interno ao realizar login.",
+        });
+    }
+  }
+);
+
+// ==========================================
+// VERIFICAR LOGIN
+// ==========================================
+
+app.get(
+  "/api/auth/me",
+  exigirAdmin,
+  async (req, res) => {
+    res.json({
+      sucesso: true,
+
+      autenticado: true,
+
+      usuario: {
+        id:
+          req.usuario.id,
+
+        email:
+          req.usuario.email,
+
+        nome:
+          req.perfil.nome ||
+          req.usuario.email,
+
+        // Mantemos "role" para
+        // compatibilidade com o frontend.
+        role:
+          req.perfil.tipo,
+
+        ativo:
+          req.perfil.ativo,
+      },
+    });
+  }
+);
+
+// ==========================================
+// LOGOUT
+// ==========================================
+
+app.post(
+  "/api/auth/logout",
+  async (req, res) => {
+    try {
+
+      const token =
+        obterTokenDaRequisicao(req);
+
+      const sessao =
+        token
+          ? sessoes.get(token)
+          : null;
+
+      if (sessao) {
+        sessoes.delete(token);
+
+        try {
+          await supabase.auth.signOut({
+            scope: "local",
+          });
+        } catch (erro) {
+          console.warn(
+            "Aviso ao encerrar sessão do Supabase:",
+            erro.message
+          );
+        }
+      }
+
+      res.json({
+        sucesso: true,
+
+        mensagem:
+          "Sessão encerrada.",
+      });
+
+    } catch (erro) {
+
+      console.error(
+        "Erro ao fazer logout:",
+        erro.message
+      );
+
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            "Erro ao encerrar sessão.",
+        });
+    }
+  }
+);
 
 // ==========================================
 // CONEXÃO COM A API DO PIERRE
 // ==========================================
 
-async function pierreRequest(endpoint, params = {}) {
-  if (!process.env.PIERRE_API_KEY) {
+async function pierreRequest(
+  endpoint,
+  params = {}
+) {
+  if (
+    !process.env.PIERRE_API_KEY
+  ) {
     throw new Error(
       "PIERRE_API_KEY não encontrada no arquivo .env"
     );
   }
 
-  const url = new URL(
-    `${PIERRE_API_URL}/${endpoint}`
-  );
+  const url =
+    new URL(
+      `${PIERRE_API_URL}/${endpoint}`
+    );
 
-  Object.entries(params).forEach(
-    ([chave, valor]) => {
-      if (
-        valor !== undefined &&
-        valor !== null &&
-        valor !== ""
-      ) {
-        url.searchParams.set(
-          chave,
-          valor
-        );
+  Object.entries(params)
+    .forEach(
+      ([chave, valor]) => {
+        if (
+          valor !==
+            undefined &&
+          valor !== null &&
+          valor !== ""
+        ) {
+          url.searchParams.set(
+            chave,
+            valor
+          );
+        }
       }
-    }
-  );
+    );
 
-  const resposta = await fetch(url, {
-    method: "GET",
+  const resposta =
+    await fetch(
+      url,
+      {
+        method: "GET",
 
-    headers: {
-      Authorization:
-        `Bearer ${process.env.PIERRE_API_KEY}`,
-    },
-  });
+        headers: {
+          Authorization:
+            `Bearer ${process.env.PIERRE_API_KEY}`,
+        },
+      }
+    );
 
   const dados =
     await resposta.json();
@@ -76,10 +655,17 @@ async function pierreRequest(endpoint, params = {}) {
 // NORMALIZAR TEXTO
 // ==========================================
 
-function normalizarTexto(texto) {
-  return String(texto || "")
+function normalizarTexto(
+  texto
+) {
+  return String(
+    texto || ""
+  )
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
     .toLowerCase()
     .trim();
 }
@@ -90,43 +676,54 @@ function normalizarTexto(texto) {
 
 app.get(
   "/api/accounts",
+  exigirAdmin,
   async (req, res) => {
     try {
+
       const dados =
         await pierreRequest(
           "get-accounts"
         );
 
       const registros =
-        Array.isArray(dados.data)
+        Array.isArray(
+          dados.data
+        )
           ? dados.data
           : [];
 
       const contasBancarias =
         registros.filter(
           (conta) =>
-            conta.type === "BANK" &&
-            conta.itemIsActive !== false
+            conta.type ===
+              "BANK" &&
+            conta.itemIsActive !==
+              false
         );
 
       const cartoes =
         registros.filter(
           (conta) =>
-            conta.type === "CREDIT" &&
-            conta.itemIsActive !== false
+            conta.type ===
+              "CREDIT" &&
+            conta.itemIsActive !==
+              false
         );
 
       const investimentos =
         registros.filter(
           (conta) =>
-            conta.type === "INVESTMENT" &&
-            conta.itemIsActive !== false
+            conta.type ===
+              "INVESTMENT" &&
+            conta.itemIsActive !==
+              false
         );
 
       const contas =
         contasBancarias.map(
           (conta) => ({
-            id: conta.id,
+            id:
+              conta.id,
 
             nome:
               conta.customName ||
@@ -155,19 +752,22 @@ app.get(
               "BRL",
 
             ativa:
-              conta.itemIsActive !== false,
+              conta.itemIsActive !==
+              false,
           })
         );
 
       const cartoesFormatados =
         cartoes.map(
           (cartao) => {
+
             const credito =
               cartao.creditData ||
               {};
 
             return {
-              id: cartao.id,
+              id:
+                cartao.id,
 
               nome:
                 cartao.customName ||
@@ -218,7 +818,8 @@ app.get(
                 null,
 
               ativa:
-                cartao.itemIsActive !== false,
+                cartao.itemIsActive !==
+                false,
             };
           }
         );
@@ -261,14 +862,16 @@ app.get(
       const saldoTotalContas =
         contas.reduce(
           (total, conta) =>
-            total + conta.saldo,
+            total +
+            conta.saldo,
           0
         );
 
       const limiteTotal =
         cartoesFormatados.reduce(
           (total, cartao) =>
-            total + cartao.limite,
+            total +
+            cartao.limite,
           0
         );
 
@@ -283,7 +886,8 @@ app.get(
       const saldoCartoes =
         cartoesFormatados.reduce(
           (total, cartao) =>
-            total + cartao.saldo,
+            total +
+            cartao.saldo,
           0
         );
 
@@ -334,10 +938,13 @@ app.get(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro: erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
@@ -348,8 +955,10 @@ app.get(
 
 app.get(
   "/api/transactions",
+  exigirAdmin,
   async (req, res) => {
     try {
+
       const hoje =
         new Date();
 
@@ -357,7 +966,8 @@ app.get(
         new Date(hoje);
 
       tresMesesAtras.setMonth(
-        tresMesesAtras.getMonth() - 3
+        tresMesesAtras.getMonth() -
+          3
       );
 
       const dataInicio =
@@ -388,7 +998,9 @@ app.get(
         );
 
       const transacoes =
-        Array.isArray(dados.data)
+        Array.isArray(
+          dados.data
+        )
           ? dados.data
           : [];
 
@@ -464,22 +1076,27 @@ app.get(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro: erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
 
 // ==========================================
-// DEBUG - VER DADOS BRUTOS DO PIERRE
+// DEBUG - TRANSAÇÕES
 // ==========================================
 
 app.get(
   "/api/debug/transacoes",
+  exigirAdmin,
   async (req, res) => {
     try {
+
       const hoje =
         new Date();
 
@@ -487,7 +1104,8 @@ app.get(
         new Date(hoje);
 
       tresMesesAtras.setMonth(
-        tresMesesAtras.getMonth() - 3
+        tresMesesAtras.getMonth() -
+          3
       );
 
       const dados =
@@ -534,10 +1152,13 @@ app.get(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro: erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
@@ -569,10 +1190,13 @@ app.get(
 
     } catch (erro) {
 
-      res.status(500).json({
-        conectado: false,
-        erro: erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          conectado: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
@@ -583,21 +1207,24 @@ app.get(
 
 app.get(
   "/api/caixinhas",
+  exigirAdmin,
   async (req, res) => {
     try {
 
       const {
         data,
         error,
-      } = await supabase
-        .from("caixinhas")
-        .select("*")
-        .order(
-          "created_at",
-          {
-            ascending: false,
-          }
-        );
+      } =
+        await supabase
+          .from("caixinhas")
+          .select("*")
+          .order(
+            "created_at",
+            {
+              ascending:
+                false,
+            }
+          );
 
       if (error) {
         throw error;
@@ -605,7 +1232,8 @@ app.get(
 
       res.json({
         sucesso: true,
-        caixinhas: data,
+        caixinhas:
+          data,
       });
 
     } catch (erro) {
@@ -615,10 +1243,13 @@ app.get(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro: erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
@@ -629,6 +1260,7 @@ app.get(
 
 app.post(
   "/api/caixinhas",
+  exigirAdmin,
   async (req, res) => {
     try {
 
@@ -643,11 +1275,13 @@ app.post(
         !nome ||
         nome.trim() === ""
       ) {
-        return res.status(400).json({
-          sucesso: false,
-          erro:
-            "O nome da caixinha é obrigatório.",
-        });
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
+            erro:
+              "O nome da caixinha é obrigatório.",
+          });
       }
 
       const metaNumerica =
@@ -662,11 +1296,13 @@ app.post(
         ) ||
         metaNumerica <= 0
       ) {
-        return res.status(400).json({
-          sucesso: false,
-          erro:
-            "A meta deve ser maior que zero.",
-        });
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
+            erro:
+              "A meta deve ser maior que zero.",
+          });
       }
 
       if (
@@ -675,50 +1311,55 @@ app.post(
         ) ||
         saldoNumerico < 0
       ) {
-        return res.status(400).json({
-          sucesso: false,
-          erro:
-            "O saldo inicial não pode ser negativo.",
-        });
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
+            erro:
+              "O saldo inicial não pode ser negativo.",
+          });
       }
 
       const {
         data,
         error,
-      } = await supabase
-        .from("caixinhas")
-        .insert([
-          {
-            nome:
-              nome.trim(),
+      } =
+        await supabase
+          .from("caixinhas")
+          .insert([
+            {
+              nome:
+                nome.trim(),
 
-            meta:
-              metaNumerica,
+              meta:
+                metaNumerica,
 
-            saldo:
-              saldoNumerico,
+              saldo:
+                saldoNumerico,
 
-            descricao:
-              descricao?.trim() ||
-              null,
-          },
-        ])
-        .select()
-        .single();
+              descricao:
+                descricao?.trim() ||
+                null,
+            },
+          ])
+          .select()
+          .single();
 
       if (error) {
         throw error;
       }
 
-      res.status(201).json({
-        sucesso: true,
+      res
+        .status(201)
+        .json({
+          sucesso: true,
 
-        mensagem:
-          "Caixinha criada com sucesso.",
+          mensagem:
+            "Caixinha criada com sucesso.",
 
-        caixinha:
-          data,
-      });
+          caixinha:
+            data,
+        });
 
     } catch (erro) {
 
@@ -727,10 +1368,13 @@ app.post(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro: erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
@@ -741,6 +1385,7 @@ app.post(
 
 app.post(
   "/api/caixinhas/:id/movimentacoes",
+  exigirAdmin,
   async (req, res) => {
     try {
 
@@ -753,12 +1398,17 @@ app.post(
         descricao,
       } = req.body;
 
-      if (!tipo || !valor) {
-        return res.status(400).json({
-          sucesso: false,
-          erro:
-            "Tipo e valor são obrigatórios.",
-        });
+      if (
+        !tipo ||
+        !valor
+      ) {
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
+            erro:
+              "Tipo e valor são obrigatórios.",
+          });
       }
 
       const tiposPermitidos = [
@@ -771,11 +1421,13 @@ app.post(
           tipo
         )
       ) {
-        return res.status(400).json({
-          sucesso: false,
-          erro:
-            "Tipo de movimentação inválido. Use ENTRADA ou SAIDA.",
-        });
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
+            erro:
+              "Tipo de movimentação inválido. Use ENTRADA ou SAIDA.",
+          });
       }
 
       const valorNumerico =
@@ -787,35 +1439,41 @@ app.post(
         ) ||
         valorNumerico <= 0
       ) {
-        return res.status(400).json({
-          sucesso: false,
-          erro:
-            "O valor deve ser maior que zero.",
-        });
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
+            erro:
+              "O valor deve ser maior que zero.",
+          });
       }
 
       const {
         data: caixinha,
-        error: erroCaixinha,
-      } = await supabase
-        .from("caixinhas")
-        .select(
-          "id, saldo"
-        )
-        .eq(
-          "id",
-          id
-        )
-        .single();
+        error:
+          erroCaixinha,
+      } =
+        await supabase
+          .from("caixinhas")
+          .select(
+            "id, saldo"
+          )
+          .eq(
+            "id",
+            id
+          )
+          .single();
 
       if (
         erroCaixinha
       ) {
-        return res.status(404).json({
-          sucesso: false,
-          erro:
-            "Caixinha não encontrada.",
-        });
+        return res
+          .status(404)
+          .json({
+            sucesso: false,
+            erro:
+              "Caixinha não encontrada.",
+          });
       }
 
       const saldoAtual =
@@ -840,61 +1498,66 @@ app.post(
       if (
         novoSaldo < 0
       ) {
-        return res.status(400).json({
-          sucesso: false,
-          erro:
-            "A caixinha não possui saldo suficiente para essa saída.",
-        });
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
+            erro:
+              "A caixinha não possui saldo suficiente para essa saída.",
+          });
       }
 
       const {
         data,
         error,
-      } = await supabase
-        .from(
-          "movimentacoes_caixinhas"
-        )
-        .insert([
-          {
-            caixinha_id:
-              caixinha.id,
+      } =
+        await supabase
+          .from(
+            "movimentacoes_caixinhas"
+          )
+          .insert([
+            {
+              caixinha_id:
+                caixinha.id,
 
-            tipo,
+              tipo,
 
-            valor:
-              valorNumerico,
+              valor:
+                valorNumerico,
 
-            descricao:
-              descricao?.trim() ||
-              null,
-          },
-        ])
-        .select()
-        .single();
+              descricao:
+                descricao?.trim() ||
+                null,
+            },
+          ])
+          .select()
+          .single();
 
       if (error) {
         throw error;
       }
 
       const {
-        data: caixinhaAtualizada,
+        data:
+          caixinhaAtualizada,
         error:
           erroAtualizacao,
-      } = await supabase
-        .from("caixinhas")
-        .update({
-          saldo:
-            novoSaldo,
+      } =
+        await supabase
+          .from("caixinhas")
+          .update({
+            saldo:
+              novoSaldo,
 
-          updated_at:
-            new Date().toISOString(),
-        })
-        .eq(
-          "id",
-          id
-        )
-        .select()
-        .single();
+            updated_at:
+              new Date().toISOString(),
+          })
+          .eq(
+            "id",
+            id
+          )
+          .select()
+          .single();
 
       if (
         erroAtualizacao
@@ -902,18 +1565,20 @@ app.post(
         throw erroAtualizacao;
       }
 
-      res.status(201).json({
-        sucesso: true,
+      res
+        .status(201)
+        .json({
+          sucesso: true,
 
-        mensagem:
-          "Movimentação registrada com sucesso.",
+          mensagem:
+            "Movimentação registrada com sucesso.",
 
-        movimentacao:
-          data,
+          movimentacao:
+            data,
 
-        caixinha:
-          caixinhaAtualizada,
-      });
+          caixinha:
+            caixinhaAtualizada,
+        });
 
     } catch (erro) {
 
@@ -922,10 +1587,13 @@ app.post(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro: erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
@@ -936,6 +1604,7 @@ app.post(
 
 app.post(
   "/api/caixinhas/sincronizar",
+  exigirAdmin,
   async (req, res) => {
     try {
 
@@ -943,18 +1612,16 @@ app.post(
         "🔄 Iniciando sincronização das caixinhas..."
       );
 
-      // ==========================================
-      // BUSCAR CAIXINHAS
-      // ==========================================
-
       const {
         data: caixinhas,
-        error: erroCaixinhas,
-      } = await supabase
-        .from("caixinhas")
-        .select(
-          "id, nome, saldo"
-        );
+        error:
+          erroCaixinhas,
+      } =
+        await supabase
+          .from("caixinhas")
+          .select(
+            "id, nome, saldo"
+          );
 
       if (
         erroCaixinhas
@@ -982,35 +1649,30 @@ app.post(
         `📦 ${caixinhas.length} caixinhas encontradas.`
       );
 
-      // ==========================================
-      // CONTROLE DE SINCRONIZAÇÃO
-      // ==========================================
-
       let {
         data:
           controleSincronizacao,
         error:
           erroControle,
-      } = await supabase
-        .from("sincronizacoes")
-        .select(
-          "id, ultima_sincronizacao"
-        )
-        .eq(
-          "id",
-          1
-        )
-        .maybeSingle();
+      } =
+        await supabase
+          .from(
+            "sincronizacoes"
+          )
+          .select(
+            "id, ultima_sincronizacao"
+          )
+          .eq(
+            "id",
+            1
+          )
+          .maybeSingle();
 
       if (
         erroControle
       ) {
         throw erroControle;
       }
-
-      // ==========================================
-      // CRIAR CONTROLE SE NÃO EXISTIR
-      // ==========================================
 
       if (
         !controleSincronizacao
@@ -1021,17 +1683,21 @@ app.post(
             novoControle,
           error:
             erroCriarControle,
-        } = await supabase
-          .from("sincronizacoes")
-          .insert([
-            {
-              id: 1,
-              ultima_sincronizacao:
-                null,
-            },
-          ])
-          .select()
-          .single();
+        } =
+          await supabase
+            .from(
+              "sincronizacoes"
+            )
+            .insert([
+              {
+                id: 1,
+
+                ultima_sincronizacao:
+                  null,
+              },
+            ])
+            .select()
+            .single();
 
         if (
           erroCriarControle
@@ -1043,24 +1709,15 @@ app.post(
           novoControle;
       }
 
-      // ==========================================
-      // DATA ATUAL
-      // ==========================================
-
       const agora =
         new Date();
 
-      // ==========================================
-      // BUSCAR ÚLTIMOS 3 DIAS
-      // ==========================================
-
       const dataInicio =
-        new Date(
-          agora
-        );
+        new Date(agora);
 
       dataInicio.setDate(
-        dataInicio.getDate() - 3
+        dataInicio.getDate() -
+          3
       );
 
       const dataInicioFormatada =
@@ -1079,10 +1736,6 @@ app.post(
         "até",
         dataFimFormatada
       );
-
-      // ==========================================
-      // BUSCAR TRANSAÇÕES
-      // ==========================================
 
       const respostaPierre =
         await pierreRequest(
@@ -1110,36 +1763,21 @@ app.post(
         `📊 ${transacoes.length} transações encontradas.`
       );
 
-      // ==========================================
-      // RESULTADOS
-      // ==========================================
-
       const sincronizadas =
         [];
 
       const ignoradas =
         [];
 
-      // ==========================================
-      // PROCESSAR CADA TRANSAÇÃO
-      // ==========================================
-
       for (
-        const transacao of transacoes
+        const transacao of
+          transacoes
       ) {
-
-        // ==========================================
-        // ID
-        // ==========================================
 
         const transacaoId =
           transacao.id ||
           transacao.transaction_id ||
           transacao.transactionId;
-
-        // ==========================================
-        // DESCRIÇÃO
-        // ==========================================
 
         const descricao =
           String(
@@ -1148,33 +1786,20 @@ app.post(
             ""
           ).trim();
 
-        // ==========================================
-        // TIPO
-        // ==========================================
-
         const tipoPierre =
           String(
             transacao.type ||
             ""
           ).toUpperCase();
 
-        // ==========================================
-        // VALOR
-        // ==========================================
-
         const valorOriginal =
           Number(
             transacao.amount
           );
 
-        // ==========================================
-        // VALIDAÇÃO
-        // ==========================================
-
         if (
           !transacaoId
         ) {
-
           ignoradas.push({
             motivo:
               "Transação sem ID.",
@@ -1188,7 +1813,6 @@ app.post(
         if (
           !descricao
         ) {
-
           ignoradas.push({
             transacao_id:
               transacaoId,
@@ -1206,7 +1830,6 @@ app.post(
           ) ||
           valorOriginal === 0
         ) {
-
           ignoradas.push({
             transacao_id:
               transacaoId,
@@ -1220,29 +1843,26 @@ app.post(
           continue;
         }
 
-        // ==========================================
-        // VERIFICAR DUPLICIDADE
-        // ==========================================
-
         const {
           data:
             movimentacaoExistente,
           error:
             erroMovimentacaoExistente,
-        } = await supabase
-          .from(
-            "movimentacoes_caixinhas"
-          )
-          .select(
-            "id"
-          )
-          .eq(
-            "transacao_pierre_id",
-            String(
-              transacaoId
+        } =
+          await supabase
+            .from(
+              "movimentacoes_caixinhas"
             )
-          )
-          .maybeSingle();
+            .select(
+              "id"
+            )
+            .eq(
+              "transacao_pierre_id",
+              String(
+                transacaoId
+              )
+            )
+            .maybeSingle();
 
         if (
           erroMovimentacaoExistente
@@ -1253,7 +1873,6 @@ app.post(
         if (
           movimentacaoExistente
         ) {
-
           ignoradas.push({
             transacao_id:
               transacaoId,
@@ -1266,10 +1885,6 @@ app.post(
 
           continue;
         }
-
-        // ==========================================
-        // PROCURAR CAIXINHA
-        // ==========================================
 
         const descricaoNormalizada =
           normalizarTexto(
@@ -1302,14 +1917,9 @@ app.post(
             }
           );
 
-        // ==========================================
-        // NÃO ENCONTROU CAIXINHA
-        // ==========================================
-
         if (
           !caixinhaEncontrada
         ) {
-
           ignoradas.push({
             transacao_id:
               transacaoId,
@@ -1340,27 +1950,12 @@ app.post(
           descricao
         );
 
-        // ==========================================
-        // DEFINIR TIPO
-        // ==========================================
-
-        /*
-          DEBIT:
-          dinheiro saiu da conta bancária
-          e entrou na caixinha.
-
-          CREDIT:
-          dinheiro entrou na conta bancária
-          e saiu da caixinha.
-        */
-
         let tipoMovimentacao;
 
         if (
           tipoPierre ===
           "DEBIT"
         ) {
-
           tipoMovimentacao =
             "ENTRADA";
 
@@ -1368,12 +1963,10 @@ app.post(
           tipoPierre ===
           "CREDIT"
         ) {
-
           tipoMovimentacao =
             "SAIDA";
 
         } else {
-
           ignoradas.push({
             transacao_id:
               transacaoId,
@@ -1389,23 +1982,15 @@ app.post(
           continue;
         }
 
-        // ==========================================
-        // VALOR ABSOLUTO
-        // ==========================================
-
         const valor =
           Math.abs(
             valorOriginal
           );
 
-        // ==========================================
-        // SALDO ATUAL
-        // ==========================================
-
         const saldoAtual =
           Number(
             caixinhaEncontrada.saldo ||
-            0
+              0
           );
 
         let novoSaldo;
@@ -1414,26 +1999,18 @@ app.post(
           tipoMovimentacao ===
           "ENTRADA"
         ) {
-
           novoSaldo =
             saldoAtual +
             valor;
-
         } else {
-
           novoSaldo =
             saldoAtual -
             valor;
         }
 
-        // ==========================================
-        // IMPEDIR SALDO NEGATIVO
-        // ==========================================
-
         if (
           novoSaldo < 0
         ) {
-
           ignoradas.push({
             transacao_id:
               transacaoId,
@@ -1451,10 +2028,6 @@ app.post(
 
           continue;
         }
-
-        // ==========================================
-        // INSERIR MOVIMENTAÇÃO
-        // ==========================================
 
         console.log(
           "➡️ TENTANDO SINCRONIZAR:",
@@ -1478,31 +2051,32 @@ app.post(
             movimentacao,
           error:
             erroInsercao,
-        } = await supabase
-          .from(
-            "movimentacoes_caixinhas"
-          )
-          .insert([
-            {
-              caixinha_id:
-                caixinhaEncontrada.id,
+        } =
+          await supabase
+            .from(
+              "movimentacoes_caixinhas"
+            )
+            .insert([
+              {
+                caixinha_id:
+                  caixinhaEncontrada.id,
 
-              tipo:
-                tipoMovimentacao,
+                tipo:
+                  tipoMovimentacao,
 
-              valor,
+                valor,
 
-              descricao:
-                `Pierre: ${descricao}`,
+                descricao:
+                  `Pierre: ${descricao}`,
 
-              transacao_pierre_id:
-                String(
-                  transacaoId
-                ),
-            },
-          ])
-          .select()
-          .single();
+                transacao_pierre_id:
+                  String(
+                    transacaoId
+                  ),
+              },
+            ])
+            .select()
+            .single();
 
         if (
           erroInsercao
@@ -1512,7 +2086,6 @@ app.post(
             erroInsercao.code ===
             "23505"
           ) {
-
             ignoradas.push({
               transacao_id:
                 transacaoId,
@@ -1529,32 +2102,29 @@ app.post(
           throw erroInsercao;
         }
 
-        // ==========================================
-        // ATUALIZAR SALDO
-        // ==========================================
-
         const {
           data:
             caixinhaAtualizada,
           error:
             erroAtualizacao,
-        } = await supabase
-          .from(
-            "caixinhas"
-          )
-          .update({
-            saldo:
-              novoSaldo,
+        } =
+          await supabase
+            .from(
+              "caixinhas"
+            )
+            .update({
+              saldo:
+                novoSaldo,
 
-            updated_at:
-              new Date().toISOString(),
-          })
-          .eq(
-            "id",
-            caixinhaEncontrada.id
-          )
-          .select()
-          .single();
+              updated_at:
+                new Date().toISOString(),
+            })
+            .eq(
+              "id",
+              caixinhaEncontrada.id
+            )
+            .select()
+            .single();
 
         if (
           erroAtualizacao
@@ -1562,19 +2132,11 @@ app.post(
           throw erroAtualizacao;
         }
 
-        // ==========================================
-        // ATUALIZAR MEMÓRIA
-        // ==========================================
-
         caixinhaEncontrada.saldo =
           Number(
             caixinhaAtualizada.saldo ||
-            0
+              0
           );
-
-        // ==========================================
-        // REGISTRAR SUCESSO
-        // ==========================================
 
         sincronizadas.push({
           transacao_id:
@@ -1598,35 +2160,28 @@ app.post(
         });
       }
 
-      // ==========================================
-      // ATUALIZAR ÚLTIMA SINCRONIZAÇÃO
-      // ==========================================
-
       const {
         error:
           erroSalvarSincronizacao,
-      } = await supabase
-        .from(
-          "sincronizacoes"
-        )
-        .update({
-          ultima_sincronizacao:
-            agora.toISOString(),
-        })
-        .eq(
-          "id",
-          1
-        );
+      } =
+        await supabase
+          .from(
+            "sincronizacoes"
+          )
+          .update({
+            ultima_sincronizacao:
+              agora.toISOString(),
+          })
+          .eq(
+            "id",
+            1
+          );
 
       if (
         erroSalvarSincronizacao
       ) {
         throw erroSalvarSincronizacao;
       }
-
-      // ==========================================
-      // LOG FINAL
-      // ==========================================
 
       console.log(
         `✅ ${sincronizadas.length} movimentações sincronizadas.`
@@ -1635,10 +2190,6 @@ app.post(
       console.log(
         `⚠️ ${ignoradas.length} movimentações ignoradas.`
       );
-
-      // ==========================================
-      // RESPOSTA
-      // ==========================================
 
       res.json({
         sucesso:
@@ -1679,11 +2230,13 @@ app.post(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro:
-          erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
@@ -1694,6 +2247,7 @@ app.post(
 
 app.post(
   "/api/caixinhas/:id/rendimento",
+  exigirAdmin,
   async (req, res) => {
     try {
 
@@ -1714,85 +2268,79 @@ app.post(
         ) ||
         valorNumerico <= 0
       ) {
-        return res.status(400).json({
-          sucesso: false,
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
 
-          erro:
-            "O valor do rendimento deve ser maior que zero.",
-        });
+            erro:
+              "O valor do rendimento deve ser maior que zero.",
+          });
       }
-
-      // ==========================================
-      // BUSCAR CAIXINHA
-      // ==========================================
 
       const {
         data: caixinha,
         error:
           erroCaixinha,
-      } = await supabase
-        .from(
-          "caixinhas"
-        )
-        .select(
-          "id, nome, saldo"
-        )
-        .eq(
-          "id",
-          id
-        )
-        .single();
+      } =
+        await supabase
+          .from(
+            "caixinhas"
+          )
+          .select(
+            "id, nome, saldo"
+          )
+          .eq(
+            "id",
+            id
+          )
+          .single();
 
       if (
         erroCaixinha ||
         !caixinha
       ) {
-        return res.status(404).json({
-          sucesso: false,
+        return res
+          .status(404)
+          .json({
+            sucesso: false,
 
-          erro:
-            "Caixinha não encontrada.",
-        });
+            erro:
+              "Caixinha não encontrada.",
+          });
       }
-
-      // ==========================================
-      // REGISTRAR RENDIMENTO
-      // ==========================================
 
       const {
         data:
           rendimento,
         error:
           erroRendimento,
-      } = await supabase
-        .from(
-          "rendimentos_caixinhas"
-        )
-        .insert([
-          {
-            caixinha_id:
-              id,
+      } =
+        await supabase
+          .from(
+            "rendimentos_caixinhas"
+          )
+          .insert([
+            {
+              caixinha_id:
+                id,
 
-            valor:
-              valorNumerico,
+              valor:
+                valorNumerico,
 
-            descricao:
-              descricao?.trim() ||
-              "Rendimento",
-          },
-        ])
-        .select()
-        .single();
+              descricao:
+                descricao?.trim() ||
+                "Rendimento",
+            },
+          ])
+          .select()
+          .single();
 
       if (
         erroRendimento
       ) {
         throw erroRendimento;
       }
-
-      // ==========================================
-      // ATUALIZAR SALDO
-      // ==========================================
 
       const saldoAtual =
         Number(
@@ -1808,33 +2356,30 @@ app.post(
           caixinhaAtualizada,
         error:
           erroAtualizacao,
-      } = await supabase
-        .from(
-          "caixinhas"
-        )
-        .update({
-          saldo:
-            novoSaldo,
+      } =
+        await supabase
+          .from(
+            "caixinhas"
+          )
+          .update({
+            saldo:
+              novoSaldo,
 
-          updated_at:
-            new Date().toISOString(),
-        })
-        .eq(
-          "id",
-          id
-        )
-        .select()
-        .single();
+            updated_at:
+              new Date().toISOString(),
+          })
+          .eq(
+            "id",
+            id
+          )
+          .select()
+          .single();
 
       if (
         erroAtualizacao
       ) {
         throw erroAtualizacao;
       }
-
-      // ==========================================
-      // RESPOSTA
-      // ==========================================
 
       res.json({
         sucesso: true,
@@ -1855,11 +2400,13 @@ app.post(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro:
-          erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
@@ -1870,6 +2417,7 @@ app.post(
 
 app.put(
   "/api/caixinhas/:id",
+  exigirAdmin,
   async (req, res) => {
     try {
 
@@ -1886,12 +2434,14 @@ app.put(
         !nome ||
         meta === undefined
       ) {
-        return res.status(400).json({
-          sucesso: false,
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
 
-          erro:
-            "Nome e meta são obrigatórios.",
-        });
+            erro:
+              "Nome e meta são obrigatórios.",
+          });
       }
 
       const metaNumerica =
@@ -1903,45 +2453,46 @@ app.put(
         ) ||
         metaNumerica <= 0
       ) {
-        return res.status(400).json({
-          sucesso: false,
+        return res
+          .status(400)
+          .json({
+            sucesso: false,
 
-          erro:
-            "A meta deve ser maior que zero.",
-        });
+            erro:
+              "A meta deve ser maior que zero.",
+          });
       }
 
       const {
         data,
         error,
-      } = await supabase
-        .from(
-          "caixinhas"
-        )
-        .update({
-          nome:
-            nome.trim(),
+      } =
+        await supabase
+          .from(
+            "caixinhas"
+          )
+          .update({
+            nome:
+              nome.trim(),
 
-          meta:
-            metaNumerica,
+            meta:
+              metaNumerica,
 
-          descricao:
-            descricao?.trim() ||
-            null,
+            descricao:
+              descricao?.trim() ||
+              null,
 
-          updated_at:
-            new Date().toISOString(),
-        })
-        .eq(
-          "id",
-          id
-        )
-        .select()
-        .single();
+            updated_at:
+              new Date().toISOString(),
+          })
+          .eq(
+            "id",
+            id
+          )
+          .select()
+          .single();
 
-      if (
-        error
-      ) {
+      if (error) {
         throw error;
       }
 
@@ -1962,11 +2513,13 @@ app.put(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro:
-          erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );
@@ -1977,28 +2530,26 @@ app.put(
 
 app.delete(
   "/api/caixinhas/:id",
+  exigirAdmin,
   async (req, res) => {
     try {
 
       const { id } =
         req.params;
 
-      // ==========================================
-      // EXCLUIR MOVIMENTAÇÕES
-      // ==========================================
-
       const {
         error:
           erroMovimentacoes,
-      } = await supabase
-        .from(
-          "movimentacoes_caixinhas"
-        )
-        .delete()
-        .eq(
-          "caixinha_id",
-          id
-        );
+      } =
+        await supabase
+          .from(
+            "movimentacoes_caixinhas"
+          )
+          .delete()
+          .eq(
+            "caixinha_id",
+            id
+          );
 
       if (
         erroMovimentacoes
@@ -2006,28 +2557,23 @@ app.delete(
         throw erroMovimentacoes;
       }
 
-      // ==========================================
-      // EXCLUIR CAIXINHA
-      // ==========================================
-
       const {
         data,
         error,
-      } = await supabase
-        .from(
-          "caixinhas"
-        )
-        .delete()
-        .eq(
-          "id",
-          id
-        )
-        .select()
-        .single();
+      } =
+        await supabase
+          .from(
+            "caixinhas"
+          )
+          .delete()
+          .eq(
+            "id",
+            id
+          )
+          .select()
+          .single();
 
-      if (
-        error
-      ) {
+      if (error) {
         throw error;
       }
 
@@ -2048,11 +2594,13 @@ app.delete(
         erro.message
       );
 
-      res.status(500).json({
-        sucesso: false,
-        erro:
-          erro.message,
-      });
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+          erro:
+            erro.message,
+        });
     }
   }
 );

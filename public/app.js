@@ -7,32 +7,506 @@ const state = {
 };
 
 // ==========================================
+// AUTENTICAÇÃO
+// ==========================================
+
+let tokenSessao = null;
+
+function obterToken() {
+  return tokenSessao;
+}
+
+function salvarToken(token) {
+  tokenSessao = token;
+
+  if (token) {
+    localStorage.setItem(
+      "meuFinanceiroToken",
+      token
+    );
+  } else {
+    localStorage.removeItem(
+      "meuFinanceiroToken"
+    );
+  }
+}
+
+function carregarTokenSalvo() {
+  tokenSessao =
+    localStorage.getItem(
+      "meuFinanceiroToken"
+    );
+}
+
+function mostrarLogin() {
+  const login =
+    document.querySelector(
+      "#loginScreen"
+    );
+
+  const app =
+    document.querySelector(
+      "#appShell"
+    );
+
+  if (login) {
+    login.style.display = "flex";
+  }
+
+  if (app) {
+    app.style.display = "none";
+  }
+}
+
+function mostrarAplicacao() {
+  const login =
+    document.querySelector(
+      "#loginScreen"
+    );
+
+  const app =
+    document.querySelector(
+      "#appShell"
+    );
+
+  if (login) {
+    login.style.display = "none";
+  }
+
+  if (app) {
+    app.style.display = "flex";
+  }
+}
+
+function mostrarErroLogin(mensagem) {
+  const elemento =
+    document.querySelector(
+      "#loginError"
+    );
+
+  if (!elemento) {
+    return;
+  }
+
+  elemento.textContent =
+    mensagem;
+
+  elemento.style.display =
+    "block";
+}
+
+function limparErroLogin() {
+  const elemento =
+    document.querySelector(
+      "#loginError"
+    );
+
+  if (!elemento) {
+    return;
+  }
+
+  elemento.textContent = "";
+
+  elemento.style.display =
+    "none";
+}
+
+function atualizarUsuarioLogado(usuario) {
+  const nome =
+    document.querySelector(
+      "#loggedUserName"
+    );
+
+  const email =
+    document.querySelector(
+      "#loggedUserEmail"
+    );
+
+  if (nome) {
+    nome.textContent =
+      usuario?.nome ||
+      usuario?.email ||
+      "Usuário";
+  }
+
+  if (email) {
+    email.textContent =
+      usuario?.email ||
+      "";
+  }
+}
+
+// ==========================================
+// LOGIN
+// ==========================================
+
+async function realizarLogin(
+  email,
+  senha
+) {
+  const resposta =
+    await fetch(
+      "/api/auth/login",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          email,
+          senha,
+        }),
+      }
+    );
+
+  let dados;
+
+  try {
+    dados =
+      await resposta.json();
+  } catch {
+    throw new Error(
+      "O servidor retornou uma resposta inválida."
+    );
+  }
+
+  if (
+    !resposta.ok ||
+    dados.sucesso === false
+  ) {
+    throw new Error(
+      dados.erro ||
+        "E-mail ou senha inválidos."
+    );
+  }
+
+  if (!dados.token) {
+    throw new Error(
+      "O servidor não retornou o token da sessão."
+    );
+  }
+
+  salvarToken(
+    dados.token
+  );
+
+  atualizarUsuarioLogado(
+    dados.usuario
+  );
+
+  return dados;
+}
+
+// ==========================================
+// VERIFICAR SESSÃO
+// ==========================================
+
+async function verificarSessao() {
+  const token =
+    obterToken();
+
+  if (!token) {
+    return false;
+  }
+
+  try {
+    const resposta =
+      await fetch(
+        "/api/auth/me",
+        {
+          method: "GET",
+
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+          },
+        }
+      );
+
+    if (!resposta.ok) {
+      salvarToken(null);
+
+      return false;
+    }
+
+    const dados =
+      await resposta.json();
+
+    if (
+      !dados.sucesso ||
+      !dados.autenticado ||
+      !dados.usuario
+    ) {
+      salvarToken(null);
+
+      return false;
+    }
+
+    atualizarUsuarioLogado(
+      dados.usuario
+    );
+
+    return true;
+
+  } catch (erro) {
+    console.error(
+      "Erro ao verificar sessão:",
+      erro
+    );
+
+    return false;
+  }
+}
+
+// ==========================================
+// LOGOUT
+// ==========================================
+
+async function realizarLogout() {
+  try {
+    const token =
+      obterToken();
+
+    if (token) {
+      await fetch(
+        "/api/auth/logout",
+        {
+          method: "POST",
+
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+          },
+        }
+      );
+    }
+
+  } catch (erro) {
+    console.error(
+      "Erro ao fazer logout:",
+      erro
+    );
+
+  } finally {
+    salvarToken(null);
+
+    mostrarLogin();
+
+    const email =
+      document.querySelector(
+        "#loginEmail"
+      );
+
+    const senha =
+      document.querySelector(
+        "#loginSenha"
+      );
+
+    if (senha) {
+      senha.value = "";
+    }
+
+    if (email) {
+      email.focus();
+    }
+
+    limparErroLogin();
+  }
+}
+
+// ==========================================
+// EVENTO DO FORMULÁRIO DE LOGIN
+// ==========================================
+
+function configurarLogin() {
+  const formulario =
+    document.querySelector(
+      "#loginForm"
+    );
+
+  const botao =
+    document.querySelector(
+      "#loginButton"
+    );
+
+  if (!formulario) {
+    return;
+  }
+
+  formulario.addEventListener(
+    "submit",
+    async (evento) => {
+      evento.preventDefault();
+
+      limparErroLogin();
+
+      const email =
+        document.querySelector(
+          "#loginEmail"
+        )?.value
+          .trim()
+          .toLowerCase();
+
+      const senha =
+        document.querySelector(
+          "#loginSenha"
+        )?.value;
+
+      if (!email || !senha) {
+        mostrarErroLogin(
+          "E-mail e senha são obrigatórios."
+        );
+
+        return;
+      }
+
+      try {
+        if (botao) {
+          botao.disabled = true;
+
+          botao.textContent =
+            "Entrando...";
+        }
+
+        await realizarLogin(
+          email,
+          senha
+        );
+
+        mostrarAplicacao();
+
+        await iniciarAplicacao();
+
+      } catch (erro) {
+        console.error(
+          "Erro ao realizar login:",
+          erro
+        );
+
+        mostrarErroLogin(
+          erro.message ||
+            "E-mail ou senha inválidos."
+        );
+
+      } finally {
+        if (botao) {
+          botao.disabled = false;
+
+          botao.textContent =
+            "Entrar";
+        }
+      }
+    }
+  );
+}
+
+// ==========================================
+// BOTÃO SAIR
+// ==========================================
+
+function configurarLogout() {
+  const botao =
+    document.querySelector(
+      "#logoutBtn"
+    );
+
+  if (!botao) {
+    return;
+  }
+
+  botao.addEventListener(
+    "click",
+    async () => {
+      const confirmou =
+        confirm(
+          "Deseja realmente sair do Meu Financeiro?"
+        );
+
+      if (!confirmou) {
+        return;
+      }
+
+      botao.disabled = true;
+
+      botao.textContent =
+        "Saindo...";
+
+      await realizarLogout();
+
+      botao.disabled = false;
+
+      botao.textContent =
+        "Sair";
+    }
+  );
+}
+
+// ==========================================
 // FORMATAÇÃO
 // ==========================================
 
 function dinheiro(valor) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(Number(valor || 0));
+  return new Intl.NumberFormat(
+    "pt-BR",
+    {
+      style: "currency",
+      currency: "BRL",
+    }
+  ).format(
+    Number(valor || 0)
+  );
 }
 
 function escapar(valor) {
   return String(valor ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replaceAll(
+      "&",
+      "&amp;"
+    )
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
+    .replaceAll(
+      "'",
+      "&#039;"
+    );
 }
 
 function dataBR(data) {
-  if (!data) return "—";
+  if (!data) {
+    return "—";
+  }
 
-  const parte = String(data).substring(0, 10);
-  const [ano, mes, dia] = parte.split("-");
+  const parte =
+    String(data).substring(
+      0,
+      10
+    );
 
-  if (!ano || !mes || !dia) {
+  const [
+    ano,
+    mes,
+    dia,
+  ] =
+    parte.split("-");
+
+  if (
+    !ano ||
+    !mes ||
+    !dia
+  ) {
     return data;
   }
 
@@ -43,18 +517,25 @@ function dataBR(data) {
 // CLASSIFICAÇÃO DAS TRANSAÇÕES
 // ==========================================
 
-function analisarTransacao(transacao) {
-  const valorOriginal = Number(
-    transacao.valor || 0
-  );
+function analisarTransacao(
+  transacao
+) {
+  const valorOriginal =
+    Number(
+      transacao.valor || 0
+    );
 
-  const tipoConta = String(
-    transacao.tipoConta || ""
-  ).toUpperCase();
+  const tipoConta =
+    String(
+      transacao.tipoConta ||
+        ""
+    ).toUpperCase();
 
-  const tipo = String(
-    transacao.tipo || ""
-  ).toUpperCase();
+  const tipo =
+    String(
+      transacao.tipo ||
+        ""
+    ).toUpperCase();
 
   const ehCartao =
     tipoConta === "CREDIT";
@@ -74,25 +555,55 @@ function analisarTransacao(transacao) {
   if (ehCartao) {
     if (ehDebito) {
       return {
-        tipoVisual: "COMPRA NO CARTÃO",
-        classe: "expense",
-        sinal: "-",
-        valor: Math.abs(valorOriginal),
-        ehEntrada: false,
-        ehSaida: true,
-        ehCartao: true,
+        tipoVisual:
+          "COMPRA NO CARTÃO",
+
+        classe:
+          "expense",
+
+        sinal:
+          "-",
+
+        valor:
+          Math.abs(
+            valorOriginal
+          ),
+
+        ehEntrada:
+          false,
+
+        ehSaida:
+          true,
+
+        ehCartao:
+          true,
       };
     }
 
     if (ehCredito) {
       return {
-        tipoVisual: "CRÉDITO NO CARTÃO",
-        classe: "income",
-        sinal: "+",
-        valor: Math.abs(valorOriginal),
-        ehEntrada: false,
-        ehSaida: false,
-        ehCartao: true,
+        tipoVisual:
+          "CRÉDITO NO CARTÃO",
+
+        classe:
+          "income",
+
+        sinal:
+          "+",
+
+        valor:
+          Math.abs(
+            valorOriginal
+          ),
+
+        ehEntrada:
+          false,
+
+        ehSaida:
+          false,
+
+        ehCartao:
+          true,
       };
     }
   }
@@ -103,25 +614,55 @@ function analisarTransacao(transacao) {
 
   if (ehDebito) {
     return {
-      tipoVisual: "SAÍDA",
-      classe: "expense",
-      sinal: "-",
-      valor: Math.abs(valorOriginal),
-      ehEntrada: false,
-      ehSaida: true,
-      ehCartao: false,
+      tipoVisual:
+        "SAÍDA",
+
+      classe:
+        "expense",
+
+      sinal:
+        "-",
+
+      valor:
+        Math.abs(
+          valorOriginal
+        ),
+
+      ehEntrada:
+        false,
+
+      ehSaida:
+        true,
+
+      ehCartao:
+        false,
     };
   }
 
   if (ehCredito) {
     return {
-      tipoVisual: "ENTRADA",
-      classe: "income",
-      sinal: "+",
-      valor: Math.abs(valorOriginal),
-      ehEntrada: true,
-      ehSaida: false,
-      ehCartao: false,
+      tipoVisual:
+        "ENTRADA",
+
+      classe:
+        "income",
+
+      sinal:
+        "+",
+
+      valor:
+        Math.abs(
+          valorOriginal
+        ),
+
+      ehEntrada:
+        true,
+
+      ehSaida:
+        false,
+
+      ehCartao:
+        false,
     };
   }
 
@@ -129,26 +670,58 @@ function analisarTransacao(transacao) {
   // FALLBACK
   // ------------------------------------------
 
-  if (valorOriginal < 0) {
+  if (
+    valorOriginal < 0
+  ) {
     return {
-      tipoVisual: "SAÍDA",
-      classe: "expense",
-      sinal: "-",
-      valor: Math.abs(valorOriginal),
-      ehEntrada: false,
-      ehSaida: true,
-      ehCartao: false,
+      tipoVisual:
+        "SAÍDA",
+
+      classe:
+        "expense",
+
+      sinal:
+        "-",
+
+      valor:
+        Math.abs(
+          valorOriginal
+        ),
+
+      ehEntrada:
+        false,
+
+      ehSaida:
+        true,
+
+      ehCartao:
+        false,
     };
   }
 
   return {
-    tipoVisual: "ENTRADA",
-    classe: "income",
-    sinal: "+",
-    valor: Math.abs(valorOriginal),
-    ehEntrada: true,
-    ehSaida: false,
-    ehCartao: false,
+    tipoVisual:
+      "ENTRADA",
+
+    classe:
+      "income",
+
+    sinal:
+      "+",
+
+    valor:
+      Math.abs(
+        valorOriginal
+      ),
+
+    ehEntrada:
+      true,
+
+    ehSaida:
+      false,
+
+    ehCartao:
+      false,
   };
 }
 
@@ -156,10 +729,57 @@ function analisarTransacao(transacao) {
 // REQUISIÇÃO AO BACKEND
 // ==========================================
 
-async function buscarDados(url) {
-  const resposta = await fetch(url);
+async function buscarDados(
+  url,
+  opcoes = {}
+) {
+  const token =
+    obterToken();
 
-  const dados = await resposta.json();
+  const headers = {
+    ...(opcoes.headers || {}),
+  };
+
+  if (token) {
+    headers.Authorization =
+      `Bearer ${token}`;
+  }
+
+  const resposta =
+    await fetch(
+      url,
+      {
+        ...opcoes,
+        headers,
+      }
+    );
+
+  let dados;
+
+  try {
+    dados =
+      await resposta.json();
+  } catch {
+    throw new Error(
+      "O servidor retornou uma resposta inválida."
+    );
+  }
+
+  // ------------------------------------------
+  // SESSÃO EXPIRADA
+  // ------------------------------------------
+
+  if (
+    resposta.status === 401
+  ) {
+    salvarToken(null);
+
+    mostrarLogin();
+
+    throw new Error(
+      "Sua sessão expirou. Faça login novamente."
+    );
+  }
 
   if (
     !resposta.ok ||
@@ -185,7 +805,9 @@ function mostrarContas() {
       "#accountsGrid"
     );
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   if (!state.contas.length) {
     container.innerHTML = `
@@ -208,27 +830,37 @@ function mostrarContas() {
               <div>
 
                 <div class="account-name">
-                  ${escapar(conta.nome)}
+                  ${escapar(
+                    conta.nome
+                  )}
                 </div>
 
                 <div class="account-bank">
-                  ${escapar(conta.banco)}
+                  ${escapar(
+                    conta.banco
+                  )}
                 </div>
 
               </div>
 
               <span class="badge">
-                ${escapar(conta.subtipo)}
+                ${escapar(
+                  conta.subtipo
+                )}
               </span>
 
             </div>
 
             <div class="account-balance">
-              ${dinheiro(conta.saldo)}
+              ${dinheiro(
+                conta.saldo
+              )}
             </div>
 
             <div class="account-bank">
-              ${escapar(conta.moeda)}
+              ${escapar(
+                conta.moeda
+              )}
             </div>
 
           </article>
@@ -241,9 +873,13 @@ function mostrarContas() {
 // TRANSAÇÕES RECENTES
 // ==========================================
 
-function mostrarTransacao(transacao) {
+function mostrarTransacao(
+  transacao
+) {
   const analise =
-    analisarTransacao(transacao);
+    analisarTransacao(
+      transacao
+    );
 
   const identificacaoCartao =
     analise.ehCartao
@@ -262,13 +898,17 @@ function mostrarTransacao(transacao) {
         </div>
 
         <div class="meta">
-          ${dataBR(transacao.data)}
+          ${dataBR(
+            transacao.data
+          )}
           ·
           ${escapar(
             transacao.categoria
           )}
           ·
-          ${escapar(transacao.conta)}
+          ${escapar(
+            transacao.conta
+          )}
         </div>
 
         <div class="meta">
@@ -281,7 +921,9 @@ function mostrarTransacao(transacao) {
 
       <div class="amount ${analise.classe}">
         ${analise.sinal}
-        ${dinheiro(analise.valor)}
+        ${dinheiro(
+          analise.valor
+        )}
       </div>
 
     </div>
@@ -294,14 +936,19 @@ function mostrarRecentes() {
       "#recentTransactions"
     );
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   const recentes =
     [...state.transacoes]
-      .sort((a, b) =>
-        String(b.data).localeCompare(
-          String(a.data)
-        )
+      .sort(
+        (a, b) =>
+          String(
+            b.data
+          ).localeCompare(
+            String(a.data)
+          )
       )
       .slice(0, 7);
 
@@ -317,7 +964,9 @@ function mostrarRecentes() {
 
   container.innerHTML =
     recentes
-      .map(mostrarTransacao)
+      .map(
+        mostrarTransacao
+      )
       .join("");
 }
 
@@ -328,52 +977,73 @@ function mostrarRecentes() {
 function atualizarDashboard() {
   const saldoContas =
     state.contas.reduce(
-      (total, conta) =>
+      (
+        total,
+        conta
+      ) =>
         total +
-        Number(conta.saldo || 0),
+        Number(
+          conta.saldo || 0
+        ),
       0
     );
 
   const entradas =
     state.transacoes
-      .filter((transacao) => {
-        const analise =
-          analisarTransacao(
-            transacao
-          );
-
-        return analise.ehEntrada;
-      })
-      .reduce(
-        (total, transacao) => {
+      .filter(
+        (transacao) => {
           const analise =
             analisarTransacao(
               transacao
             );
 
-          return total + analise.valor;
+          return analise.ehEntrada;
+        }
+      )
+      .reduce(
+        (
+          total,
+          transacao
+        ) => {
+          const analise =
+            analisarTransacao(
+              transacao
+            );
+
+          return (
+            total +
+            analise.valor
+          );
         },
         0
       );
 
   const saidas =
     state.transacoes
-      .filter((transacao) => {
-        const analise =
-          analisarTransacao(
-            transacao
-          );
-
-        return analise.ehSaida;
-      })
-      .reduce(
-        (total, transacao) => {
+      .filter(
+        (transacao) => {
           const analise =
             analisarTransacao(
               transacao
             );
 
-          return total + analise.valor;
+          return analise.ehSaida;
+        }
+      )
+      .reduce(
+        (
+          total,
+          transacao
+        ) => {
+          const analise =
+            analisarTransacao(
+              transacao
+            );
+
+          return (
+            total +
+            analise.valor
+          );
         },
         0
       );
@@ -395,20 +1065,27 @@ function atualizarDashboard() {
 
   if (elementoSaldo) {
     elementoSaldo.textContent =
-      dinheiro(saldoContas);
+      dinheiro(
+        saldoContas
+      );
   }
 
   if (elementoEntradas) {
     elementoEntradas.textContent =
-      dinheiro(entradas);
+      dinheiro(
+        entradas
+      );
   }
 
   if (elementoSaidas) {
     elementoSaidas.textContent =
-      dinheiro(saidas);
+      dinheiro(
+        saidas
+      );
   }
 
   mostrarRecentes();
+
   mostrarCategorias();
 }
 
@@ -422,7 +1099,9 @@ function mostrarCategorias() {
       "#categoryChart"
     );
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   const categorias = {};
 
@@ -441,14 +1120,22 @@ function mostrarCategorias() {
         transacao.categoria ||
         "Sem categoria";
 
-      categorias[categoria] =
-        (categorias[categoria] || 0) +
+      categorias[
+        categoria
+      ] =
+        (
+          categorias[
+            categoria
+          ] || 0
+        ) +
         analise.valor;
     }
   );
 
   const lista =
-    Object.entries(categorias)
+    Object.entries(
+      categorias
+    )
       .sort(
         (a, b) =>
           b[1] - a[1]
@@ -471,11 +1158,18 @@ function mostrarCategorias() {
   container.innerHTML =
     lista
       .map(
-        ([categoria, valor]) => {
+        (
+          [
+            categoria,
+            valor,
+          ]
+        ) => {
           const porcentagem =
             Math.max(
               5,
-              (valor / maior) * 100
+              (valor /
+                maior) *
+                100
             );
 
           return `
@@ -484,11 +1178,15 @@ function mostrarCategorias() {
               <div class="bar-label">
 
                 <span>
-                  ${escapar(categoria)}
+                  ${escapar(
+                    categoria
+                  )}
                 </span>
 
                 <strong>
-                  ${dinheiro(valor)}
+                  ${dinheiro(
+                    valor
+                  )}
                 </strong>
 
               </div>
@@ -519,14 +1217,19 @@ function mostrarTabela() {
       "#transactionTable"
     );
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   const transacoes =
     [...state.transacoes]
-      .sort((a, b) =>
-        String(b.data).localeCompare(
-          String(a.data)
-        )
+      .sort(
+        (a, b) =>
+          String(
+            b.data
+          ).localeCompare(
+            String(a.data)
+          )
       );
 
   if (!transacoes.length) {
@@ -558,61 +1261,67 @@ function mostrarTabela() {
       <tbody>
 
         ${transacoes
-          .map((transacao) => {
-            const analise =
-              analisarTransacao(
-                transacao
-              );
+          .map(
+            (
+              transacao
+            ) => {
+              const analise =
+                analisarTransacao(
+                  transacao
+                );
 
-            return `
-              <tr>
+              return `
+                <tr>
 
-                <td>
-                  ${dataBR(
-                    transacao.data
-                  )}
-                </td>
+                  <td>
+                    ${dataBR(
+                      transacao.data
+                    )}
+                  </td>
 
-                <td>
-                  ${escapar(
-                    transacao.descricao
-                  )}
-                </td>
+                  <td>
+                    ${escapar(
+                      transacao.descricao
+                    )}
+                  </td>
 
-                <td>
-                  ${escapar(
-                    transacao.categoria
-                  )}
-                </td>
+                  <td>
+                    ${escapar(
+                      transacao.categoria
+                    )}
+                  </td>
 
-                <td>
-                  ${escapar(
-                    transacao.conta
-                  )}
-                </td>
+                  <td>
+                    ${escapar(
+                      transacao.conta
+                    )}
+                  </td>
 
-                <td>
-                  ${
-                    analise.ehCartao
-                      ? "💳 "
-                      : "🏦 "
-                  }
+                  <td>
+                    ${
+                      analise.ehCartao
+                        ? "💳 "
+                        : "🏦 "
+                    }
 
-                  ${analise.tipoVisual}
-                </td>
+                    ${
+                      analise.tipoVisual
+                    }
+                  </td>
 
-                <td
-                  class="${analise.classe}"
-                >
-                  ${analise.sinal}
-                  ${dinheiro(
-                    analise.valor
-                  )}
-                </td>
+                  <td
+                    class="${analise.classe}"
+                  >
+                    ${analise.sinal}
+                    ${dinheiro(
+                      analise.valor
+                    )}
+                  </td>
 
-              </tr>
-            `;
-          })
+                </tr>
+              `;
+            }
+          )
           .join("")}
 
       </tbody>
@@ -632,6 +1341,7 @@ function pegarContasFixas() {
         "fixedAccounts"
       ) || "[]"
     );
+
   } catch {
     return [];
   }
@@ -642,7 +1352,9 @@ function salvarContasFixas(
 ) {
   localStorage.setItem(
     "fixedAccounts",
-    JSON.stringify(contas)
+    JSON.stringify(
+      contas
+    )
   );
 }
 
@@ -652,7 +1364,10 @@ function mostrarContasFixas() {
 
   const total =
     contas.reduce(
-      (soma, conta) =>
+      (
+        soma,
+        conta
+      ) =>
         soma +
         Number(
           conta.amount || 0
@@ -672,13 +1387,16 @@ function mostrarContasFixas() {
 
   if (elementoTotal) {
     elementoTotal.textContent =
-      dinheiro(total);
+      dinheiro(
+        total
+      );
   }
 
   if (elementoQuantidade) {
     elementoQuantidade.textContent =
       `${contas.length} cadastrada${
-        contas.length === 1
+        contas.length ===
+        1
           ? ""
           : "s"
       }`;
@@ -689,7 +1407,9 @@ function mostrarContasFixas() {
       "#fixedList"
     );
 
-  if (!lista) return;
+  if (!lista) {
+    return;
+  }
 
   if (!contas.length) {
     lista.innerHTML = `
@@ -751,29 +1471,34 @@ function mostrarContasFixas() {
     .querySelectorAll(
       "[data-delete-fixed]"
     )
-    .forEach((botao) => {
-      botao.addEventListener(
-        "click",
-        () => {
-          const id =
-            botao.dataset
-              .deleteFixed;
+    .forEach(
+      (botao) => {
+        botao.addEventListener(
+          "click",
+          () => {
+            const id =
+              botao.dataset
+                .deleteFixed;
 
-          const novasContas =
-            pegarContasFixas()
-              .filter(
-                (conta) =>
-                  conta.id !== id
-              );
+            const novasContas =
+              pegarContasFixas()
+                .filter(
+                  (
+                    conta
+                  ) =>
+                    conta.id !==
+                    id
+                );
 
-          salvarContasFixas(
-            novasContas
-          );
+            salvarContasFixas(
+              novasContas
+            );
 
-          mostrarContasFixas();
-        }
-      );
-    });
+            mostrarContasFixas();
+          }
+        );
+      }
+    );
 }
 
 // ==========================================
@@ -788,7 +1513,8 @@ async function carregarCaixinhas() {
       );
 
     state.caixinhas =
-      dados.caixinhas || [];
+      dados.caixinhas ||
+      [];
 
     mostrarCaixinhas();
 
@@ -810,7 +1536,9 @@ function mostrarCaixinhas() {
       "#caixinhasList"
     );
 
-  if (!lista) return;
+  if (!lista) {
+    return;
+  }
 
   if (!state.caixinhas.length) {
     lista.innerHTML = `
@@ -824,121 +1552,132 @@ function mostrarCaixinhas() {
 
   lista.innerHTML =
     state.caixinhas
-      .map((caixinha) => {
-        const meta =
-          Number(
-            caixinha.meta || 0
-          );
+      .map(
+        (caixinha) => {
+          const meta =
+            Number(
+              caixinha.meta ||
+                0
+            );
 
-        const saldo =
-          Number(
-            caixinha.saldo || 0
-          );
+          const saldo =
+            Number(
+              caixinha.saldo ||
+                0
+            );
 
-        const progresso =
-          meta > 0
-            ? Math.min(
-                (saldo / meta) *
-                  100,
-                100
-              )
-            : 0;
+          const progresso =
+            meta > 0
+              ? Math.min(
+                  (saldo /
+                    meta) *
+                    100,
+                  100
+                )
+              : 0;
 
-        return `
-          <div class="fixed-item">
+          return `
+            <div class="fixed-item">
 
-            <div>
+              <div>
 
-              <strong>
-                ${escapar(
-                  caixinha.nome
-                )}
-              </strong>
+                <strong>
+                  ${escapar(
+                    caixinha.nome
+                  )}
+                </strong>
+
+                <small>
+                  ${escapar(
+                    caixinha.descricao ||
+                      ""
+                  )}
+                </small>
+
+              </div>
+
+              <div>
+
+                <strong>
+                  ${dinheiro(
+                    saldo
+                  )}
+                </strong>
+
+                <small>
+                  Meta:
+                  ${dinheiro(
+                    meta
+                  )}
+                </small>
+
+              </div>
+
+            </div>
+
+            <div
+              style="
+                margin-bottom:16px;
+              "
+            >
+
+              <div class="bar-track">
+
+                <div
+                  class="bar"
+                  style="
+                    width:${progresso}%
+                  "
+                ></div>
+
+              </div>
 
               <small>
-                ${escapar(
-                  caixinha.descricao ||
-                    ""
-                )}
+                ${progresso.toFixed(
+                  1
+                )}%
+                da meta
               </small>
 
             </div>
 
-            <div>
+            <div
+              style="
+                display:flex;
+                gap:8px;
+                margin-bottom:20px;
+                flex-wrap:wrap;
+              "
+            >
 
-              <strong>
-                ${dinheiro(saldo)}
-              </strong>
+              <button
+                type="button"
+                class="primary"
+                data-rendimento-caixinha="${caixinha.id}"
+              >
+                📈 Rendimento
+              </button>
 
-              <small>
-                Meta:
-                ${dinheiro(meta)}
-              </small>
+              <button
+                type="button"
+                class="primary"
+                data-editar-caixinha="${caixinha.id}"
+              >
+                ✏️ Editar
+              </button>
+
+              <button
+                type="button"
+                class="delete-btn"
+                data-excluir-caixinha="${caixinha.id}"
+              >
+                🗑️ Excluir
+              </button>
 
             </div>
-
-          </div>
-
-          <div
-            style="
-              margin-bottom:16px;
-            "
-          >
-
-            <div class="bar-track">
-
-              <div
-                class="bar"
-                style="
-                  width:${progresso}%
-                "
-              ></div>
-
-            </div>
-
-            <small>
-              ${progresso.toFixed(1)}%
-              da meta
-            </small>
-
-          </div>
-
-          <div
-            style="
-              display:flex;
-              gap:8px;
-              margin-bottom:20px;
-              flex-wrap:wrap;
-            "
-          >
-
-            <button
-              type="button"
-              class="primary"
-              data-rendimento-caixinha="${caixinha.id}"
-            >
-              📈 Rendimento
-            </button>
-
-            <button
-              type="button"
-              class="primary"
-              data-editar-caixinha="${caixinha.id}"
-            >
-              ✏️ Editar
-            </button>
-
-            <button
-              type="button"
-              class="delete-btn"
-              data-excluir-caixinha="${caixinha.id}"
-            >
-              🗑️ Excluir
-            </button>
-
-          </div>
-        `;
-      })
+          `;
+        }
+      )
       .join("");
 
   // ------------------------------------------
@@ -949,17 +1688,19 @@ function mostrarCaixinhas() {
     .querySelectorAll(
       "[data-rendimento-caixinha]"
     )
-    .forEach((botao) => {
-      botao.addEventListener(
-        "click",
-        () => {
-          adicionarRendimento(
-            botao.dataset
-              .rendimentoCaixinha
-          );
-        }
-      );
-    });
+    .forEach(
+      (botao) => {
+        botao.addEventListener(
+          "click",
+          () => {
+            adicionarRendimento(
+              botao.dataset
+                .rendimentoCaixinha
+            );
+          }
+        );
+      }
+    );
 
   // ------------------------------------------
   // BOTÃO EDITAR
@@ -969,17 +1710,19 @@ function mostrarCaixinhas() {
     .querySelectorAll(
       "[data-editar-caixinha]"
     )
-    .forEach((botao) => {
-      botao.addEventListener(
-        "click",
-        () => {
-          editarCaixinha(
-            botao.dataset
-              .editarCaixinha
-          );
-        }
-      );
-    });
+    .forEach(
+      (botao) => {
+        botao.addEventListener(
+          "click",
+          () => {
+            editarCaixinha(
+              botao.dataset
+                .editarCaixinha
+            );
+          }
+        );
+      }
+    );
 
   // ------------------------------------------
   // BOTÃO EXCLUIR
@@ -989,17 +1732,19 @@ function mostrarCaixinhas() {
     .querySelectorAll(
       "[data-excluir-caixinha]"
     )
-    .forEach((botao) => {
-      botao.addEventListener(
-        "click",
-        () => {
-          excluirCaixinha(
-            botao.dataset
-              .excluirCaixinha
-          );
-        }
-      );
-    });
+    .forEach(
+      (botao) => {
+        botao.addEventListener(
+          "click",
+          () => {
+            excluirCaixinha(
+              botao.dataset
+                .excluirCaixinha
+            );
+          }
+        );
+      }
+    );
 }
 
 // ==========================================
@@ -1012,7 +1757,9 @@ async function adicionarRendimento(
   const caixinha =
     state.caixinhas.find(
       (item) =>
-        String(item.id) ===
+        String(
+          item.id
+        ) ===
         String(id)
     );
 
@@ -1034,19 +1781,26 @@ async function adicionarRendimento(
     );
 
   if (
-    valorInformado === null
+    valorInformado ===
+    null
   ) {
     return;
   }
 
   const valor =
     Number(
-      String(valorInformado)
-        .replace(",", ".")
+      String(
+        valorInformado
+      ).replace(
+        ",",
+        "."
+      )
     );
 
   if (
-    !Number.isFinite(valor) ||
+    !Number.isFinite(
+      valor
+    ) ||
     valor <= 0
   ) {
     alert(
@@ -1063,14 +1817,15 @@ async function adicionarRendimento(
     );
 
   if (
-    descricaoInformada === null
+    descricaoInformada ===
+    null
   ) {
     return;
   }
 
   try {
-    const resposta =
-      await fetch(
+    const dados =
+      await buscarDados(
         `/api/caixinhas/${id}/rendimento`,
         {
           method: "POST",
@@ -1082,25 +1837,13 @@ async function adicionarRendimento(
 
           body: JSON.stringify({
             valor,
+
             descricao:
               descricaoInformada.trim() ||
               "Rendimento",
           }),
         }
       );
-
-    const dados =
-      await resposta.json();
-
-    if (
-      !resposta.ok ||
-      dados.sucesso === false
-    ) {
-      throw new Error(
-        dados.erro ||
-          "Não foi possível adicionar o rendimento."
-      );
-    }
 
     alert(
       `Rendimento adicionado com sucesso!\n\n` +
@@ -1134,7 +1877,9 @@ async function editarCaixinha(
   const caixinha =
     state.caixinhas.find(
       (item) =>
-        String(item.id) ===
+        String(
+          item.id
+        ) ===
         String(id)
     );
 
@@ -1149,10 +1894,14 @@ async function editarCaixinha(
   const novoNome =
     prompt(
       "Nome da caixinha:",
-      caixinha.nome || ""
+      caixinha.nome ||
+        ""
     );
 
-  if (novoNome === null) {
+  if (
+    novoNome ===
+    null
+  ) {
     return;
   }
 
@@ -1171,19 +1920,27 @@ async function editarCaixinha(
     prompt(
       "Meta da caixinha:",
       Number(
-        caixinha.meta || 0
+        caixinha.meta ||
+          0
       )
     );
 
-  if (novaMeta === null) {
+  if (
+    novaMeta ===
+    null
+  ) {
     return;
   }
 
   const meta =
-    Number(novaMeta);
+    Number(
+      novaMeta
+    );
 
   if (
-    !Number.isFinite(meta) ||
+    !Number.isFinite(
+      meta
+    ) ||
     meta <= 0
   ) {
     alert(
@@ -1196,48 +1953,38 @@ async function editarCaixinha(
   const novaDescricao =
     prompt(
       "Descrição da caixinha:",
-      caixinha.descricao || ""
+      caixinha.descricao ||
+        ""
     );
 
   if (
-    novaDescricao === null
+    novaDescricao ===
+    null
   ) {
     return;
   }
 
   try {
-    const resposta =
-      await fetch(
-        `/api/caixinhas/${id}`,
-        {
-          method: "PUT",
+    await buscarDados(
+      `/api/caixinhas/${id}`,
+      {
+        method: "PUT",
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
 
-          body: JSON.stringify({
-            nome,
-            meta,
-            descricao:
-              novaDescricao.trim(),
-          }),
-        }
-      );
+        body: JSON.stringify({
+          nome,
 
-    const dados =
-      await resposta.json();
+          meta,
 
-    if (
-      !resposta.ok ||
-      dados.sucesso === false
-    ) {
-      throw new Error(
-        dados.erro ||
-          "Não foi possível editar a caixinha."
-      );
-    }
+          descricao:
+            novaDescricao.trim(),
+        }),
+      }
+    );
 
     alert(
       "Caixinha atualizada com sucesso!"
@@ -1268,7 +2015,9 @@ async function excluirCaixinha(
   const caixinha =
     state.caixinhas.find(
       (item) =>
-        String(item.id) ===
+        String(
+          item.id
+        ) ===
         String(id)
     );
 
@@ -1291,26 +2040,12 @@ async function excluirCaixinha(
   }
 
   try {
-    const resposta =
-      await fetch(
-        `/api/caixinhas/${id}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-    const dados =
-      await resposta.json();
-
-    if (
-      !resposta.ok ||
-      dados.sucesso === false
-    ) {
-      throw new Error(
-        dados.erro ||
-          "Não foi possível excluir a caixinha."
-      );
-    }
+    await buscarDados(
+      `/api/caixinhas/${id}`,
+      {
+        method: "DELETE",
+      }
+    );
 
     alert(
       "Caixinha excluída com sucesso!"
@@ -1335,12 +2070,16 @@ async function excluirCaixinha(
 // CRIAR CAIXINHA
 // ==========================================
 
-const formularioCaixinha =
-  document.querySelector(
-    "#caixinhaForm"
-  );
+function configurarFormularioCaixinha() {
+  const formularioCaixinha =
+    document.querySelector(
+      "#caixinhaForm"
+    );
 
-if (formularioCaixinha) {
+  if (!formularioCaixinha) {
+    return;
+  }
+
   formularioCaixinha.addEventListener(
     "submit",
     async (evento) => {
@@ -1372,7 +2111,9 @@ if (formularioCaixinha) {
       }
 
       if (
-        !Number.isFinite(meta) ||
+        !Number.isFinite(
+          meta
+        ) ||
         meta <= 0
       ) {
         alert(
@@ -1383,38 +2124,27 @@ if (formularioCaixinha) {
       }
 
       try {
-        const resposta =
-          await fetch(
-            "/api/caixinhas",
-            {
-              method: "POST",
+        await buscarDados(
+          "/api/caixinhas",
+          {
+            method: "POST",
 
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
 
-              body: JSON.stringify({
-                nome,
-                meta,
-                saldo: 0,
-                descricao,
-              }),
-            }
-          );
+            body: JSON.stringify({
+              nome,
 
-        const dados =
-          await resposta.json();
+              meta,
 
-        if (
-          !resposta.ok ||
-          dados.sucesso === false
-        ) {
-          throw new Error(
-            dados.erro ||
-              "Não foi possível criar a caixinha."
-          );
-        }
+              saldo: 0,
+
+              descricao,
+            }),
+          }
+        );
 
         alert(
           "Caixinha criada com sucesso!"
@@ -1485,27 +2215,32 @@ async function carregarDados() {
     const [
       dadosContas,
       dadosTransacoes,
-    ] = await Promise.all([
-      buscarDados(
-        "/api/accounts"
-      ),
+    ] =
+      await Promise.all([
+        buscarDados(
+          "/api/accounts"
+        ),
 
-      buscarDados(
-        `/api/transactions?${parametros.toString()}`
-      ),
-    ]);
+        buscarDados(
+          `/api/transactions?${parametros.toString()}`
+        ),
+      ]);
 
     state.contas =
-      dadosContas.contas || [];
+      dadosContas.contas ||
+      [];
 
     state.cartoes =
-      dadosContas.cartoes || [];
+      dadosContas.cartoes ||
+      [];
 
     state.investimentos =
-      dadosContas.investimentos || [];
+      dadosContas.investimentos ||
+      [];
 
     state.transacoes =
-      dadosTransacoes.transacoes || [];
+      dadosTransacoes.transacoes ||
+      [];
 
     mostrarContas();
 
@@ -1524,7 +2259,10 @@ async function carregarDados() {
     }
 
   } catch (erro) {
-    console.error(erro);
+    console.error(
+      "Erro ao carregar dados:",
+      erro
+    );
 
     const connectionText =
       document.querySelector(
@@ -1536,10 +2274,15 @@ async function carregarDados() {
         "Erro na conexão";
     }
 
-    alert(
-      "Erro ao carregar os dados: " +
-        erro.message
-    );
+    if (
+      erro.message !==
+      "Sua sessão expirou. Faça login novamente."
+    ) {
+      alert(
+        "Erro ao carregar os dados: " +
+          erro.message
+      );
+    }
   }
 }
 
@@ -1547,25 +2290,37 @@ async function carregarDados() {
 // NAVEGAÇÃO
 // ==========================================
 
-function navegar(secao) {
+function navegar(
+  secao
+) {
   document
-    .querySelectorAll(".section")
-    .forEach((elemento) => {
-      elemento.classList.toggle(
-        "active",
-        elemento.id === secao
-      );
-    });
+    .querySelectorAll(
+      ".section"
+    )
+    .forEach(
+      (elemento) => {
+        elemento.classList.toggle(
+          "active",
+          elemento.id ===
+            secao
+        );
+      }
+    );
 
   document
-    .querySelectorAll(".nav-item")
-    .forEach((botao) => {
-      botao.classList.toggle(
-        "active",
-        botao.dataset.section ===
-          secao
-      );
-    });
+    .querySelectorAll(
+      ".nav-item"
+    )
+    .forEach(
+      (botao) => {
+        botao.classList.toggle(
+          "active",
+          botao.dataset
+            .section ===
+            secao
+        );
+      }
+    );
 
   const titulos = {
     dashboard:
@@ -1600,31 +2355,43 @@ function navegar(secao) {
 // EVENTOS DO MENU
 // ==========================================
 
-document
-  .querySelectorAll(".nav-item")
-  .forEach((botao) => {
-    botao.addEventListener(
-      "click",
-      () => {
-        navegar(
-          botao.dataset.section
+function configurarNavegacao() {
+  document
+    .querySelectorAll(
+      ".nav-item"
+    )
+    .forEach(
+      (botao) => {
+        botao.addEventListener(
+          "click",
+          () => {
+            navegar(
+              botao.dataset
+                .section
+            );
+          }
         );
       }
     );
-  });
 
-document
-  .querySelectorAll("[data-go]")
-  .forEach((botao) => {
-    botao.addEventListener(
-      "click",
-      () => {
-        navegar(
-          botao.dataset.go
+  document
+    .querySelectorAll(
+      "[data-go]"
+    )
+    .forEach(
+      (botao) => {
+        botao.addEventListener(
+          "click",
+          () => {
+            navegar(
+              botao.dataset
+                .go
+            );
+          }
         );
       }
     );
-  });
+}
 
 // ==========================================
 // SINCRONIZAR CAIXINHAS COM O PIERRE
@@ -1632,38 +2399,17 @@ document
 
 async function sincronizarCaixinhas() {
   try {
-    const resposta =
-      await fetch(
-        "/api/caixinhas/sincronizar",
-        {
-          method: "POST",
+    return await buscarDados(
+      "/api/caixinhas/sincronizar",
+      {
+        method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-        }
-      );
-
-    const dados =
-      await resposta.json();
-
-    if (
-      !resposta.ok ||
-      dados.sucesso === false
-    ) {
-      throw new Error(
-        dados.erro ||
-          "Não foi possível sincronizar as caixinhas."
-      );
-    }
-
-    console.log(
-      "🔄 Sincronização das caixinhas:",
-      dados
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+      }
     );
-
-    return dados;
 
   } catch (erro) {
     console.error(
@@ -1679,16 +2425,19 @@ async function sincronizarCaixinhas() {
 // BOTÃO ATUALIZAR
 // ==========================================
 
-const botaoAtualizar =
-  document.querySelector(
-    "#refreshBtn"
-  );
+function configurarBotaoAtualizar() {
+  const botaoAtualizar =
+    document.querySelector(
+      "#refreshBtn"
+    );
 
-if (botaoAtualizar) {
+  if (!botaoAtualizar) {
+    return;
+  }
+
   botaoAtualizar.addEventListener(
     "click",
     async () => {
-
       try {
         botaoAtualizar.disabled =
           true;
@@ -1696,44 +2445,41 @@ if (botaoAtualizar) {
         botaoAtualizar.textContent =
           "↻ Sincronizando...";
 
-        // ------------------------------------------
-        // SINCRONIZA CAIXINHAS COM O PIERRE
-        // ------------------------------------------
-
         const resultado =
           await sincronizarCaixinhas();
-
-        // ------------------------------------------
-        // RECARREGA TODOS OS DADOS
-        // ------------------------------------------
 
         await carregarDados();
 
         const quantidade =
-          resultado.sincronizadas
-            ?.length || 0;
+          resultado
+            ?.sincronizadas
+            ?.length ||
+          0;
 
-        if (quantidade > 0) {
-
+        if (
+          quantidade > 0
+        ) {
           alert(
             `Sincronização concluída!\n\n` +
               `${quantidade} nova${
-                quantidade === 1
+                quantidade ===
+                1
                   ? ""
                   : "s"
               } movimentação${
-                quantidade === 1
+                quantidade ===
+                1
                   ? ""
                   : "ões"
               } sincronizada${
-                quantidade === 1
+                quantidade ===
+                1
                   ? ""
                   : "s"
               }.`
           );
 
         } else {
-
           alert(
             "Sincronização concluída!\n\n" +
               "Nenhuma nova movimentação encontrada."
@@ -1741,19 +2487,22 @@ if (botaoAtualizar) {
         }
 
       } catch (erro) {
-
         console.error(
           "Erro ao atualizar:",
           erro
         );
 
-        alert(
-          "Erro ao sincronizar:\n\n" +
-            erro.message
-        );
+        if (
+          erro.message !==
+          "Sua sessão expirou. Faça login novamente."
+        ) {
+          alert(
+            "Erro ao sincronizar:\n\n" +
+              erro.message
+          );
+        }
 
       } finally {
-
         botaoAtualizar.disabled =
           false;
 
@@ -1768,12 +2517,16 @@ if (botaoAtualizar) {
 // FILTRO DE TRANSAÇÕES
 // ==========================================
 
-const botaoFiltro =
-  document.querySelector(
-    "#filterBtn"
-  );
+function configurarFiltro() {
+  const botaoFiltro =
+    document.querySelector(
+      "#filterBtn"
+    );
 
-if (botaoFiltro) {
+  if (!botaoFiltro) {
+    return;
+  }
+
   botaoFiltro.addEventListener(
     "click",
     () => {
@@ -1786,12 +2539,16 @@ if (botaoFiltro) {
 // CONTAS FIXAS
 // ==========================================
 
-const formulario =
-  document.querySelector(
-    "#fixedForm"
-  );
+function configurarFormularioContaFixa() {
+  const formulario =
+    document.querySelector(
+      "#fixedForm"
+    );
 
-if (formulario) {
+  if (!formulario) {
+    return;
+  }
+
   formulario.addEventListener(
     "submit",
     (evento) => {
@@ -1829,7 +2586,9 @@ if (formulario) {
       const contas =
         pegarContasFixas();
 
-      contas.push(conta);
+      contas.push(
+        conta
+      );
 
       salvarContasFixas(
         contas
@@ -1854,14 +2613,18 @@ function configurarDatas() {
     new Date(fim);
 
   inicio.setMonth(
-    inicio.getMonth() - 3
+    inicio.getMonth() -
+      3
   );
 
   const formatar =
     (data) =>
       data
         .toISOString()
-        .slice(0, 10);
+        .slice(
+          0,
+          10
+        );
 
   const campoInicio =
     document.querySelector(
@@ -1875,21 +2638,88 @@ function configurarDatas() {
 
   if (campoInicio) {
     campoInicio.value =
-      formatar(inicio);
+      formatar(
+        inicio
+      );
   }
 
   if (campoFim) {
     campoFim.value =
-      formatar(fim);
+      formatar(
+        fim
+      );
   }
+}
+
+// ==========================================
+// INICIAR APLICAÇÃO
+// ==========================================
+
+async function iniciarAplicacao() {
+  configurarDatas();
+
+  mostrarContasFixas();
+
+  configurarNavegacao();
+
+  configurarBotaoAtualizar();
+
+  configurarFiltro();
+
+  configurarFormularioContaFixa();
+
+  configurarFormularioCaixinha();
+
+  await carregarDados();
+}
+
+// ==========================================
+// INICIALIZAÇÃO PRINCIPAL
+// ==========================================
+
+async function iniciarSistema() {
+  // Primeiro escondemos o sistema.
+  mostrarLogin();
+
+  // Recupera o token salvo.
+  carregarTokenSalvo();
+
+  // Verifica se existe uma sessão válida.
+  const autenticado =
+    await verificarSessao();
+
+  if (!autenticado) {
+    mostrarLogin();
+
+    const email =
+      document.querySelector(
+        "#loginEmail"
+      );
+
+    if (email) {
+      email.focus();
+    }
+
+    return;
+  }
+
+  // Sessão válida.
+  mostrarAplicacao();
+
+  await iniciarAplicacao();
 }
 
 // ==========================================
 // INICIALIZAÇÃO
 // ==========================================
 
-configurarDatas();
+document.addEventListener(
+  "DOMContentLoaded",
+  async () => {
+    configurarLogin();
 
-mostrarContasFixas();
+    configurarLogout();
 
-carregarDados();
+    await iniciarSistema();
+  }
+);

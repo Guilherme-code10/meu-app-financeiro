@@ -203,3 +203,224 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spa
   .topbar, .section-title { align-items: flex-start; flex-direction: column; }
   .filters { flex-wrap: wrap; }
 }
+
+/* ==========================================
+   TELA DE LOGIN
+   ========================================== */
+
+#loginScreen {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: #f4f6fb;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 48px;
+  box-sizing: border-box;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+}
+
+.login-brand {
+  margin-bottom: 36px;
+}
+
+.login-brand-icon {
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+  background: #4657c8;
+  color: #ffffff;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 28px;
+  font-weight: 700;
+
+  margin-bottom: 28px;
+}
+
+.login-brand h1 {
+  margin: 0 0 12px;
+  font-size: 38px;
+  line-height: 1.1;
+  color: #071b3a;
+}
+
+.login-brand p {
+  margin: 0;
+  color: #71809b;
+  font-size: 16px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+
+  color: #263957;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.login-form input {
+  width: 100%;
+  box-sizing: border-box;
+
+  border: 1px solid #ccd4e3;
+  border-radius: 12px;
+
+  padding: 16px 18px;
+
+  font-size: 17px;
+  color: #14233d;
+
+  background: #ffffff;
+
+  outline: none;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.login-form input:focus {
+  border-color: #4657c8;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(70, 87, 200, 0.12);
+}
+
+#loginButton {
+  width: 100%;
+
+  border: none;
+  border-radius: 12px;
+
+  padding: 16px;
+
+  background: #4657c8;
+  color: #ffffff;
+
+  font-size: 18px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+#loginButton:hover {
+  opacity: 0.92;
+}
+
+#loginButton:active {
+  transform: scale(0.99);
+}
+
+#loginButton:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+#loginError {
+  display: none;
+
+  margin: 0;
+
+  color: #e53935;
+
+  text-align: center;
+
+  font-size: 15px;
+}
+
+
+/* ==========================================
+   USUÁRIO LOGADO
+   ========================================== */
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.user-info strong {
+  font-size: 14px;
+}
+
+.user-info small {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+
+/* ==========================================
+   BOTÃO SAIR
+   ========================================== */
+
+.logout-btn {
+  border: 0;
+  background: transparent;
+
+  cursor: pointer;
+
+  padding: 10px 14px;
+
+  border-radius: 8px;
+
+  color: inherit;
+
+  font-size: 14px;
+}
+
+.logout-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+
+/* ==========================================
+   RESPONSIVO - LOGIN
+   ========================================== */
+
+@media (max-width: 600px) {
+
+  #loginScreen {
+    padding: 16px;
+  }
+
+  .login-card {
+    padding: 32px 24px;
+    border-radius: 20px;
+  }
+
+  .login-brand h1 {
+    font-size: 32px;
+  }
+
+  .login-brand-icon {
+    width: 68px;
+    height: 68px;
+  }
+
+}
