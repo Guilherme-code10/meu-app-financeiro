@@ -3,6 +3,8 @@ const state = {
   cartoes: [],
   investimentos: [],
   transacoes: [],
+  faturas: [],
+  resumos: [],
   caixinhas: [],
 };
 
@@ -971,6 +973,150 @@ function mostrarRecentes() {
 }
 
 // ==========================================
+// RESUMO DAS CONTAS FIXAS DO MÊS
+// ==========================================
+
+function obterResumoContasFixasMes() {
+
+  const contas =
+    pegarContasFixas();
+
+  const ano =
+    mesContasFixas.getFullYear();
+
+  const mes =
+    mesContasFixas.getMonth();
+
+  let total =
+    0;
+
+  let pago =
+    0;
+
+  let pendente =
+    0;
+
+  contas.forEach(
+    (conta) => {
+
+      const ehParcelada =
+        conta.tipo ===
+          "parcelada" ||
+        Number(
+          conta.totalParcelas ||
+            0
+        ) > 0;
+
+      // ----------------------------------------
+      // VERIFICAR SE A CONTA EXISTE NESTE MÊS
+      // ----------------------------------------
+
+      if (
+        ehParcelada
+      ) {
+
+        const totalParcelas =
+          Number(
+            conta.totalParcelas ||
+              0
+          );
+
+        const parcelaInicial =
+          Number(
+            conta.parcelaAtual ||
+              1
+          );
+
+        const anoInicial =
+          Number(
+            conta.anoInicioParcela ||
+              ano
+          );
+
+        const mesInicial =
+          Number(
+            conta.mesInicioParcela ??
+              mes
+          );
+
+        const diferencaMeses =
+          (
+            ano -
+            anoInicial
+          ) *
+            12 +
+          (
+            mes -
+            mesInicial
+          );
+
+        const parcelaDoMes =
+          parcelaInicial +
+          diferencaMeses;
+
+        if (
+          parcelaDoMes <
+            parcelaInicial ||
+          parcelaDoMes >
+            totalParcelas
+        ) {
+          return;
+        }
+      }
+
+      // ----------------------------------------
+      // VALOR
+      // ----------------------------------------
+
+      const valor =
+        Number(
+          conta.amount || 0
+        );
+
+      total +=
+        valor;
+
+      // ----------------------------------------
+      // PAGO
+      // ----------------------------------------
+
+      const chaveMes =
+        `${ano}-${String(
+          mes + 1
+        ).padStart(
+          2,
+          "0"
+        )}`;
+
+      const foiPaga =
+        Array.isArray(
+          conta.pagamentos
+        ) &&
+        conta.pagamentos.includes(
+          chaveMes
+        );
+
+      if (foiPaga) {
+
+        pago +=
+          valor;
+
+      } else {
+
+        pendente +=
+          valor;
+      }
+    }
+  );
+
+  return {
+    total,
+    pago,
+    pendente,
+  };
+}
+
+// ==========================================
 // DASHBOARD
 // ==========================================
 
@@ -1047,6 +1193,49 @@ function atualizarDashboard() {
         },
         0
       );
+
+    // ==========================================
+  // CONTAS FIXAS DO MÊS
+  // ==========================================
+
+  const resumoFixas =
+    obterResumoContasFixasMes();
+
+  const elementoFixedTotal =
+    document.querySelector(
+      "#fixedTotal"
+    );
+
+  const elementoFixedPaid =
+    document.querySelector(
+      "#fixedPaid"
+    );
+
+  const elementoFixedPending =
+    document.querySelector(
+      "#fixedPending"
+    );
+
+  if (elementoFixedTotal) {
+    elementoFixedTotal.textContent =
+      dinheiro(
+        resumoFixas.total
+      );
+  }
+
+  if (elementoFixedPaid) {
+    elementoFixedPaid.textContent =
+      dinheiro(
+        resumoFixas.pago
+      );
+  }
+
+  if (elementoFixedPending) {
+    elementoFixedPending.textContent =
+      dinheiro(
+        resumoFixas.pendente
+      );
+  }
 
   const elementoSaldo =
     document.querySelector(
@@ -1336,13 +1525,23 @@ function mostrarTabela() {
 
 function pegarContasFixas() {
   try {
-    return JSON.parse(
-      localStorage.getItem(
-        "fixedAccounts"
-      ) || "[]"
+    const contas =
+      JSON.parse(
+        localStorage.getItem(
+          "fixedAccounts"
+        ) || "[]"
+      );
+
+    return Array.isArray(contas)
+      ? contas
+      : [];
+
+  } catch (erro) {
+    console.error(
+      "Erro ao carregar contas fixas:",
+      erro
     );
 
-  } catch {
     return [];
   }
 }
@@ -1352,28 +1551,425 @@ function salvarContasFixas(
 ) {
   localStorage.setItem(
     "fixedAccounts",
-    JSON.stringify(
-      contas
+    JSON.stringify(contas)
+  );
+}
+
+function obterMesAtual() {
+  const agora =
+    new Date();
+
+  return (
+    agora.getFullYear() +
+    "-" +
+    String(
+      agora.getMonth() + 1
+    ).padStart(2, "0")
+  );
+}
+
+function contaFoiPaga(
+  conta
+) {
+  const mesAtual =
+    obterMesAtual();
+
+  return (
+    Array.isArray(
+      conta.pagamentos
+    ) &&
+    conta.pagamentos.includes(
+      mesAtual
     )
   );
 }
+
+// ==========================================
+// MARCAR / DESMARCAR CONTA COMO PAGA
+// ==========================================
+
+function marcarContaComoPaga(
+  id
+) {
+  const contas =
+    pegarContasFixas();
+
+  const conta =
+    contas.find(
+      (item) =>
+        String(
+          item.id
+        ) ===
+        String(id)
+    );
+
+  if (!conta) {
+    return;
+  }
+
+  if (
+    !Array.isArray(
+      conta.pagamentos
+    )
+  ) {
+    conta.pagamentos = [];
+  }
+
+  const mesAtual =
+    obterMesAtual();
+
+  const indice =
+    conta.pagamentos.indexOf(
+      mesAtual
+    );
+
+  if (indice >= 0) {
+    conta.pagamentos.splice(
+      indice,
+      1
+    );
+  } else {
+    conta.pagamentos.push(
+      mesAtual
+    );
+  }
+
+  salvarContasFixas(
+    contas
+  );
+
+  mostrarContasFixas();
+}
+
+// ==========================================
+// MÊS SELECIONADO NAS CONTAS FIXAS
+// ==========================================
+
+let mesContasFixas =
+  new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    1
+  );
+
+  // ==========================================
+// FORMATAR MÊS
+// ==========================================
+
+function formatarMesContasFixas(
+  data
+) {
+  return data.toLocaleDateString(
+    "pt-BR",
+    {
+      month: "long",
+      year: "numeric",
+    }
+  );
+}
+
+
+// ==========================================
+// ATUALIZAR TÍTULO DO MÊS
+// ==========================================
+
+function atualizarMesContasFixas() {
+
+  const titulo =
+    document.querySelector(
+      "#fixedMonthTitle"
+    );
+
+  const subtitulo =
+    document.querySelector(
+      "#fixedMonthSubtitle"
+    );
+
+  if (titulo) {
+
+    const texto =
+      formatarMesContasFixas(
+        mesContasFixas
+      );
+
+    titulo.textContent =
+      texto.charAt(0).toUpperCase() +
+      texto.slice(1);
+  }
+
+  if (subtitulo) {
+
+    subtitulo.textContent =
+      "Contas e parcelas deste mês";
+  }
+}
+
+
+// ==========================================
+// MÊS ANTERIOR
+// ==========================================
+
+function mesContasFixasAnterior() {
+
+  mesContasFixas =
+    new Date(
+      mesContasFixas.getFullYear(),
+      mesContasFixas.getMonth() - 1,
+      1
+    );
+
+  atualizarMesContasFixas();
+
+  mostrarContasFixas();
+}
+
+
+// ==========================================
+// PRÓXIMO MÊS
+// ==========================================
+
+function mesContasFixasProximo() {
+
+  mesContasFixas =
+    new Date(
+      mesContasFixas.getFullYear(),
+      mesContasFixas.getMonth() + 1,
+      1
+    );
+
+  atualizarMesContasFixas();
+
+  mostrarContasFixas();
+}
+
+
+// ==========================================
+// CONFIGURAR BOTÕES DOS MESES
+// ==========================================
+
+function configurarNavegacaoContasFixas() {
+
+  const anterior =
+    document.querySelector(
+      "#fixedPreviousMonth"
+    );
+
+  const proximo =
+    document.querySelector(
+      "#fixedNextMonth"
+    );
+
+  if (anterior) {
+
+    anterior.addEventListener(
+      "click",
+      mesContasFixasAnterior
+    );
+  }
+
+  if (proximo) {
+
+    proximo.addEventListener(
+      "click",
+      mesContasFixasProximo
+    );
+  }
+
+  atualizarMesContasFixas();
+}
+
+// ==========================================
+// MOSTRAR CONTAS FIXAS
+// ==========================================
 
 function mostrarContasFixas() {
   const contas =
     pegarContasFixas();
 
-  const total =
-    contas.reduce(
-      (
-        soma,
-        conta
-      ) =>
-        soma +
+  // ==========================================
+  // MÊS SELECIONADO
+  // ==========================================
+
+  const anoSelecionado =
+    mesContasFixas.getFullYear();
+
+  const mesSelecionado =
+    mesContasFixas.getMonth();
+
+  // ==========================================
+  // CALCULAR INFORMAÇÕES DE CADA CONTA
+  // ==========================================
+
+  const contasDoMes =
+    contas.filter(
+      (conta) => {
+
+        // --------------------------------------
+        // CONTAS FIXAS MENSAIS
+        // --------------------------------------
+
+        const ehParcelada =
+          conta.tipo ===
+            "parcelada" ||
+          Number(
+            conta.totalParcelas ||
+              0
+          ) > 0;
+
+        if (!ehParcelada) {
+          return true;
+        }
+
+        // --------------------------------------
+        // PARCELADAS
+        // --------------------------------------
+
+        if (
+          conta.finalizada ===
+          true
+        ) {
+          return false;
+        }
+
+        return true;
+      }
+    );
+
+  // ==========================================
+  // TOTAL DO MÊS
+  // ==========================================
+
+  let total =
+    0;
+
+  let totalPago =
+    0;
+
+  let quantidade =
+    0;
+
+  contasDoMes.forEach(
+    (conta) => {
+
+      const ehParcelada =
+        conta.tipo ===
+          "parcelada" ||
+        Number(
+          conta.totalParcelas ||
+            0
+        ) > 0;
+
+      let deveAparecer =
+        true;
+
+      let parcelaDoMes =
+        null;
+
+      // ----------------------------------------
+      // PARCELADA
+      // ----------------------------------------
+
+      if (ehParcelada) {
+
+        const totalParcelas =
+          Number(
+            conta.totalParcelas ||
+              0
+          );
+
+        const parcelaInicial =
+          Number(
+            conta.parcelaAtual ||
+              1
+          );
+
+        const anoInicial =
+          Number(
+            conta.anoInicioParcela ||
+              anoSelecionado
+          );
+
+        const mesInicial =
+          Number(
+            conta.mesInicioParcela ??
+              mesSelecionado
+          );
+
+        const diferencaMeses =
+          (
+            anoSelecionado -
+            anoInicial
+          ) *
+            12 +
+          (
+            mesSelecionado -
+            mesInicial
+          );
+
+        parcelaDoMes =
+          parcelaInicial +
+          diferencaMeses;
+
+        if (
+          parcelaDoMes <
+            parcelaInicial ||
+          parcelaDoMes >
+            totalParcelas
+        ) {
+          deveAparecer =
+            false;
+        }
+      }
+
+      if (!deveAparecer) {
+        return;
+      }
+
+      const valor =
         Number(
           conta.amount || 0
-        ),
-      0
-    );
+        );
+
+      total +=
+        valor;
+
+      quantidade +=
+        1;
+
+      // ----------------------------------------
+      // VERIFICAR PAGAMENTO DO MÊS
+      // ----------------------------------------
+
+      const chaveMes =
+        `${anoSelecionado}-${String(
+          mesSelecionado + 1
+        ).padStart(
+          2,
+          "0"
+        )}`;
+
+      const paga =
+        Array.isArray(
+          conta.pagamentos
+        ) &&
+        conta.pagamentos.includes(
+          chaveMes
+        );
+
+      if (paga) {
+        totalPago +=
+          valor;
+      }
+    }
+  );
+
+  const totalPendente =
+    total -
+    totalPago;
+
+  // ==========================================
+  // ATUALIZAR RESUMO
+  // ==========================================
 
   const elementoTotal =
     document.querySelector(
@@ -1385,22 +1981,47 @@ function mostrarContasFixas() {
       "#fixedCount"
     );
 
+  const elementoPago =
+    document.querySelector(
+      "#fixedPaid"
+    );
+
+  const elementoPendente =
+    document.querySelector(
+      "#fixedPending"
+    );
+
   if (elementoTotal) {
     elementoTotal.textContent =
-      dinheiro(
-        total
-      );
+      dinheiro(total);
   }
 
   if (elementoQuantidade) {
     elementoQuantidade.textContent =
-      `${contas.length} cadastrada${
-        contas.length ===
-        1
+      `${quantidade} cadastrada${
+        quantidade === 1
           ? ""
           : "s"
       }`;
   }
+
+  if (elementoPago) {
+    elementoPago.textContent =
+      dinheiro(
+        totalPago
+      );
+  }
+
+  if (elementoPendente) {
+    elementoPendente.textContent =
+      dinheiro(
+        totalPendente
+      );
+  }
+
+  // ==========================================
+  // LISTA
+  // ==========================================
 
   const lista =
     document.querySelector(
@@ -1411,61 +2032,299 @@ function mostrarContasFixas() {
     return;
   }
 
-  if (!contas.length) {
+  if (
+    contasDoMes.filter(
+      (conta) => {
+
+        const ehParcelada =
+          conta.tipo ===
+            "parcelada" ||
+          Number(
+            conta.totalParcelas ||
+              0
+          ) > 0;
+
+        if (
+          ehParcelada &&
+          conta.finalizada ===
+            true
+        ) {
+          return false;
+        }
+
+        if (!ehParcelada) {
+          return true;
+        }
+
+        const totalParcelas =
+          Number(
+            conta.totalParcelas ||
+              0
+          );
+
+        const parcelaInicial =
+          Number(
+            conta.parcelaAtual ||
+              1
+          );
+
+        const anoInicial =
+          Number(
+            conta.anoInicioParcela ||
+              anoSelecionado
+          );
+
+        const mesInicial =
+          Number(
+            conta.mesInicioParcela ??
+              mesSelecionado
+          );
+
+        const diferencaMeses =
+          (
+            anoSelecionado -
+            anoInicial
+          ) *
+            12 +
+          (
+            mesSelecionado -
+            mesInicial
+          );
+
+        const parcelaDoMes =
+          parcelaInicial +
+          diferencaMeses;
+
+        return (
+          parcelaDoMes >=
+            parcelaInicial &&
+          parcelaDoMes <=
+            totalParcelas
+        );
+      }
+    ).length === 0
+  ) {
+
     lista.innerHTML = `
       <div class="empty">
-        Nenhuma conta fixa cadastrada.
+        Nenhuma conta para este mês.
       </div>
     `;
 
     return;
   }
 
+  // ==========================================
+  // MONTAR LISTA
+  // ==========================================
+
   lista.innerHTML =
-    contas
+    contasDoMes
       .map(
-        (conta) => `
-          <div class="fixed-item">
+        (conta) => {
 
-            <div>
+          const ehParcelada =
+            conta.tipo ===
+              "parcelada" ||
+            Number(
+              conta.totalParcelas ||
+                0
+            ) > 0;
 
-              <strong>
-                ${escapar(
-                  conta.name
-                )}
-              </strong>
+          let parcelaDoMes =
+            null;
 
-              <small>
-                Dia ${conta.day}
-                ·
-                ${escapar(
-                  conta.category
-                )}
-              </small>
+          if (
+            ehParcelada
+          ) {
+
+            const totalParcelas =
+              Number(
+                conta.totalParcelas ||
+                  0
+              );
+
+            const parcelaInicial =
+              Number(
+                conta.parcelaAtual ||
+                  1
+              );
+
+            const anoInicial =
+              Number(
+                conta.anoInicioParcela ||
+                  anoSelecionado
+              );
+
+            const mesInicial =
+              Number(
+                conta.mesInicioParcela ??
+                  mesSelecionado
+              );
+
+            const diferencaMeses =
+              (
+                anoSelecionado -
+                anoInicial
+              ) *
+                12 +
+              (
+                mesSelecionado -
+                mesInicial
+              );
+
+            parcelaDoMes =
+              parcelaInicial +
+              diferencaMeses;
+
+            if (
+              parcelaDoMes <
+                parcelaInicial ||
+              parcelaDoMes >
+                totalParcelas
+            ) {
+              return "";
+            }
+          }
+
+          const chaveMes =
+            `${anoSelecionado}-${String(
+              mesSelecionado + 1
+            ).padStart(
+              2,
+              "0"
+            )}`;
+
+          const paga =
+            Array.isArray(
+              conta.pagamentos
+            ) &&
+            conta.pagamentos.includes(
+              chaveMes
+            );
+
+          let textoParcela =
+            "Conta mensal";
+
+          if (
+            ehParcelada
+          ) {
+            textoParcela =
+              `Parcela ${
+                parcelaDoMes
+              }/${
+                conta.totalParcelas
+              }`;
+          }
+
+          return `
+            <div class="fixed-item">
+
+              <div>
+
+                <strong>
+                  ${escapar(
+                    conta.name
+                  )}
+                </strong>
+
+                <small>
+                  Dia ${
+                    conta.day
+                  }
+                  ·
+                  ${escapar(
+                    conta.category
+                  )}
+                </small>
+
+                <small>
+                  ${textoParcela}
+                </small>
+
+                <small>
+                  ${
+                    paga
+                      ? "🟢 Paga"
+                      : "🔴 Pendente"
+                  }
+                </small>
+
+              </div>
+
+              <div>
+
+                <strong>
+                  ${dinheiro(
+                    conta.amount
+                  )}
+                </strong>
+
+                <button
+                  type="button"
+                  class="primary"
+                  data-pagar-fixa="${
+                    conta.id
+                  }"
+                >
+                  ${
+                    paga
+                      ? "↩ Desmarcar paga"
+                      : "✓ Marcar como paga"
+                  }
+                </button>
+
+                <button
+                  type="button"
+                  class="delete-btn"
+                  data-delete-fixed="${
+                    conta.id
+                  }"
+                >
+                  Excluir
+                </button>
+
+              </div>
 
             </div>
-
-            <div>
-
-              <strong>
-                ${dinheiro(
-                  conta.amount
-                )}
-              </strong>
-
-              <button
-                class="delete-btn"
-                data-delete-fixed="${conta.id}"
-              >
-                Excluir
-              </button>
-
-            </div>
-
-          </div>
-        `
+          `;
+        }
+      )
+      .filter(
+        (html) =>
+          html
       )
       .join("");
+
+  // ==========================================
+  // BOTÃO PAGAR
+  // ==========================================
+
+  lista
+    .querySelectorAll(
+      "[data-pagar-fixa]"
+    )
+    .forEach(
+      (botao) => {
+
+        botao.addEventListener(
+          "click",
+          () => {
+
+            marcarContaComoPaga(
+              botao.dataset
+                .pagarFixa
+            );
+
+          }
+        );
+
+      }
+    );
+
+  // ==========================================
+  // BOTÃO EXCLUIR
+  // ==========================================
 
   lista
     .querySelectorAll(
@@ -1473,21 +2332,32 @@ function mostrarContasFixas() {
     )
     .forEach(
       (botao) => {
+
         botao.addEventListener(
           "click",
           () => {
+
             const id =
               botao.dataset
                 .deleteFixed;
 
+            const confirmou =
+              confirm(
+                "Deseja realmente excluir esta conta fixa?"
+              );
+
+            if (!confirmou) {
+              return;
+            }
+
             const novasContas =
               pegarContasFixas()
                 .filter(
-                  (
-                    conta
-                  ) =>
-                    conta.id !==
-                    id
+                  (conta) =>
+                    String(
+                      conta.id
+                    ) !==
+                    String(id)
                 );
 
             salvarContasFixas(
@@ -1495,8 +2365,10 @@ function mostrarContasFixas() {
             );
 
             mostrarContasFixas();
+
           }
         );
+
       }
     );
 }
@@ -1891,6 +2763,7 @@ async function editarCaixinha(
     return;
   }
 
+
   const novoNome =
     prompt(
       "Nome da caixinha:",
@@ -2067,6 +2940,648 @@ async function excluirCaixinha(
 }
 
 // ==========================================
+// CARTÕES E FATURAS
+// ==========================================
+
+function mostrarCartoesEFaturas() {
+  const container =
+    document.querySelector(
+      "#creditCards"
+    );
+
+  if (!container) {
+    return;
+  }
+
+  if (!state.cartoes.length) {
+    container.innerHTML = `
+      <div class="empty">
+        Nenhum cartão encontrado.
+      </div>
+    `;
+
+    return;
+  }
+
+  container.innerHTML =
+    state.cartoes
+      .map(
+        (cartao) => {
+
+          const faturas =
+            state.faturas
+              .filter(
+                (fatura) =>
+                  String(
+                    fatura.accountId
+                  ) ===
+                  String(
+                    cartao.id
+                  )
+              )
+              .sort(
+                (a, b) =>
+                  new Date(
+                    b.dueDate
+                  ) -
+                  new Date(
+                    a.dueDate
+                  )
+              );
+
+          const faturaAtual =
+  faturas[0];
+
+let valorFatura =
+  Number(
+    faturaAtual?.totalAmount ||
+    faturaAtual?.valor ||
+    0
+  );
+
+// Se a fatura atual ainda não possui
+// totalAmount, calcular pelas compras
+if (
+  faturaAtual &&
+  valorFatura === 0
+) {
+
+  const fechamento =
+    new Date(
+      faturaAtual.billClosingDate
+    );
+
+  const dataAnterior =
+    new Date(
+      fechamento
+    );
+
+  dataAnterior.setMonth(
+    dataAnterior.getMonth() - 1
+  );
+
+  const comprasFaturaAtual =
+    state.transacoes.filter(
+      (transacao) => {
+
+        if (
+          transacao.conta !==
+          cartao.banco
+        ) {
+          return false;
+        }
+
+        if (
+          transacao.tipoConta !==
+          "CREDIT"
+        ) {
+          return false;
+        }
+
+        if (
+          transacao.tipo !==
+          "DEBIT"
+        ) {
+          return false;
+        }
+
+        const data =
+          new Date(
+            transacao.data
+          );
+
+        return (
+          data >
+            dataAnterior &&
+          data <=
+            fechamento
+        );
+      }
+    );
+
+  valorFatura =
+    comprasFaturaAtual.reduce(
+      (total, transacao) =>
+        total +
+        Math.abs(
+          Number(
+            transacao.valor
+          )
+        ),
+      0
+    );
+}
+
+          return `
+            <article
+              class="card credit-card-item"
+              data-card-id="${cartao.id}"
+              style="cursor: pointer;"
+            >
+
+              <div class="card-header">
+
+                <div>
+
+                  <strong>
+                    💳 ${escapar(
+                      cartao.nome
+                    )}
+                  </strong>
+
+                  <div class="meta">
+                    ${escapar(
+                      cartao.banco
+                    )}
+                  </div>
+
+                </div>
+
+              </div>
+
+              <div class="credit-card-value">
+                ${dinheiro(
+                  valorFatura
+                )}
+              </div>
+
+              <div class="meta">
+                Fatura atual
+              </div>
+
+              <div class="meta">
+                Limite:
+                ${dinheiro(
+                  cartao.limite
+                )}
+              </div>
+
+              <div class="meta">
+                Disponível:
+                ${dinheiro(
+                  cartao.limiteDisponivel
+                )}
+              </div>
+
+              <div class="credit-card-footer">
+                <span>
+                  ${faturas.length}
+                  fatura(s)
+                </span>
+
+                <strong>
+                  Ver detalhes →
+                </strong>
+              </div>
+
+            </article>
+          `;
+        }
+      )
+      .join("");
+
+  container
+    .querySelectorAll(
+      "[data-card-id]"
+    )
+    .forEach(
+      (cartaoElemento) => {
+
+        cartaoElemento.addEventListener(
+          "click",
+          () => {
+
+            mostrarDetalhesCartao(
+              cartaoElemento.dataset.cardId
+            );
+
+          }
+        );
+
+      }
+    );
+}
+
+function mostrarDetalhesCartao(
+  cartaoId
+) {
+  const cartao =
+    state.cartoes.find(
+      (item) =>
+        String(item.id) ===
+        String(cartaoId)
+    );
+
+  if (!cartao) {
+    return;
+  }
+
+  const faturas =
+    state.faturas
+      .filter(
+        (fatura) =>
+          String(
+            fatura.accountId
+          ) ===
+          String(
+            cartao.id
+          )
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.dueDate) -
+          new Date(a.dueDate)
+      );
+
+  const cards =
+    document.querySelector(
+      "#creditCards"
+    );
+
+  const detalhes =
+    document.querySelector(
+      "#creditCardDetails"
+    );
+
+  if (!cards || !detalhes) {
+    return;
+  }
+
+  cards.style.display =
+    "none";
+
+  detalhes.style.display =
+    "block";
+
+  detalhes.innerHTML = `
+
+    <div class="section-title">
+
+      <div>
+
+        <button
+          class="link-btn"
+          id="voltarCartoes"
+        >
+          ← Voltar
+        </button>
+
+        <p class="eyebrow">
+          CARTÃO
+        </p>
+
+        <h2>
+          💳 ${escapar(
+            cartao.nome
+          )}
+        </h2>
+
+        <p>
+          ${escapar(
+            cartao.banco
+          )}
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="panel">
+
+      <div class="panel-head">
+
+        <div>
+
+          <h2>
+            Fatura
+          </h2>
+
+          <p>
+            Selecione o mês que deseja consultar.
+          </p>
+
+        </div>
+
+        <select
+          id="faturaSelecionada"
+        >
+
+          ${faturas
+            .map(
+              (fatura, index) => {
+
+                const data =
+                  new Date(
+                    fatura.dueDate
+                  );
+
+                const texto =
+                  data.toLocaleDateString(
+                    "pt-BR",
+                    {
+                      month:
+                        "long",
+                      year:
+                        "numeric"
+                    }
+                  );
+
+                return `
+                  <option
+                    value="${fatura.id}"
+                    ${index === 0
+                      ? "selected"
+                      : ""}
+                  >
+                    ${texto}
+                  </option>
+                `;
+              }
+            )
+            .join("")}
+
+        </select>
+
+      </div>
+
+
+      <div
+        id="faturaDetalhes"
+      ></div>
+
+    </div>
+
+  `;
+
+  document
+    .querySelector(
+      "#voltarCartoes"
+    )
+    .addEventListener(
+      "click",
+      () => {
+
+        detalhes.style.display =
+          "none";
+
+        cards.style.display =
+          "";
+
+      }
+    );
+
+  const select =
+    document.querySelector(
+      "#faturaSelecionada"
+    );
+
+  function renderizarFatura() {
+
+    const fatura =
+      faturas.find(
+        (item) =>
+          String(item.id) ===
+          String(
+            select.value
+          )
+      );
+
+    if (!fatura) {
+      return;
+    }
+
+    const fechamento =
+      new Date(
+        fatura.billClosingDate
+      );
+
+    const dataAnterior =
+      new Date(
+        fechamento
+      );
+
+    dataAnterior.setMonth(
+      dataAnterior.getMonth() - 1
+    );
+
+    const transacoes =
+      state.transacoes.filter(
+        (transacao) => {
+
+          if (
+            transacao.conta !==
+            cartao.banco
+          ) {
+            return false;
+          }
+
+          if (
+            transacao.tipoConta !==
+            "CREDIT"
+          ) {
+            return false;
+          }
+
+          const data =
+            new Date(
+              transacao.data
+            );
+
+          return (
+            data >
+              dataAnterior &&
+            data <=
+              fechamento &&
+            transacao.tipo ===
+              "DEBIT"
+          );
+        }
+      );
+
+    const totalCompras =
+      transacoes.reduce(
+        (total, transacao) =>
+          total +
+          Math.abs(
+            Number(
+              transacao.valor
+            )
+          ),
+        0
+      );
+
+      const totalDaFatura =
+  fatura.virtual
+    ? totalCompras
+    : Number(
+        fatura.totalAmount ||
+        fatura.valor ||
+        0
+      );
+
+    const detalhes =
+      document.querySelector(
+        "#faturaDetalhes"
+      );
+
+    detalhes.innerHTML = `
+
+      <div class="cards">
+
+        <article class="card highlight">
+
+          <span>
+            Total da fatura
+          </span>
+
+     <strong>
+  ${dinheiro(
+    totalDaFatura
+  )}
+</strong>
+
+        </article>
+
+
+        <article class="card">
+
+          <span>
+            Vencimento
+          </span>
+
+          <strong>
+            ${dataBR(
+              fatura.dueDate
+            )}
+          </strong>
+
+        </article>
+
+
+        <article class="card">
+
+          <span>
+            Compras encontradas
+          </span>
+
+          <strong>
+            ${transacoes.length}
+          </strong>
+
+        </article>
+
+      </div>
+
+
+      <div class="panel">
+
+        <div class="panel-head">
+
+          <div>
+
+            <h2>
+              Compras da fatura
+            </h2>
+
+            <p>
+              Total identificado:
+              ${dinheiro(
+                totalCompras
+              )}
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div class="transactions">
+
+          ${
+            transacoes.length
+              ? transacoes
+                  .sort(
+                    (a, b) =>
+                      new Date(
+                        b.data
+                      ) -
+                      new Date(
+                        a.data
+                      )
+                  )
+                  .map(
+                    (transacao) => `
+
+                      <div
+                        class="transaction"
+                      >
+
+                        <div>
+
+                          <div
+                            class="desc"
+                          >
+                            ${escapar(
+                              transacao.descricao
+                            )}
+                          </div>
+
+                          <div
+                            class="meta"
+                          >
+                            ${dataBR(
+                              transacao.data
+                            )}
+                            ·
+                            ${escapar(
+                              transacao.categoria
+                            )}
+                          </div>
+
+                        </div>
+
+                        <div
+                          class="amount expense"
+                        >
+                          - ${dinheiro(
+                            Math.abs(
+                              Number(
+                                transacao.valor
+                              )
+                            )
+                          )}
+                        </div>
+
+                      </div>
+
+                    `
+                  )
+                  .join("")
+              : `
+                <div class="empty">
+                  Nenhuma compra encontrada
+                  para esta fatura.
+                </div>
+              `
+          }
+
+        </div>
+
+      </div>
+
+    `;
+  }
+
+  select.addEventListener(
+    "change",
+    renderizarFatura
+  );
+
+  renderizarFatura();
+}
+
+// ==========================================
 // CRIAR CAIXINHA
 // ==========================================
 
@@ -2212,19 +3727,23 @@ async function carregarDados() {
       );
     }
 
-    const [
+        const [
       dadosContas,
       dadosTransacoes,
-    ] =
-      await Promise.all([
-        buscarDados(
-          "/api/accounts"
-        ),
+      dadosFaturas,
+    ] = await Promise.all([
+      buscarDados(
+        "/api/accounts"
+      ),
 
-        buscarDados(
-          `/api/transactions?${parametros.toString()}`
-        ),
-      ]);
+      buscarDados(
+        `/api/transactions?${parametros.toString()}`
+      ),
+
+      buscarDados(
+        "/api/bills"
+      ),
+    ]);
 
     state.contas =
       dadosContas.contas ||
@@ -2234,6 +3753,11 @@ async function carregarDados() {
       dadosContas.cartoes ||
       [];
 
+    console.log(
+      "CARTÕES DO PIERRE:",
+       state.cartoes
+    );  
+
     state.investimentos =
       dadosContas.investimentos ||
       [];
@@ -2242,15 +3766,25 @@ async function carregarDados() {
       dadosTransacoes.transacoes ||
       [];
 
-    mostrarContas();
+    state.faturas =
+  dadosFaturas.faturas ||
+  [];
 
-    atualizarDashboard();
+state.resumos =
+  dadosFaturas.resumos ||
+  [];
 
-    mostrarTabela();
+mostrarContas();
 
-    mostrarContasFixas();
+mostrarCartoesEFaturas();
 
-    await carregarCaixinhas();
+atualizarDashboard();
+
+mostrarTabela();
+
+mostrarContasFixas();
+
+await carregarCaixinhas();
 
     if (connectionText) {
       connectionText.textContent =
@@ -2322,22 +3856,25 @@ function navegar(
       }
     );
 
-  const titulos = {
-    dashboard:
-      "Dashboard",
+ const titulos = {
+  dashboard:
+    "Dashboard",
 
-    contas:
-      "Contas",
+  contas:
+    "Contas",
 
-    transacoes:
-      "Transações",
+  cartoes:
+    "Cartões e faturas",
 
-    fixas:
-      "Contas fixas",
+  transacoes:
+    "Transações",
 
-    caixinhas:
-      "Caixinhas",
-  };
+  fixas:
+    "Contas fixas",
+
+  caixinhas:
+    "Caixinhas",
+};
 
   const titulo =
     document.querySelector(
@@ -2539,6 +4076,10 @@ function configurarFiltro() {
 // CONTAS FIXAS
 // ==========================================
 
+// ==========================================
+// CONTAS FIXAS
+// ==========================================
+
 function configurarFormularioContaFixa() {
   const formulario =
     document.querySelector(
@@ -2549,39 +4090,280 @@ function configurarFormularioContaFixa() {
     return;
   }
 
+  const tipoConta =
+    document.querySelector(
+      "#fixedType"
+    );
+
+  const camposParcelas =
+    document.querySelector(
+      "#installmentFields"
+    );
+
+  const totalParcelas =
+    document.querySelector(
+      "#fixedTotalInstallments"
+    );
+
+  const parcelaAtual =
+    document.querySelector(
+      "#fixedCurrentInstallment"
+    );
+
+  // ==========================================
+  // MOSTRAR / ESCONDER CAMPOS DE PARCELAS
+  // ==========================================
+
+  function atualizarCamposParcelas() {
+
+    if (!tipoConta) {
+      return;
+    }
+
+    const ehParcelada =
+      tipoConta.value ===
+      "parcelada";
+
+    if (camposParcelas) {
+
+      camposParcelas.style.display =
+        ehParcelada
+          ? "block"
+          : "none";
+    }
+
+    if (totalParcelas) {
+
+      totalParcelas.required =
+        ehParcelada;
+    }
+
+    if (parcelaAtual) {
+
+      parcelaAtual.required =
+        ehParcelada;
+    }
+  }
+
+  if (tipoConta) {
+
+    tipoConta.addEventListener(
+      "change",
+      atualizarCamposParcelas
+    );
+
+    atualizarCamposParcelas();
+  }
+
+  // ==========================================
+  // CADASTRAR CONTA
+  // ==========================================
+
   formulario.addEventListener(
     "submit",
     (evento) => {
+
       evento.preventDefault();
 
+      const nome =
+        document
+          .querySelector(
+            "#fixedName"
+          )
+          .value
+          .trim();
+
+      const valor =
+        Number(
+          document.querySelector(
+            "#fixedAmount"
+          ).value
+        );
+
+      const dia =
+        Number(
+          document.querySelector(
+            "#fixedDay"
+          ).value
+        );
+
+      const categoria =
+        document.querySelector(
+          "#fixedCategory"
+        ).value;
+
+      const tipo =
+        tipoConta
+          ? tipoConta.value
+          : "fixa";
+
+      const quantidadeParcelas =
+        Number(
+          totalParcelas
+            ? totalParcelas.value
+            : 0
+        );
+
+      const numeroParcelaAtual =
+        Number(
+          parcelaAtual
+            ? parcelaAtual.value
+            : 1
+        );
+
+      // ==========================================
+      // VALIDAÇÕES
+      // ==========================================
+
+      if (!nome) {
+
+        alert(
+          "Digite o nome da conta."
+        );
+
+        return;
+      }
+
+      if (
+        !Number.isFinite(
+          valor
+        ) ||
+        valor <= 0
+      ) {
+
+        alert(
+          "Digite um valor válido."
+        );
+
+        return;
+      }
+
+      if (
+        !Number.isInteger(
+          dia
+        ) ||
+        dia < 1 ||
+        dia > 31
+      ) {
+
+        alert(
+          "Digite um dia de vencimento entre 1 e 31."
+        );
+
+        return;
+      }
+
+      if (
+        tipo ===
+        "parcelada"
+      ) {
+
+        if (
+          !Number.isInteger(
+            quantidadeParcelas
+          ) ||
+          quantidadeParcelas < 1
+        ) {
+
+          alert(
+            "Informe o total de parcelas."
+          );
+
+          return;
+        }
+
+        if (
+          !Number.isInteger(
+            numeroParcelaAtual
+          ) ||
+          numeroParcelaAtual < 1 ||
+          numeroParcelaAtual >
+            quantidadeParcelas
+        ) {
+
+          alert(
+            "A parcela atual deve estar entre 1 e o total de parcelas."
+          );
+
+          return;
+        }
+      }
+
+      // ==========================================
+      // DEFINIR MÊS DE INÍCIO DA PARCELA
+      // ==========================================
+
+      const dataInicioParcela =
+        new Date();
+
+      const anoInicioParcela =
+        dataInicioParcela.getFullYear();
+
+      const mesInicioParcela =
+        dataInicioParcela.getMonth();
+
+      // ==========================================
+      // CRIAR CONTA
+      // ==========================================
+
       const conta = {
+
         id:
           crypto.randomUUID(),
 
         name:
-          document.querySelector(
-            "#fixedName"
-          ).value.trim(),
+          nome,
 
         amount:
-          Number(
-            document.querySelector(
-              "#fixedAmount"
-            ).value
-          ),
+          valor,
 
         day:
-          Number(
-            document.querySelector(
-              "#fixedDay"
-            ).value
-          ),
+          dia,
 
         category:
-          document.querySelector(
-            "#fixedCategory"
-          ).value,
+          categoria,
+
+        tipo:
+          tipo,
+
+        totalParcelas:
+          tipo ===
+          "parcelada"
+            ? quantidadeParcelas
+            : null,
+
+        parcelaAtual:
+          tipo ===
+          "parcelada"
+            ? numeroParcelaAtual
+            : null,
+
+        // ========================================
+        // INÍCIO DA PARCELA
+        // ========================================
+
+        anoInicioParcela:
+          tipo ===
+          "parcelada"
+            ? anoInicioParcela
+            : null,
+
+        mesInicioParcela:
+          tipo ===
+          "parcelada"
+            ? mesInicioParcela
+            : null,
+
+        pagamentos:
+          [],
+
+        finalizada:
+          false,
       };
+
+      // ==========================================
+      // SALVAR
+      // ==========================================
 
       const contas =
         pegarContasFixas();
@@ -2594,9 +4376,53 @@ function configurarFormularioContaFixa() {
         contas
       );
 
+      // ==========================================
+      // LIMPAR FORMULÁRIO
+      // ==========================================
+
       formulario.reset();
 
+      if (tipoConta) {
+
+        tipoConta.value =
+          "fixa";
+      }
+
+      if (camposParcelas) {
+
+        camposParcelas.style.display =
+          "none";
+      }
+
+      if (totalParcelas) {
+
+        totalParcelas.required =
+          false;
+
+        totalParcelas.value =
+          "";
+      }
+
+      if (parcelaAtual) {
+
+        parcelaAtual.required =
+          false;
+
+        parcelaAtual.value =
+          "1";
+      }
+
+      // ==========================================
+      // ATUALIZAR LISTA
+      // ==========================================
+
       mostrarContasFixas();
+
+      alert(
+        tipo === "parcelada"
+          ? "Conta parcelada adicionada com sucesso!"
+          : "Conta fixa adicionada com sucesso!"
+      );
     }
   );
 }
@@ -2667,6 +4493,7 @@ async function iniciarAplicacao() {
   configurarFiltro();
 
   configurarFormularioContaFixa();
+  configurarNavegacaoContasFixas();
 
   configurarFormularioCaixinha();
 

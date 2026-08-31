@@ -115,10 +115,6 @@ async function verificarUsuarioAdmin(token) {
       };
     }
 
-    // ==========================================
-    // PERFIL
-    // ==========================================
-
     const {
       data: perfil,
       error:
@@ -168,10 +164,6 @@ async function verificarUsuarioAdmin(token) {
       };
     }
 
-    // ==========================================
-    // VERIFICAR ADMIN
-    // ==========================================
-
     const tipoPerfil =
       String(
         perfil.tipo || ""
@@ -193,14 +185,11 @@ async function verificarUsuarioAdmin(token) {
 
     return {
       autorizado: true,
-
       user,
-
       perfil,
     };
 
   } catch (erro) {
-
     console.error(
       "Erro ao verificar usuário:",
       erro.message
@@ -215,7 +204,7 @@ async function verificarUsuarioAdmin(token) {
 }
 
 // ==========================================
-// MIDDLEWARE DE AUTENTICAÇÃO
+// MIDDLEWARE
 // ==========================================
 
 async function exigirAdmin(
@@ -264,7 +253,6 @@ app.post(
   "/api/auth/login",
   async (req, res) => {
     try {
-
       const {
         email,
         senha,
@@ -287,10 +275,6 @@ app.post(
         String(email)
           .trim()
           .toLowerCase();
-
-      // ==========================================
-      // AUTENTICAR NO SUPABASE
-      // ==========================================
 
       const {
         data,
@@ -331,10 +315,6 @@ app.post(
           });
       }
 
-      // ==========================================
-      // VERIFICAR PERFIL
-      // ==========================================
-
       const {
         data: perfil,
         error:
@@ -371,7 +351,6 @@ app.post(
       }
 
       if (!perfil) {
-
         await supabase.auth.signOut();
 
         return res
@@ -386,7 +365,6 @@ app.post(
       if (
         perfil.ativo !== true
       ) {
-
         await supabase.auth.signOut();
 
         return res
@@ -410,7 +388,6 @@ app.post(
         tipoPerfil !==
           "ADMINISTRADOR"
       ) {
-
         await supabase.auth.signOut();
 
         return res
@@ -421,10 +398,6 @@ app.post(
               "Acesso permitido somente para administradores.",
           });
       }
-
-      // ==========================================
-      // CRIAR SESSÃO DO NOSSO APP
-      // ==========================================
 
       const tokenSessao =
         gerarTokenSessao();
@@ -465,8 +438,6 @@ app.post(
             perfil.nome ||
             data.user.email,
 
-          // Mantemos "role" na resposta
-          // para não quebrar o app.js.
           role:
             perfil.tipo,
 
@@ -476,7 +447,6 @@ app.post(
       });
 
     } catch (erro) {
-
       console.error(
         "Erro no login:",
         erro.message
@@ -517,8 +487,6 @@ app.get(
           req.perfil.nome ||
           req.usuario.email,
 
-        // Mantemos "role" para
-        // compatibilidade com o frontend.
         role:
           req.perfil.tipo,
 
@@ -537,7 +505,6 @@ app.post(
   "/api/auth/logout",
   async (req, res) => {
     try {
-
       const token =
         obterTokenDaRequisicao(req);
 
@@ -569,7 +536,6 @@ app.post(
       });
 
     } catch (erro) {
-
       console.error(
         "Erro ao fazer logout:",
         erro.message
@@ -587,7 +553,7 @@ app.post(
 );
 
 // ==========================================
-// CONEXÃO COM A API DO PIERRE
+// CONEXÃO COM PIERRE
 // ==========================================
 
 async function pierreRequest(
@@ -679,11 +645,18 @@ app.get(
   exigirAdmin,
   async (req, res) => {
     try {
-
       const dados =
         await pierreRequest(
           "get-accounts"
         );
+
+        console.log(
+  "CARTAO BRUTO DO PIERRE:",
+  dados.data?.find(
+    (item) =>
+      item.type === "CREDIT"
+  )
+);
 
       const registros =
         Array.isArray(
@@ -760,7 +733,6 @@ app.get(
       const cartoesFormatados =
         cartoes.map(
           (cartao) => {
-
             const credito =
               cartao.creditData ||
               {};
@@ -932,7 +904,6 @@ app.get(
       });
 
     } catch (erro) {
-
       console.error(
         "Erro ao buscar contas:",
         erro.message
@@ -950,6 +921,462 @@ app.get(
 );
 
 // ==========================================
+// FATURAS DOS CARTÕES
+// ==========================================
+
+app.get(
+  "/api/bills",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const accountId =
+        req.query.accountId || null;
+
+      // ==========================================
+      // BUSCAR FATURAS DO PIERRE
+      // ==========================================
+
+      const dadosFaturas =
+        await pierreRequest(
+          "get-bills",
+          accountId
+            ? { accountId }
+            : {}
+        );
+
+      let faturas =
+        Array.isArray(
+          dadosFaturas.data
+        )
+          ? dadosFaturas.data
+          : [];
+
+      // ==========================================
+      // CRIAR PRÓXIMA FATURA QUANDO NECESSÁRIO
+      // ==========================================
+
+      /*
+       * O Pierre está retornando as faturas fechadas.
+       * No caso do cartão Gold/Nubank, a última fatura
+       * retornada é:
+       *
+       * Fechamento: 05/08/2026
+       * Vencimento: 12/08/2026
+       *
+       * Portanto, a próxima fatura será:
+       *
+       * Fechamento: 05/09/2026
+       * Vencimento: 12/09/2026
+       *
+       * Criamos essa próxima fatura apenas como uma
+       * fatura virtual. Ela não é enviada para o Pierre
+       * nem gravada no banco.
+       */
+
+      function adicionarUmMes(
+        dataOriginal
+      ) {
+        const data =
+          new Date(
+            dataOriginal
+          );
+
+        data.setMonth(
+          data.getMonth() + 1
+        );
+
+        return data;
+      }
+
+      // ==========================================
+      // SE FOI INFORMADO UM CARTÃO ESPECÍFICO
+      // ==========================================
+
+      if (accountId) {
+
+        const faturasDoCartao =
+          faturas
+            .filter(
+              (fatura) =>
+                String(
+                  fatura.accountId
+                ) ===
+                String(
+                  accountId
+                )
+            )
+            .sort(
+              (a, b) =>
+                new Date(
+                  b.dueDate
+                ) -
+                new Date(
+                  a.dueDate
+                )
+            );
+
+        if (
+          faturasDoCartao.length > 0
+        ) {
+
+          const ultimaFatura =
+            faturasDoCartao[0];
+
+          const fechamentoUltima =
+            new Date(
+              ultimaFatura.billClosingDate
+            );
+
+          const vencimentoUltima =
+            new Date(
+              ultimaFatura.dueDate
+            );
+
+          const proximoFechamento =
+            adicionarUmMes(
+              fechamentoUltima
+            );
+
+          const proximoVencimento =
+            adicionarUmMes(
+              vencimentoUltima
+            );
+
+          const existeProxima =
+            faturas.some(
+              (fatura) => {
+
+                const fechamento =
+                  new Date(
+                    fatura.billClosingDate
+                  );
+
+                return (
+                  String(
+                    fatura.accountId
+                  ) ===
+                    String(
+                      accountId
+                    ) &&
+                  fechamento.getFullYear() ===
+                    proximoFechamento.getFullYear() &&
+                  fechamento.getMonth() ===
+                    proximoFechamento.getMonth()
+                );
+              }
+            );
+
+          if (
+            !existeProxima
+          ) {
+
+            const faturaVirtual = {
+              id:
+                `virtual-${accountId}-${proximoVencimento
+                  .toISOString()
+                  .slice(0, 10)}`,
+
+              userId:
+                ultimaFatura.userId,
+
+              itemId:
+                ultimaFatura.itemId,
+
+              accountId:
+                accountId,
+
+              billClosingDate:
+                proximoFechamento.toISOString(),
+
+              dueDate:
+                proximoVencimento.toISOString(),
+
+              totalAmount:
+                "0",
+
+              totalAmountCurrencyCode:
+                ultimaFatura.totalAmountCurrencyCode ||
+                "BRL",
+
+              minimumPaymentAmount:
+                "0",
+
+              status:
+                "OPEN",
+
+              virtual:
+                true,
+            };
+
+            faturas.push(
+              faturaVirtual
+            );
+
+            console.log(
+              "📅 Fatura virtual criada:",
+              {
+                accountId,
+                fechamento:
+                  proximoFechamento.toISOString(),
+                vencimento:
+                  proximoVencimento.toISOString(),
+              }
+            );
+          }
+        }
+
+      } else {
+
+        // ==========================================
+        // SEM ACCOUNT ID:
+        // CRIAR PRÓXIMA FATURA PARA CADA CARTÃO
+        // ==========================================
+
+        const contasDeCartao =
+          [
+            ...new Set(
+              faturas
+                .map(
+                  (fatura) =>
+                    fatura.accountId
+                )
+                .filter(Boolean)
+            ),
+          ];
+
+        for (
+          const idCartao of
+            contasDeCartao
+        ) {
+
+          const faturasDoCartao =
+            faturas
+              .filter(
+                (fatura) =>
+                  String(
+                    fatura.accountId
+                  ) ===
+                  String(
+                    idCartao
+                  )
+              )
+              .sort(
+                (a, b) =>
+                  new Date(
+                    b.dueDate
+                  ) -
+                  new Date(
+                    a.dueDate
+                  )
+              );
+
+          if (
+            faturasDoCartao.length ===
+            0
+          ) {
+            continue;
+          }
+
+          const ultimaFatura =
+            faturasDoCartao[0];
+
+          if (
+            !ultimaFatura.billClosingDate ||
+            !ultimaFatura.dueDate
+          ) {
+            continue;
+          }
+
+          const fechamentoUltima =
+            new Date(
+              ultimaFatura.billClosingDate
+            );
+
+          const vencimentoUltima =
+            new Date(
+              ultimaFatura.dueDate
+            );
+
+          if (
+            Number.isNaN(
+              fechamentoUltima.getTime()
+            ) ||
+            Number.isNaN(
+              vencimentoUltima.getTime()
+            )
+          ) {
+            continue;
+          }
+
+          const proximoFechamento =
+            adicionarUmMes(
+              fechamentoUltima
+            );
+
+          const proximoVencimento =
+            adicionarUmMes(
+              vencimentoUltima
+            );
+
+          const existeProxima =
+            faturas.some(
+              (fatura) => {
+
+                const fechamento =
+                  new Date(
+                    fatura.billClosingDate
+                  );
+
+                return (
+                  String(
+                    fatura.accountId
+                  ) ===
+                    String(
+                      idCartao
+                    ) &&
+                  fechamento.getFullYear() ===
+                    proximoFechamento.getFullYear() &&
+                  fechamento.getMonth() ===
+                    proximoFechamento.getMonth()
+                );
+              }
+            );
+
+          if (
+            existeProxima
+          ) {
+            continue;
+          }
+
+          const faturaVirtual = {
+            id:
+              `virtual-${idCartao}-${proximoVencimento
+                .toISOString()
+                .slice(0, 10)}`,
+
+            userId:
+              ultimaFatura.userId,
+
+            itemId:
+              ultimaFatura.itemId,
+
+            accountId:
+              idCartao,
+
+            billClosingDate:
+              proximoFechamento.toISOString(),
+
+            dueDate:
+              proximoVencimento.toISOString(),
+
+            totalAmount:
+              "0",
+
+            totalAmountCurrencyCode:
+              ultimaFatura.totalAmountCurrencyCode ||
+              "BRL",
+
+            minimumPaymentAmount:
+              "0",
+
+            status:
+              "OPEN",
+
+            virtual:
+              true,
+          };
+
+          faturas.push(
+            faturaVirtual
+          );
+
+          console.log(
+            "📅 Fatura virtual criada:",
+            {
+              accountId:
+                idCartao,
+
+              fechamento:
+                proximoFechamento.toISOString(),
+
+              vencimento:
+                proximoVencimento.toISOString(),
+            }
+          );
+        }
+      }
+
+      // ==========================================
+      // RESUMO DA FATURA ATUAL
+      // ==========================================
+
+      const dadosResumo =
+        await pierreRequest(
+          "get-bill-summary",
+          accountId
+            ? { accountId }
+            : {}
+        );
+
+      const resumos =
+        Array.isArray(
+          dadosResumo.data
+        )
+          ? dadosResumo.data
+          : [];
+
+      // ==========================================
+      // ORDENAR FATURAS
+      // ==========================================
+
+      faturas.sort(
+        (a, b) =>
+          new Date(
+            b.dueDate
+          ) -
+          new Date(
+            a.dueDate
+          )
+      );
+
+      // ==========================================
+      // RETORNAR
+      // ==========================================
+
+      res.json({
+        sucesso: true,
+
+        faturas,
+
+        resumos,
+
+        quantidade:
+          faturas.length,
+
+        quantidadeResumos:
+          resumos.length,
+      });
+
+    } catch (erro) {
+
+      console.error(
+        "Erro ao buscar faturas:",
+        erro.message
+      );
+
+      res
+        .status(500)
+        .json({
+          sucesso: false,
+
+          erro:
+            erro.message,
+        });
+    }
+  }
+);
+
+// ==========================================
 // TRANSAÇÕES
 // ==========================================
 
@@ -958,7 +1385,6 @@ app.get(
   exigirAdmin,
   async (req, res) => {
     try {
-
       const hoje =
         new Date();
 
@@ -1004,9 +1430,34 @@ app.get(
           ? dados.data
           : [];
 
+      // ==========================================
+      // TRANSAÇÃO DE CARTÃO - DEBUG
+      // ==========================================
+
+      const transacaoCartao =
+        transacoes.find(
+          (transacao) =>
+            transacao.credit_card_data !==
+            null
+        );
+
+      console.log(
+        "TRANSAÇÃO DE CARTÃO DO PIERRE:",
+        JSON.stringify(
+          transacaoCartao,
+          null,
+          2
+        )
+      );
+
+      // ==========================================
+      // FORMATAR TRANSAÇÕES
+      // ==========================================
+
       const transacoesFormatadas =
         transacoes.map(
           (transacao) => ({
+
             id:
               transacao.id,
 
@@ -1052,6 +1503,35 @@ app.get(
               transacao.account_type ||
               transacao.accountType ||
               "",
+
+            // ==========================================
+            // DADOS ORIGINAIS DO CARTÃO
+            // ==========================================
+
+            creditCardData:
+              transacao.credit_card_data ||
+              null,
+
+            installmentDueDate:
+              transacao.installment_due_date ||
+              null,
+
+            originalDescription:
+              transacao.original_description ||
+              "",
+
+            merchant:
+              transacao.merchant ||
+              null,
+
+            accountId:
+              transacao.account_id ||
+              null,
+
+            accountSubtype:
+              transacao.account_subtype ||
+              "",
+
           })
         );
 
@@ -1080,6 +1560,7 @@ app.get(
         .status(500)
         .json({
           sucesso: false,
+
           erro:
             erro.message,
         });
@@ -1087,16 +1568,11 @@ app.get(
   }
 );
 
-// ==========================================
-// DEBUG - TRANSAÇÕES
-// ==========================================
-
 app.get(
   "/api/debug/transacoes",
   exigirAdmin,
   async (req, res) => {
     try {
-
       const hoje =
         new Date();
 
@@ -1146,7 +1622,6 @@ app.get(
       });
 
     } catch (erro) {
-
       console.error(
         "Erro ao buscar transações brutas:",
         erro.message
@@ -1164,14 +1639,13 @@ app.get(
 );
 
 // ==========================================
-// TESTE DA CONEXÃO COM O PIERRE
+// HEALTH
 // ==========================================
 
 app.get(
   "/api/health",
   async (req, res) => {
     try {
-
       const dados =
         await pierreRequest(
           "get-accounts"
@@ -1189,7 +1663,6 @@ app.get(
       });
 
     } catch (erro) {
-
       res
         .status(500)
         .json({
@@ -1210,7 +1683,6 @@ app.get(
   exigirAdmin,
   async (req, res) => {
     try {
-
       const {
         data,
         error,
@@ -1237,7 +1709,6 @@ app.get(
       });
 
     } catch (erro) {
-
       console.error(
         "Erro ao buscar caixinhas:",
         erro.message
@@ -1263,7 +1734,6 @@ app.post(
   exigirAdmin,
   async (req, res) => {
     try {
-
       const {
         nome,
         meta,
@@ -1362,7 +1832,6 @@ app.post(
         });
 
     } catch (erro) {
-
       console.error(
         "Erro ao criar caixinha:",
         erro.message
@@ -1388,7 +1857,6 @@ app.post(
   exigirAdmin,
   async (req, res) => {
     try {
-
       const { id } =
         req.params;
 
@@ -1581,7 +2049,6 @@ app.post(
         });
 
     } catch (erro) {
-
       console.error(
         "Erro ao movimentar caixinha:",
         erro.message
@@ -1607,7 +2074,6 @@ app.post(
   exigirAdmin,
   async (req, res) => {
     try {
-
       console.log(
         "🔄 Iniciando sincronização das caixinhas..."
       );
@@ -1677,7 +2143,6 @@ app.post(
       if (
         !controleSincronizacao
       ) {
-
         const {
           data:
             novoControle,
@@ -1710,15 +2175,19 @@ app.post(
       }
 
       const agora =
-        new Date();
+  new Date();
 
-      const dataInicio =
-        new Date(agora);
+const dataInicio =
+  new Date(agora);
 
-      dataInicio.setDate(
-        dataInicio.getDate() -
-          3
-      );
+dataInicio.setDate(
+  dataInicio.getDate() -
+    3
+);
+
+console.log(
+  "🔄 Buscando movimentações dos últimos 3 dias para identificar novidades."
+);
 
       const dataInicioFormatada =
         dataInicio
@@ -1773,6 +2242,7 @@ app.post(
         const transacao of
           transacoes
       ) {
+          
 
         const transacaoId =
           transacao.id ||
@@ -1790,7 +2260,9 @@ app.post(
           String(
             transacao.type ||
             ""
-          ).toUpperCase();
+          )
+            .trim()
+            .toUpperCase();
 
         const valorOriginal =
           Number(
@@ -1843,6 +2315,84 @@ app.post(
           continue;
         }
 
+        const descricaoNormalizada =
+          normalizarTexto(
+            descricao
+          );
+
+        // ==========================================
+        // RENDIMENTOS SÃO MANUAIS
+        // ==========================================
+
+        if (
+          descricaoNormalizada.includes(
+            "rendimento"
+          )
+        ) {
+          ignoradas.push({
+            transacao_id:
+              transacaoId,
+
+            descricao,
+
+            valor:
+              valorOriginal,
+
+            tipoPierre,
+
+            motivo:
+              "Rendimento ignorado: os rendimentos são adicionados manualmente no app.",
+          });
+
+          console.log(
+            "📈 Rendimento ignorado:",
+            descricao,
+            valorOriginal
+          );
+
+          continue;
+        }
+
+        // ==========================================
+        // IDENTIFICAR MOVIMENTAÇÃO AUTOMÁTICA
+        // ==========================================
+
+        const ehReserva =
+          descricaoNormalizada.includes(
+            "reserva por gastos"
+          );
+
+        const ehRetirada =
+          descricaoNormalizada.includes(
+            "dinheiro retirado"
+          );
+
+        if (
+          !ehReserva &&
+          !ehRetirada
+        ) {
+          ignoradas.push({
+            transacao_id:
+              transacaoId,
+
+            descricao,
+
+            valor:
+              valorOriginal,
+
+            tipoPierre,
+
+            motivo:
+              "Transação não identificada como reserva ou retirada de caixinha.",
+          });
+
+          continue;
+        }
+
+        // ==========================================
+        // EVITAR DUPLICAÇÃO
+        // ==========================================
+
         const {
           data:
             movimentacaoExistente,
@@ -1886,15 +2436,13 @@ app.post(
           continue;
         }
 
-        const descricaoNormalizada =
-          normalizarTexto(
-            descricao
-          );
+        // ==========================================
+        // ENCONTRAR CAIXINHA
+        // ==========================================
 
         const caixinhaEncontrada =
           caixinhas.find(
             (caixinha) => {
-
               const nomeCaixinha =
                 normalizarTexto(
                   caixinha.nome
@@ -1932,7 +2480,7 @@ app.post(
             tipoPierre,
 
             motivo:
-              "Nenhuma caixinha compatível encontrada na descrição.",
+              "Movimentação de caixinha encontrada, mas nenhuma caixinha compatível foi localizada na descrição.",
           });
 
           console.log(
@@ -1949,6 +2497,10 @@ app.post(
           "<-",
           descricao
         );
+
+        // ==========================================
+        // TIPO DA MOVIMENTAÇÃO
+        // ==========================================
 
         let tipoMovimentacao;
 
@@ -2002,6 +2554,7 @@ app.post(
           novoSaldo =
             saldoAtual +
             valor;
+
         } else {
           novoSaldo =
             saldoAtual -
@@ -2081,7 +2634,6 @@ app.post(
         if (
           erroInsercao
         ) {
-
           if (
             erroInsercao.code ===
             "23505"
@@ -2160,6 +2712,10 @@ app.post(
         });
       }
 
+      // ==========================================
+      // SALVAR ÚLTIMA SINCRONIZAÇÃO
+      // ==========================================
+
       const {
         error:
           erroSalvarSincronizacao,
@@ -2224,7 +2780,6 @@ app.post(
       });
 
     } catch (erro) {
-
       console.error(
         "❌ Erro ao sincronizar caixinhas:",
         erro.message
@@ -2250,7 +2805,6 @@ app.post(
   exigirAdmin,
   async (req, res) => {
     try {
-
       const { id } =
         req.params;
 
@@ -2394,7 +2948,6 @@ app.post(
       });
 
     } catch (erro) {
-
       console.error(
         "Erro ao adicionar rendimento:",
         erro.message
@@ -2420,7 +2973,6 @@ app.put(
   exigirAdmin,
   async (req, res) => {
     try {
-
       const { id } =
         req.params;
 
@@ -2507,7 +3059,6 @@ app.put(
       });
 
     } catch (erro) {
-
       console.error(
         "Erro ao editar caixinha:",
         erro.message
@@ -2533,7 +3084,6 @@ app.delete(
   exigirAdmin,
   async (req, res) => {
     try {
-
       const { id } =
         req.params;
 
@@ -2588,7 +3138,6 @@ app.delete(
       });
 
     } catch (erro) {
-
       console.error(
         "Erro ao excluir caixinha:",
         erro.message
@@ -2628,7 +3177,6 @@ app.use(
 app.listen(
   PORT,
   () => {
-
     console.log("");
 
     console.log(
