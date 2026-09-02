@@ -3,6 +3,8 @@ const state = {
   cartoes: [],
   investimentos: [],
   transacoes: [],
+  transacoesParcelas: [],
+  parcelamentos: [],
   faturas: [],
   resumos: [],
   caixinhas: [],
@@ -22,34 +24,20 @@ function salvarToken(token) {
   tokenSessao = token;
 
   if (token) {
-    localStorage.setItem(
-      "meuFinanceiroToken",
-      token
-    );
+    localStorage.setItem("meuFinanceiroToken", token);
   } else {
-    localStorage.removeItem(
-      "meuFinanceiroToken"
-    );
+    localStorage.removeItem("meuFinanceiroToken");
   }
 }
 
 function carregarTokenSalvo() {
-  tokenSessao =
-    localStorage.getItem(
-      "meuFinanceiroToken"
-    );
+  tokenSessao = localStorage.getItem("meuFinanceiroToken");
 }
 
 function mostrarLogin() {
-  const login =
-    document.querySelector(
-      "#loginScreen"
-    );
+  const login = document.querySelector("#loginScreen");
 
-  const app =
-    document.querySelector(
-      "#appShell"
-    );
+  const app = document.querySelector("#appShell");
 
   if (login) {
     login.style.display = "flex";
@@ -61,15 +49,9 @@ function mostrarLogin() {
 }
 
 function mostrarAplicacao() {
-  const login =
-    document.querySelector(
-      "#loginScreen"
-    );
+  const login = document.querySelector("#loginScreen");
 
-  const app =
-    document.querySelector(
-      "#appShell"
-    );
+  const app = document.querySelector("#appShell");
 
   if (login) {
     login.style.display = "none";
@@ -81,27 +63,19 @@ function mostrarAplicacao() {
 }
 
 function mostrarErroLogin(mensagem) {
-  const elemento =
-    document.querySelector(
-      "#loginError"
-    );
+  const elemento = document.querySelector("#loginError");
 
   if (!elemento) {
     return;
   }
 
-  elemento.textContent =
-    mensagem;
+  elemento.textContent = mensagem;
 
-  elemento.style.display =
-    "block";
+  elemento.style.display = "block";
 }
 
 function limparErroLogin() {
-  const elemento =
-    document.querySelector(
-      "#loginError"
-    );
+  const elemento = document.querySelector("#loginError");
 
   if (!elemento) {
     return;
@@ -109,32 +83,20 @@ function limparErroLogin() {
 
   elemento.textContent = "";
 
-  elemento.style.display =
-    "none";
+  elemento.style.display = "none";
 }
 
 function atualizarUsuarioLogado(usuario) {
-  const nome =
-    document.querySelector(
-      "#loggedUserName"
-    );
+  const nome = document.querySelector("#loggedUserName");
 
-  const email =
-    document.querySelector(
-      "#loggedUserEmail"
-    );
+  const email = document.querySelector("#loggedUserEmail");
 
   if (nome) {
-    nome.textContent =
-      usuario?.nome ||
-      usuario?.email ||
-      "Usuário";
+    nome.textContent = usuario?.nome || usuario?.email || "Usuário";
   }
 
   if (email) {
-    email.textContent =
-      usuario?.email ||
-      "";
+    email.textContent = usuario?.email || "";
   }
 }
 
@@ -142,62 +104,39 @@ function atualizarUsuarioLogado(usuario) {
 // LOGIN
 // ==========================================
 
-async function realizarLogin(
-  email,
-  senha
-) {
-  const resposta =
-    await fetch(
-      "/api/auth/login",
-      {
-        method: "POST",
+async function realizarLogin(email, senha) {
+  const resposta = await fetch("/api/auth/login", {
+    method: "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
+    headers: {
+      "Content-Type": "application/json",
+    },
 
-        body: JSON.stringify({
-          email,
-          senha,
-        }),
-      }
-    );
+    body: JSON.stringify({
+      email,
+      senha,
+    }),
+  });
 
   let dados;
 
   try {
-    dados =
-      await resposta.json();
+    dados = await resposta.json();
   } catch {
-    throw new Error(
-      "O servidor retornou uma resposta inválida."
-    );
+    throw new Error("O servidor retornou uma resposta inválida.");
   }
 
-  if (
-    !resposta.ok ||
-    dados.sucesso === false
-  ) {
-    throw new Error(
-      dados.erro ||
-        "E-mail ou senha inválidos."
-    );
+  if (!resposta.ok || dados.sucesso === false) {
+    throw new Error(dados.erro || "E-mail ou senha inválidos.");
   }
 
   if (!dados.token) {
-    throw new Error(
-      "O servidor não retornou o token da sessão."
-    );
+    throw new Error("O servidor não retornou o token da sessão.");
   }
 
-  salvarToken(
-    dados.token
-  );
+  salvarToken(dados.token);
 
-  atualizarUsuarioLogado(
-    dados.usuario
-  );
+  atualizarUsuarioLogado(dados.usuario);
 
   return dados;
 }
@@ -207,26 +146,20 @@ async function realizarLogin(
 // ==========================================
 
 async function verificarSessao() {
-  const token =
-    obterToken();
+  const token = obterToken();
 
   if (!token) {
     return false;
   }
 
   try {
-    const resposta =
-      await fetch(
-        "/api/auth/me",
-        {
-          method: "GET",
+    const resposta = await fetch("/api/auth/me", {
+      method: "GET",
 
-          headers: {
-            Authorization:
-              `Bearer ${token}`,
-          },
-        }
-      );
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
     if (!resposta.ok) {
       salvarToken(null);
@@ -234,30 +167,19 @@ async function verificarSessao() {
       return false;
     }
 
-    const dados =
-      await resposta.json();
+    const dados = await resposta.json();
 
-    if (
-      !dados.sucesso ||
-      !dados.autenticado ||
-      !dados.usuario
-    ) {
+    if (!dados.sucesso || !dados.autenticado || !dados.usuario) {
       salvarToken(null);
 
       return false;
     }
 
-    atualizarUsuarioLogado(
-      dados.usuario
-    );
+    atualizarUsuarioLogado(dados.usuario);
 
     return true;
-
   } catch (erro) {
-    console.error(
-      "Erro ao verificar sessão:",
-      erro
-    );
+    console.error("Erro ao verificar sessão:", erro);
 
     return false;
   }
@@ -269,43 +191,27 @@ async function verificarSessao() {
 
 async function realizarLogout() {
   try {
-    const token =
-      obterToken();
+    const token = obterToken();
 
     if (token) {
-      await fetch(
-        "/api/auth/logout",
-        {
-          method: "POST",
+      await fetch("/api/auth/logout", {
+        method: "POST",
 
-          headers: {
-            Authorization:
-              `Bearer ${token}`,
-          },
-        }
-      );
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
     }
-
   } catch (erro) {
-    console.error(
-      "Erro ao fazer logout:",
-      erro
-    );
-
+    console.error("Erro ao fazer logout:", erro);
   } finally {
     salvarToken(null);
 
     mostrarLogin();
 
-    const email =
-      document.querySelector(
-        "#loginEmail"
-      );
+    const email = document.querySelector("#loginEmail");
 
-    const senha =
-      document.querySelector(
-        "#loginSenha"
-      );
+    const senha = document.querySelector("#loginSenha");
 
     if (senha) {
       senha.value = "";
@@ -324,85 +230,56 @@ async function realizarLogout() {
 // ==========================================
 
 function configurarLogin() {
-  const formulario =
-    document.querySelector(
-      "#loginForm"
-    );
+  const formulario = document.querySelector("#loginForm");
 
-  const botao =
-    document.querySelector(
-      "#loginButton"
-    );
+  const botao = document.querySelector("#loginButton");
 
   if (!formulario) {
     return;
   }
 
-  formulario.addEventListener(
-    "submit",
-    async (evento) => {
-      evento.preventDefault();
+  formulario.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
 
-      limparErroLogin();
+    limparErroLogin();
 
-      const email =
-        document.querySelector(
-          "#loginEmail"
-        )?.value
-          .trim()
-          .toLowerCase();
+    const email = document
+      .querySelector("#loginEmail")
+      ?.value.trim()
+      .toLowerCase();
 
-      const senha =
-        document.querySelector(
-          "#loginSenha"
-        )?.value;
+    const senha = document.querySelector("#loginSenha")?.value;
 
-      if (!email || !senha) {
-        mostrarErroLogin(
-          "E-mail e senha são obrigatórios."
-        );
+    if (!email || !senha) {
+      mostrarErroLogin("E-mail e senha são obrigatórios.");
 
-        return;
+      return;
+    }
+
+    try {
+      if (botao) {
+        botao.disabled = true;
+
+        botao.textContent = "Entrando...";
       }
 
-      try {
-        if (botao) {
-          botao.disabled = true;
+      await realizarLogin(email, senha);
 
-          botao.textContent =
-            "Entrando...";
-        }
+      mostrarAplicacao();
 
-        await realizarLogin(
-          email,
-          senha
-        );
+      await iniciarAplicacao();
+    } catch (erro) {
+      console.error("Erro ao realizar login:", erro);
 
-        mostrarAplicacao();
+      mostrarErroLogin(erro.message || "E-mail ou senha inválidos.");
+    } finally {
+      if (botao) {
+        botao.disabled = false;
 
-        await iniciarAplicacao();
-
-      } catch (erro) {
-        console.error(
-          "Erro ao realizar login:",
-          erro
-        );
-
-        mostrarErroLogin(
-          erro.message ||
-            "E-mail ou senha inválidos."
-        );
-
-      } finally {
-        if (botao) {
-          botao.disabled = false;
-
-          botao.textContent =
-            "Entrar";
-        }
+        botao.textContent = "Entrar";
       }
     }
-  );
+  });
 }
 
 // ==========================================
@@ -410,40 +287,29 @@ function configurarLogin() {
 // ==========================================
 
 function configurarLogout() {
-  const botao =
-    document.querySelector(
-      "#logoutBtn"
-    );
+  const botao = document.querySelector("#logoutBtn");
 
   if (!botao) {
     return;
   }
 
-  botao.addEventListener(
-    "click",
-    async () => {
-      const confirmou =
-        confirm(
-          "Deseja realmente sair do Meu Financeiro?"
-        );
+  botao.addEventListener("click", async () => {
+    const confirmou = confirm("Deseja realmente sair do Meu Financeiro?");
 
-      if (!confirmou) {
-        return;
-      }
-
-      botao.disabled = true;
-
-      botao.textContent =
-        "Saindo...";
-
-      await realizarLogout();
-
-      botao.disabled = false;
-
-      botao.textContent =
-        "Sair";
+    if (!confirmou) {
+      return;
     }
-  );
+
+    botao.disabled = true;
+
+    botao.textContent = "Saindo...";
+
+    await realizarLogout();
+
+    botao.disabled = false;
+
+    botao.textContent = "Sair";
+  });
 }
 
 // ==========================================
@@ -451,39 +317,19 @@ function configurarLogout() {
 // ==========================================
 
 function dinheiro(valor) {
-  return new Intl.NumberFormat(
-    "pt-BR",
-    {
-      style: "currency",
-      currency: "BRL",
-    }
-  ).format(
-    Number(valor || 0)
-  );
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(Number(valor || 0));
 }
 
 function escapar(valor) {
   return String(valor ?? "")
-    .replaceAll(
-      "&",
-      "&amp;"
-    )
-    .replaceAll(
-      "<",
-      "&lt;"
-    )
-    .replaceAll(
-      ">",
-      "&gt;"
-    )
-    .replaceAll(
-      '"',
-      "&quot;"
-    )
-    .replaceAll(
-      "'",
-      "&#039;"
-    );
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function dataBR(data) {
@@ -491,24 +337,11 @@ function dataBR(data) {
     return "—";
   }
 
-  const parte =
-    String(data).substring(
-      0,
-      10
-    );
+  const parte = String(data).substring(0, 10);
 
-  const [
-    ano,
-    mes,
-    dia,
-  ] =
-    parte.split("-");
+  const [ano, mes, dia] = parte.split("-");
 
-  if (
-    !ano ||
-    !mes ||
-    !dia
-  ) {
+  if (!ano || !mes || !dia) {
     return data;
   }
 
@@ -519,36 +352,18 @@ function dataBR(data) {
 // CLASSIFICAÇÃO DAS TRANSAÇÕES
 // ==========================================
 
-function analisarTransacao(
-  transacao
-) {
-  const valorOriginal =
-    Number(
-      transacao.valor || 0
-    );
+function analisarTransacao(transacao) {
+  const valorOriginal = Number(transacao.valor || 0);
 
-  const tipoConta =
-    String(
-      transacao.tipoConta ||
-        ""
-    ).toUpperCase();
+  const tipoConta = String(transacao.tipoConta || "").toUpperCase();
 
-  const tipo =
-    String(
-      transacao.tipo ||
-        ""
-    ).toUpperCase();
+  const tipo = String(transacao.tipo || "").toUpperCase();
 
-  const ehCartao =
-    tipoConta === "CREDIT";
+  const ehCartao = tipoConta === "CREDIT";
 
-  const ehDebito =
-    tipo === "DEBIT" ||
-    tipo === "DÉBITO";
+  const ehDebito = tipo === "DEBIT" || tipo === "DÉBITO";
 
-  const ehCredito =
-    tipo === "CREDIT" ||
-    tipo === "CRÉDITO";
+  const ehCredito = tipo === "CREDIT" || tipo === "CRÉDITO";
 
   // ------------------------------------------
   // CARTÃO
@@ -557,55 +372,37 @@ function analisarTransacao(
   if (ehCartao) {
     if (ehDebito) {
       return {
-        tipoVisual:
-          "COMPRA NO CARTÃO",
+        tipoVisual: "COMPRA NO CARTÃO",
 
-        classe:
-          "expense",
+        classe: "expense",
 
-        sinal:
-          "-",
+        sinal: "-",
 
-        valor:
-          Math.abs(
-            valorOriginal
-          ),
+        valor: Math.abs(valorOriginal),
 
-        ehEntrada:
-          false,
+        ehEntrada: false,
 
-        ehSaida:
-          true,
+        ehSaida: true,
 
-        ehCartao:
-          true,
+        ehCartao: true,
       };
     }
 
     if (ehCredito) {
       return {
-        tipoVisual:
-          "CRÉDITO NO CARTÃO",
+        tipoVisual: "CRÉDITO NO CARTÃO",
 
-        classe:
-          "income",
+        classe: "income",
 
-        sinal:
-          "+",
+        sinal: "+",
 
-        valor:
-          Math.abs(
-            valorOriginal
-          ),
+        valor: Math.abs(valorOriginal),
 
-        ehEntrada:
-          false,
+        ehEntrada: false,
 
-        ehSaida:
-          false,
+        ehSaida: false,
 
-        ehCartao:
-          true,
+        ehCartao: true,
       };
     }
   }
@@ -616,55 +413,37 @@ function analisarTransacao(
 
   if (ehDebito) {
     return {
-      tipoVisual:
-        "SAÍDA",
+      tipoVisual: "SAÍDA",
 
-      classe:
-        "expense",
+      classe: "expense",
 
-      sinal:
-        "-",
+      sinal: "-",
 
-      valor:
-        Math.abs(
-          valorOriginal
-        ),
+      valor: Math.abs(valorOriginal),
 
-      ehEntrada:
-        false,
+      ehEntrada: false,
 
-      ehSaida:
-        true,
+      ehSaida: true,
 
-      ehCartao:
-        false,
+      ehCartao: false,
     };
   }
 
   if (ehCredito) {
     return {
-      tipoVisual:
-        "ENTRADA",
+      tipoVisual: "ENTRADA",
 
-      classe:
-        "income",
+      classe: "income",
 
-      sinal:
-        "+",
+      sinal: "+",
 
-      valor:
-        Math.abs(
-          valorOriginal
-        ),
+      valor: Math.abs(valorOriginal),
 
-      ehEntrada:
-        true,
+      ehEntrada: true,
 
-      ehSaida:
-        false,
+      ehSaida: false,
 
-      ehCartao:
-        false,
+      ehCartao: false,
     };
   }
 
@@ -672,58 +451,38 @@ function analisarTransacao(
   // FALLBACK
   // ------------------------------------------
 
-  if (
-    valorOriginal < 0
-  ) {
+  if (valorOriginal < 0) {
     return {
-      tipoVisual:
-        "SAÍDA",
+      tipoVisual: "SAÍDA",
 
-      classe:
-        "expense",
+      classe: "expense",
 
-      sinal:
-        "-",
+      sinal: "-",
 
-      valor:
-        Math.abs(
-          valorOriginal
-        ),
+      valor: Math.abs(valorOriginal),
 
-      ehEntrada:
-        false,
+      ehEntrada: false,
 
-      ehSaida:
-        true,
+      ehSaida: true,
 
-      ehCartao:
-        false,
+      ehCartao: false,
     };
   }
 
   return {
-    tipoVisual:
-      "ENTRADA",
+    tipoVisual: "ENTRADA",
 
-    classe:
-      "income",
+    classe: "income",
 
-    sinal:
-      "+",
+    sinal: "+",
 
-    valor:
-      Math.abs(
-        valorOriginal
-      ),
+    valor: Math.abs(valorOriginal),
 
-    ehEntrada:
-      true,
+    ehEntrada: true,
 
-    ehSaida:
-      false,
+    ehSaida: false,
 
-    ehCartao:
-      false,
+    ehCartao: false,
   };
 }
 
@@ -731,67 +490,45 @@ function analisarTransacao(
 // REQUISIÇÃO AO BACKEND
 // ==========================================
 
-async function buscarDados(
-  url,
-  opcoes = {}
-) {
-  const token =
-    obterToken();
+async function buscarDados(url, opcoes = {}) {
+  const token = obterToken();
 
   const headers = {
     ...(opcoes.headers || {}),
   };
 
   if (token) {
-    headers.Authorization =
-      `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  const resposta =
-    await fetch(
-      url,
-      {
-        ...opcoes,
-        headers,
-      }
-    );
+  const resposta = await fetch(url, {
+  ...opcoes,
+  cache: "no-store",
+  headers,
+});
 
   let dados;
 
   try {
-    dados =
-      await resposta.json();
+    dados = await resposta.json();
   } catch {
-    throw new Error(
-      "O servidor retornou uma resposta inválida."
-    );
+    throw new Error("O servidor retornou uma resposta inválida.");
   }
 
   // ------------------------------------------
   // SESSÃO EXPIRADA
   // ------------------------------------------
 
-  if (
-    resposta.status === 401
-  ) {
+  if (resposta.status === 401) {
     salvarToken(null);
 
     mostrarLogin();
 
-    throw new Error(
-      "Sua sessão expirou. Faça login novamente."
-    );
+    throw new Error("Sua sessão expirou. Faça login novamente.");
   }
 
-  if (
-    !resposta.ok ||
-    dados.sucesso === false
-  ) {
-    throw new Error(
-      dados.erro ||
-        dados.message ||
-        "Erro ao buscar dados."
-    );
+  if (!resposta.ok || dados.sucesso === false) {
+    throw new Error(dados.erro || dados.message || "Erro ao buscar dados.");
   }
 
   return dados;
@@ -802,10 +539,7 @@ async function buscarDados(
 // ==========================================
 
 function mostrarContas() {
-  const container =
-    document.querySelector(
-      "#accountsGrid"
-    );
+  const container = document.querySelector("#accountsGrid");
 
   if (!container) {
     return;
@@ -821,10 +555,9 @@ function mostrarContas() {
     return;
   }
 
-  container.innerHTML =
-    state.contas
-      .map(
-        (conta) => `
+  container.innerHTML = state.contas
+    .map(
+      (conta) => `
           <article class="panel account-card">
 
             <div class="account-top">
@@ -832,61 +565,45 @@ function mostrarContas() {
               <div>
 
                 <div class="account-name">
-                  ${escapar(
-                    conta.nome
-                  )}
+                  ${escapar(conta.nome)}
                 </div>
 
                 <div class="account-bank">
-                  ${escapar(
-                    conta.banco
-                  )}
+                  ${escapar(conta.banco)}
                 </div>
 
               </div>
 
               <span class="badge">
-                ${escapar(
-                  conta.subtipo
-                )}
+                ${escapar(conta.subtipo)}
               </span>
 
             </div>
 
             <div class="account-balance">
-              ${dinheiro(
-                conta.saldo
-              )}
+              ${dinheiro(conta.saldo)}
             </div>
 
             <div class="account-bank">
-              ${escapar(
-                conta.moeda
-              )}
+              ${escapar(conta.moeda)}
             </div>
 
           </article>
-        `
-      )
-      .join("");
+        `,
+    )
+    .join("");
 }
 
 // ==========================================
 // TRANSAÇÕES RECENTES
 // ==========================================
 
-function mostrarTransacao(
-  transacao
-) {
-  const analise =
-    analisarTransacao(
-      transacao
-    );
+function mostrarTransacao(transacao) {
+  const analise = analisarTransacao(transacao);
 
-  const identificacaoCartao =
-    analise.ehCartao
-      ? "💳 Compra no cartão"
-      : "🏦 Conta bancária";
+  const identificacaoCartao = analise.ehCartao
+    ? "💳 Compra no cartão"
+    : "🏦 Conta bancária";
 
   return `
     <div class="transaction">
@@ -894,23 +611,15 @@ function mostrarTransacao(
       <div>
 
         <div class="desc">
-          ${escapar(
-            transacao.descricao
-          )}
+          ${escapar(transacao.descricao)}
         </div>
 
         <div class="meta">
-          ${dataBR(
-            transacao.data
-          )}
+          ${dataBR(transacao.data)}
           ·
-          ${escapar(
-            transacao.categoria
-          )}
+          ${escapar(transacao.categoria)}
           ·
-          ${escapar(
-            transacao.conta
-          )}
+          ${escapar(transacao.conta)}
         </div>
 
         <div class="meta">
@@ -923,9 +632,7 @@ function mostrarTransacao(
 
       <div class="amount ${analise.classe}">
         ${analise.sinal}
-        ${dinheiro(
-          analise.valor
-        )}
+        ${dinheiro(analise.valor)}
       </div>
 
     </div>
@@ -933,26 +640,15 @@ function mostrarTransacao(
 }
 
 function mostrarRecentes() {
-  const container =
-    document.querySelector(
-      "#recentTransactions"
-    );
+  const container = document.querySelector("#recentTransactions");
 
   if (!container) {
     return;
   }
 
-  const recentes =
-    [...state.transacoes]
-      .sort(
-        (a, b) =>
-          String(
-            b.data
-          ).localeCompare(
-            String(a.data)
-          )
-      )
-      .slice(0, 7);
+  const recentes = [...state.transacoes]
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)))
+    .slice(0, 7);
 
   if (!recentes.length) {
     container.innerHTML = `
@@ -964,12 +660,7 @@ function mostrarRecentes() {
     return;
   }
 
-  container.innerHTML =
-    recentes
-      .map(
-        mostrarTransacao
-      )
-      .join("");
+  container.innerHTML = recentes.map(mostrarTransacao).join("");
 }
 
 // ==========================================
@@ -977,137 +668,67 @@ function mostrarRecentes() {
 // ==========================================
 
 function obterResumoContasFixasMes() {
+  const contas = pegarContasFixas();
 
-  const contas =
-    pegarContasFixas();
+  const ano = mesContasFixas.getFullYear();
 
-  const ano =
-    mesContasFixas.getFullYear();
+  const mes = mesContasFixas.getMonth();
 
-  const mes =
-    mesContasFixas.getMonth();
+  let total = 0;
 
-  let total =
-    0;
+  let pago = 0;
 
-  let pago =
-    0;
+  let pendente = 0;
 
-  let pendente =
-    0;
+  contas.forEach((conta) => {
+    const ehParcelada =
+      conta.tipo === "parcelada" || Number(conta.totalParcelas || 0) > 0;
 
-  contas.forEach(
-    (conta) => {
+    // ----------------------------------------
+    // VERIFICAR SE A CONTA EXISTE NESTE MÊS
+    // ----------------------------------------
 
-      const ehParcelada =
-        conta.tipo ===
-          "parcelada" ||
-        Number(
-          conta.totalParcelas ||
-            0
-        ) > 0;
+    if (ehParcelada) {
+      const totalParcelas = Number(conta.totalParcelas || 0);
 
-      // ----------------------------------------
-      // VERIFICAR SE A CONTA EXISTE NESTE MÊS
-      // ----------------------------------------
+      const parcelaInicial = Number(conta.parcelaAtual || 1);
 
-      if (
-        ehParcelada
-      ) {
+      const anoInicial = Number(conta.anoInicioParcela || ano);
 
-        const totalParcelas =
-          Number(
-            conta.totalParcelas ||
-              0
-          );
+      const mesInicial = Number(conta.mesInicioParcela ?? mes);
 
-        const parcelaInicial =
-          Number(
-            conta.parcelaAtual ||
-              1
-          );
+      const diferencaMeses = (ano - anoInicial) * 12 + (mes - mesInicial);
 
-        const anoInicial =
-          Number(
-            conta.anoInicioParcela ||
-              ano
-          );
+      const parcelaDoMes = parcelaInicial + diferencaMeses;
 
-        const mesInicial =
-          Number(
-            conta.mesInicioParcela ??
-              mes
-          );
-
-        const diferencaMeses =
-          (
-            ano -
-            anoInicial
-          ) *
-            12 +
-          (
-            mes -
-            mesInicial
-          );
-
-        const parcelaDoMes =
-          parcelaInicial +
-          diferencaMeses;
-
-        if (
-          parcelaDoMes <
-            parcelaInicial ||
-          parcelaDoMes >
-            totalParcelas
-        ) {
-          return;
-        }
-      }
-
-      // ----------------------------------------
-      // VALOR
-      // ----------------------------------------
-
-      const valor =
-        Number(
-          conta.amount || 0
-        );
-
-      total +=
-        valor;
-
-      // ----------------------------------------
-      // PAGO
-      // ----------------------------------------
-
-      const chaveMes =
-        `${ano}-${String(
-          mes + 1
-        ).padStart(
-          2,
-          "0"
-        )}`;
-
-      const foiPaga =
-        Array.isArray(
-          conta.pagamentos
-        ) &&
-        conta.pagamentos.includes(
-          chaveMes
-        );
-
-      if (foiPaga) {
-
-        pago +=
-          valor;
-
-      } else {
-
-        pendente +=
-          valor;
+      if (parcelaDoMes < parcelaInicial || parcelaDoMes > totalParcelas) {
+        return;
       }
     }
-  );
+
+    // ----------------------------------------
+    // VALOR
+    // ----------------------------------------
+
+    const valor = Number(conta.amount || 0);
+
+    total += valor;
+
+    // ----------------------------------------
+    // PAGO
+    // ----------------------------------------
+
+    const chaveMes = `${ano}-${String(mes + 1).padStart(2, "0")}`;
+
+    const foiPaga =
+      Array.isArray(conta.pagamentos) && conta.pagamentos.includes(chaveMes);
+
+    if (foiPaga) {
+      pago += valor;
+    } else {
+      pendente += valor;
+    }
+  });
 
   return {
     total,
@@ -1121,156 +742,75 @@ function obterResumoContasFixasMes() {
 // ==========================================
 
 function atualizarDashboard() {
-  const saldoContas =
-    state.contas.reduce(
-      (
-        total,
-        conta
-      ) =>
-        total +
-        Number(
-          conta.saldo || 0
-        ),
-      0
-    );
+  const saldoContas = state.contas.reduce(
+    (total, conta) => total + Number(conta.saldo || 0),
+    0,
+  );
 
-  const entradas =
-    state.transacoes
-      .filter(
-        (transacao) => {
-          const analise =
-            analisarTransacao(
-              transacao
-            );
+  const entradas = state.transacoes
+    .filter((transacao) => {
+      const analise = analisarTransacao(transacao);
 
-          return analise.ehEntrada;
-        }
-      )
-      .reduce(
-        (
-          total,
-          transacao
-        ) => {
-          const analise =
-            analisarTransacao(
-              transacao
-            );
+      return analise.ehEntrada;
+    })
+    .reduce((total, transacao) => {
+      const analise = analisarTransacao(transacao);
 
-          return (
-            total +
-            analise.valor
-          );
-        },
-        0
-      );
+      return total + analise.valor;
+    }, 0);
 
-  const saidas =
-    state.transacoes
-      .filter(
-        (transacao) => {
-          const analise =
-            analisarTransacao(
-              transacao
-            );
+  const saidas = state.transacoes
+    .filter((transacao) => {
+      const analise = analisarTransacao(transacao);
 
-          return analise.ehSaida;
-        }
-      )
-      .reduce(
-        (
-          total,
-          transacao
-        ) => {
-          const analise =
-            analisarTransacao(
-              transacao
-            );
+      return analise.ehSaida;
+    })
+    .reduce((total, transacao) => {
+      const analise = analisarTransacao(transacao);
 
-          return (
-            total +
-            analise.valor
-          );
-        },
-        0
-      );
+      return total + analise.valor;
+    }, 0);
 
-    // ==========================================
+  // ==========================================
   // CONTAS FIXAS DO MÊS
   // ==========================================
 
-  const resumoFixas =
-    obterResumoContasFixasMes();
+  const resumoFixas = obterResumoContasFixasMes();
 
-  const elementoFixedTotal =
-    document.querySelector(
-      "#fixedTotal"
-    );
+  const elementoFixedTotal = document.querySelector("#fixedTotal");
 
-  const elementoFixedPaid =
-    document.querySelector(
-      "#fixedPaid"
-    );
+  const elementoFixedPaid = document.querySelector("#fixedPaid");
 
-  const elementoFixedPending =
-    document.querySelector(
-      "#fixedPending"
-    );
+  const elementoFixedPending = document.querySelector("#fixedPending");
 
   if (elementoFixedTotal) {
-    elementoFixedTotal.textContent =
-      dinheiro(
-        resumoFixas.total
-      );
+    elementoFixedTotal.textContent = dinheiro(resumoFixas.total);
   }
 
   if (elementoFixedPaid) {
-    elementoFixedPaid.textContent =
-      dinheiro(
-        resumoFixas.pago
-      );
+    elementoFixedPaid.textContent = dinheiro(resumoFixas.pago);
   }
 
   if (elementoFixedPending) {
-    elementoFixedPending.textContent =
-      dinheiro(
-        resumoFixas.pendente
-      );
+    elementoFixedPending.textContent = dinheiro(resumoFixas.pendente);
   }
 
-  const elementoSaldo =
-    document.querySelector(
-      "#totalBalance"
-    );
+  const elementoSaldo = document.querySelector("#totalBalance");
 
-  const elementoEntradas =
-    document.querySelector(
-      "#totalIncome"
-    );
+  const elementoEntradas = document.querySelector("#totalIncome");
 
-  const elementoSaidas =
-    document.querySelector(
-      "#totalExpense"
-    );
+  const elementoSaidas = document.querySelector("#totalExpense");
 
   if (elementoSaldo) {
-    elementoSaldo.textContent =
-      dinheiro(
-        saldoContas
-      );
+    elementoSaldo.textContent = dinheiro(saldoContas);
   }
 
   if (elementoEntradas) {
-    elementoEntradas.textContent =
-      dinheiro(
-        entradas
-      );
+    elementoEntradas.textContent = dinheiro(entradas);
   }
 
   if (elementoSaidas) {
-    elementoSaidas.textContent =
-      dinheiro(
-        saidas
-      );
+    elementoSaidas.textContent = dinheiro(saidas);
   }
 
   mostrarRecentes();
@@ -1283,10 +823,7 @@ function atualizarDashboard() {
 // ==========================================
 
 function mostrarCategorias() {
-  const container =
-    document.querySelector(
-      "#categoryChart"
-    );
+  const container = document.querySelector("#categoryChart");
 
   if (!container) {
     return;
@@ -1294,42 +831,21 @@ function mostrarCategorias() {
 
   const categorias = {};
 
-  state.transacoes.forEach(
-    (transacao) => {
-      const analise =
-        analisarTransacao(
-          transacao
-        );
+  state.transacoes.forEach((transacao) => {
+    const analise = analisarTransacao(transacao);
 
-      if (!analise.ehSaida) {
-        return;
-      }
-
-      const categoria =
-        transacao.categoria ||
-        "Sem categoria";
-
-      categorias[
-        categoria
-      ] =
-        (
-          categorias[
-            categoria
-          ] || 0
-        ) +
-        analise.valor;
+    if (!analise.ehSaida) {
+      return;
     }
-  );
 
-  const lista =
-    Object.entries(
-      categorias
-    )
-      .sort(
-        (a, b) =>
-          b[1] - a[1]
-      )
-      .slice(0, 7);
+    const categoria = transacao.categoria || "Sem categoria";
+
+    categorias[categoria] = (categorias[categoria] || 0) + analise.valor;
+  });
+
+  const lista = Object.entries(categorias)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7);
 
   if (!lista.length) {
     container.innerHTML = `
@@ -1341,41 +857,23 @@ function mostrarCategorias() {
     return;
   }
 
-  const maior =
-    lista[0][1] || 1;
+  const maior = lista[0][1] || 1;
 
-  container.innerHTML =
-    lista
-      .map(
-        (
-          [
-            categoria,
-            valor,
-          ]
-        ) => {
-          const porcentagem =
-            Math.max(
-              5,
-              (valor /
-                maior) *
-                100
-            );
+  container.innerHTML = lista
+    .map(([categoria, valor]) => {
+      const porcentagem = Math.max(5, (valor / maior) * 100);
 
-          return `
+      return `
             <div class="bar-row">
 
               <div class="bar-label">
 
                 <span>
-                  ${escapar(
-                    categoria
-                  )}
+                  ${escapar(categoria)}
                 </span>
 
                 <strong>
-                  ${dinheiro(
-                    valor
-                  )}
+                  ${dinheiro(valor)}
                 </strong>
 
               </div>
@@ -1391,9 +889,8 @@ function mostrarCategorias() {
 
             </div>
           `;
-        }
-      )
-      .join("");
+    })
+    .join("");
 }
 
 // ==========================================
@@ -1401,25 +898,15 @@ function mostrarCategorias() {
 // ==========================================
 
 function mostrarTabela() {
-  const container =
-    document.querySelector(
-      "#transactionTable"
-    );
+  const container = document.querySelector("#transactionTable");
 
   if (!container) {
     return;
   }
 
-  const transacoes =
-    [...state.transacoes]
-      .sort(
-        (a, b) =>
-          String(
-            b.data
-          ).localeCompare(
-            String(a.data)
-          )
-      );
+  const transacoes = [...state.transacoes].sort((a, b) =>
+    String(b.data).localeCompare(String(a.data)),
+  );
 
   if (!transacoes.length) {
     container.innerHTML = `
@@ -1450,67 +937,44 @@ function mostrarTabela() {
       <tbody>
 
         ${transacoes
-          .map(
-            (
-              transacao
-            ) => {
-              const analise =
-                analisarTransacao(
-                  transacao
-                );
+          .map((transacao) => {
+            const analise = analisarTransacao(transacao);
 
-              return `
+            return `
                 <tr>
 
                   <td>
-                    ${dataBR(
-                      transacao.data
-                    )}
+                    ${dataBR(transacao.data)}
                   </td>
 
                   <td>
-                    ${escapar(
-                      transacao.descricao
-                    )}
+                    ${escapar(transacao.descricao)}
                   </td>
 
                   <td>
-                    ${escapar(
-                      transacao.categoria
-                    )}
+                    ${escapar(transacao.categoria)}
                   </td>
 
                   <td>
-                    ${escapar(
-                      transacao.conta
-                    )}
+                    ${escapar(transacao.conta)}
                   </td>
 
                   <td>
-                    ${
-                      analise.ehCartao
-                        ? "💳 "
-                        : "🏦 "
-                    }
+                    ${analise.ehCartao ? "💳 " : "🏦 "}
 
-                    ${
-                      analise.tipoVisual
-                    }
+                    ${analise.tipoVisual}
                   </td>
 
                   <td
                     class="${analise.classe}"
                   >
                     ${analise.sinal}
-                    ${dinheiro(
-                      analise.valor
-                    )}
+                    ${dinheiro(analise.valor)}
                   </td>
 
                 </tr>
               `;
-            }
-          )
+          })
           .join("")}
 
       </tbody>
@@ -1525,118 +989,62 @@ function mostrarTabela() {
 
 function pegarContasFixas() {
   try {
-    const contas =
-      JSON.parse(
-        localStorage.getItem(
-          "fixedAccounts"
-        ) || "[]"
-      );
+    const contas = JSON.parse(localStorage.getItem("fixedAccounts") || "[]");
 
-    return Array.isArray(contas)
-      ? contas
-      : [];
-
+    return Array.isArray(contas) ? contas : [];
   } catch (erro) {
-    console.error(
-      "Erro ao carregar contas fixas:",
-      erro
-    );
+    console.error("Erro ao carregar contas fixas:", erro);
 
     return [];
   }
 }
 
-function salvarContasFixas(
-  contas
-) {
-  localStorage.setItem(
-    "fixedAccounts",
-    JSON.stringify(contas)
-  );
+function salvarContasFixas(contas) {
+  localStorage.setItem("fixedAccounts", JSON.stringify(contas));
 }
 
 function obterMesAtual() {
-  const agora =
-    new Date();
+  const agora = new Date();
 
   return (
-    agora.getFullYear() +
-    "-" +
-    String(
-      agora.getMonth() + 1
-    ).padStart(2, "0")
+    agora.getFullYear() + "-" + String(agora.getMonth() + 1).padStart(2, "0")
   );
 }
 
-function contaFoiPaga(
-  conta
-) {
-  const mesAtual =
-    obterMesAtual();
+function contaFoiPaga(conta) {
+  const mesAtual = obterMesAtual();
 
-  return (
-    Array.isArray(
-      conta.pagamentos
-    ) &&
-    conta.pagamentos.includes(
-      mesAtual
-    )
-  );
+  return Array.isArray(conta.pagamentos) && conta.pagamentos.includes(mesAtual);
 }
 
 // ==========================================
 // MARCAR / DESMARCAR CONTA COMO PAGA
 // ==========================================
 
-function marcarContaComoPaga(
-  id
-) {
-  const contas =
-    pegarContasFixas();
+function marcarContaComoPaga(id) {
+  const contas = pegarContasFixas();
 
-  const conta =
-    contas.find(
-      (item) =>
-        String(
-          item.id
-        ) ===
-        String(id)
-    );
+  const conta = contas.find((item) => String(item.id) === String(id));
 
   if (!conta) {
     return;
   }
 
-  if (
-    !Array.isArray(
-      conta.pagamentos
-    )
-  ) {
+  if (!Array.isArray(conta.pagamentos)) {
     conta.pagamentos = [];
   }
 
-  const mesAtual =
-    obterMesAtual();
+  const mesAtual = obterMesAtual();
 
-  const indice =
-    conta.pagamentos.indexOf(
-      mesAtual
-    );
+  const indice = conta.pagamentos.indexOf(mesAtual);
 
   if (indice >= 0) {
-    conta.pagamentos.splice(
-      indice,
-      1
-    );
+    conta.pagamentos.splice(indice, 1);
   } else {
-    conta.pagamentos.push(
-      mesAtual
-    );
+    conta.pagamentos.push(mesAtual);
   }
 
-  salvarContasFixas(
-    contas
-  );
+  salvarContasFixas(contas);
 
   mostrarContasFixas();
 }
@@ -1645,134 +1053,90 @@ function marcarContaComoPaga(
 // MÊS SELECIONADO NAS CONTAS FIXAS
 // ==========================================
 
-let mesContasFixas =
-  new Date(
-    new Date().getFullYear(),
-    new Date().getMonth(),
-    1
-  );
+let mesContasFixas = new Date(
+  new Date().getFullYear(),
+  new Date().getMonth(),
+  1,
+);
 
-  // ==========================================
+// ==========================================
 // FORMATAR MÊS
 // ==========================================
 
-function formatarMesContasFixas(
-  data
-) {
-  return data.toLocaleDateString(
-    "pt-BR",
-    {
-      month: "long",
-      year: "numeric",
-    }
-  );
+function formatarMesContasFixas(data) {
+  return data.toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
 }
-
 
 // ==========================================
 // ATUALIZAR TÍTULO DO MÊS
 // ==========================================
 
 function atualizarMesContasFixas() {
+  const titulo = document.querySelector("#fixedMonthTitle");
 
-  const titulo =
-    document.querySelector(
-      "#fixedMonthTitle"
-    );
-
-  const subtitulo =
-    document.querySelector(
-      "#fixedMonthSubtitle"
-    );
+  const subtitulo = document.querySelector("#fixedMonthSubtitle");
 
   if (titulo) {
+    const texto = formatarMesContasFixas(mesContasFixas);
 
-    const texto =
-      formatarMesContasFixas(
-        mesContasFixas
-      );
-
-    titulo.textContent =
-      texto.charAt(0).toUpperCase() +
-      texto.slice(1);
+    titulo.textContent = texto.charAt(0).toUpperCase() + texto.slice(1);
   }
 
   if (subtitulo) {
-
-    subtitulo.textContent =
-      "Contas e parcelas deste mês";
+    subtitulo.textContent = "Contas e parcelas deste mês";
   }
 }
-
 
 // ==========================================
 // MÊS ANTERIOR
 // ==========================================
 
 function mesContasFixasAnterior() {
-
-  mesContasFixas =
-    new Date(
-      mesContasFixas.getFullYear(),
-      mesContasFixas.getMonth() - 1,
-      1
-    );
+  mesContasFixas = new Date(
+    mesContasFixas.getFullYear(),
+    mesContasFixas.getMonth() - 1,
+    1,
+  );
 
   atualizarMesContasFixas();
 
   mostrarContasFixas();
 }
-
 
 // ==========================================
 // PRÓXIMO MÊS
 // ==========================================
 
 function mesContasFixasProximo() {
-
-  mesContasFixas =
-    new Date(
-      mesContasFixas.getFullYear(),
-      mesContasFixas.getMonth() + 1,
-      1
-    );
+  mesContasFixas = new Date(
+    mesContasFixas.getFullYear(),
+    mesContasFixas.getMonth() + 1,
+    1,
+  );
 
   atualizarMesContasFixas();
 
   mostrarContasFixas();
 }
 
-
 // ==========================================
 // CONFIGURAR BOTÕES DOS MESES
 // ==========================================
 
 function configurarNavegacaoContasFixas() {
+  const anterior = document.querySelector("#fixedPreviousMonth");
 
-  const anterior =
-    document.querySelector(
-      "#fixedPreviousMonth"
-    );
-
-  const proximo =
-    document.querySelector(
-      "#fixedNextMonth"
-    );
+  const proximo = document.querySelector("#fixedNextMonth");
 
   if (anterior) {
-
-    anterior.addEventListener(
-      "click",
-      mesContasFixasAnterior
-    );
+    anterior.addEventListener("click", mesContasFixasAnterior);
   }
 
   if (proximo) {
-
-    proximo.addEventListener(
-      "click",
-      mesContasFixasProximo
-    );
+    proximo.addEventListener("click", mesContasFixasProximo);
   }
 
   atualizarMesContasFixas();
@@ -1783,328 +1147,182 @@ function configurarNavegacaoContasFixas() {
 // ==========================================
 
 function mostrarContasFixas() {
-  const contas =
-    pegarContasFixas();
+  const contas = pegarContasFixas();
 
   // ==========================================
   // MÊS SELECIONADO
   // ==========================================
 
-  const anoSelecionado =
-    mesContasFixas.getFullYear();
+  const anoSelecionado = mesContasFixas.getFullYear();
 
-  const mesSelecionado =
-    mesContasFixas.getMonth();
+  const mesSelecionado = mesContasFixas.getMonth();
 
   // ==========================================
   // CALCULAR INFORMAÇÕES DE CADA CONTA
   // ==========================================
 
-  const contasDoMes =
-    contas.filter(
-      (conta) => {
+  const contasDoMes = contas.filter((conta) => {
+    // --------------------------------------
+    // CONTAS FIXAS MENSAIS
+    // --------------------------------------
 
-        // --------------------------------------
-        // CONTAS FIXAS MENSAIS
-        // --------------------------------------
+    const ehParcelada =
+      conta.tipo === "parcelada" || Number(conta.totalParcelas || 0) > 0;
 
-        const ehParcelada =
-          conta.tipo ===
-            "parcelada" ||
-          Number(
-            conta.totalParcelas ||
-              0
-          ) > 0;
+    if (!ehParcelada) {
+      return true;
+    }
 
-        if (!ehParcelada) {
-          return true;
-        }
+    // --------------------------------------
+    // PARCELADAS
+    // --------------------------------------
 
-        // --------------------------------------
-        // PARCELADAS
-        // --------------------------------------
+    if (conta.finalizada === true) {
+      return false;
+    }
 
-        if (
-          conta.finalizada ===
-          true
-        ) {
-          return false;
-        }
-
-        return true;
-      }
-    );
+    return true;
+  });
 
   // ==========================================
   // TOTAL DO MÊS
   // ==========================================
 
-  let total =
-    0;
+  let total = 0;
 
-  let totalPago =
-    0;
+  let totalPago = 0;
 
-  let quantidade =
-    0;
+  let quantidade = 0;
 
-  contasDoMes.forEach(
-    (conta) => {
+  contasDoMes.forEach((conta) => {
+    const ehParcelada =
+      conta.tipo === "parcelada" || Number(conta.totalParcelas || 0) > 0;
 
-      const ehParcelada =
-        conta.tipo ===
-          "parcelada" ||
-        Number(
-          conta.totalParcelas ||
-            0
-        ) > 0;
+    let deveAparecer = true;
 
-      let deveAparecer =
-        true;
+    let parcelaDoMes = null;
 
-      let parcelaDoMes =
-        null;
+    // ----------------------------------------
+    // PARCELADA
+    // ----------------------------------------
 
-      // ----------------------------------------
-      // PARCELADA
-      // ----------------------------------------
+    if (ehParcelada) {
+      const totalParcelas = Number(conta.totalParcelas || 0);
 
-      if (ehParcelada) {
+      const parcelaInicial = Number(conta.parcelaAtual || 1);
 
-        const totalParcelas =
-          Number(
-            conta.totalParcelas ||
-              0
-          );
+      const anoInicial = Number(conta.anoInicioParcela || anoSelecionado);
 
-        const parcelaInicial =
-          Number(
-            conta.parcelaAtual ||
-              1
-          );
+      const mesInicial = Number(conta.mesInicioParcela ?? mesSelecionado);
 
-        const anoInicial =
-          Number(
-            conta.anoInicioParcela ||
-              anoSelecionado
-          );
+      const diferencaMeses =
+        (anoSelecionado - anoInicial) * 12 + (mesSelecionado - mesInicial);
 
-        const mesInicial =
-          Number(
-            conta.mesInicioParcela ??
-              mesSelecionado
-          );
+      parcelaDoMes = parcelaInicial + diferencaMeses;
 
-        const diferencaMeses =
-          (
-            anoSelecionado -
-            anoInicial
-          ) *
-            12 +
-          (
-            mesSelecionado -
-            mesInicial
-          );
-
-        parcelaDoMes =
-          parcelaInicial +
-          diferencaMeses;
-
-        if (
-          parcelaDoMes <
-            parcelaInicial ||
-          parcelaDoMes >
-            totalParcelas
-        ) {
-          deveAparecer =
-            false;
-        }
-      }
-
-      if (!deveAparecer) {
-        return;
-      }
-
-      const valor =
-        Number(
-          conta.amount || 0
-        );
-
-      total +=
-        valor;
-
-      quantidade +=
-        1;
-
-      // ----------------------------------------
-      // VERIFICAR PAGAMENTO DO MÊS
-      // ----------------------------------------
-
-      const chaveMes =
-        `${anoSelecionado}-${String(
-          mesSelecionado + 1
-        ).padStart(
-          2,
-          "0"
-        )}`;
-
-      const paga =
-        Array.isArray(
-          conta.pagamentos
-        ) &&
-        conta.pagamentos.includes(
-          chaveMes
-        );
-
-      if (paga) {
-        totalPago +=
-          valor;
+      if (parcelaDoMes < parcelaInicial || parcelaDoMes > totalParcelas) {
+        deveAparecer = false;
       }
     }
-  );
 
-  const totalPendente =
-    total -
-    totalPago;
+    if (!deveAparecer) {
+      return;
+    }
+
+    const valor = Number(conta.amount || 0);
+
+    total += valor;
+
+    quantidade += 1;
+
+    // ----------------------------------------
+    // VERIFICAR PAGAMENTO DO MÊS
+    // ----------------------------------------
+
+    const chaveMes = `${anoSelecionado}-${String(mesSelecionado + 1).padStart(
+      2,
+      "0",
+    )}`;
+
+    const paga =
+      Array.isArray(conta.pagamentos) && conta.pagamentos.includes(chaveMes);
+
+    if (paga) {
+      totalPago += valor;
+    }
+  });
+
+  const totalPendente = total - totalPago;
 
   // ==========================================
   // ATUALIZAR RESUMO
   // ==========================================
 
-  const elementoTotal =
-    document.querySelector(
-      "#fixedTotal"
-    );
+  const elementoTotal = document.querySelector("#fixedTotal");
 
-  const elementoQuantidade =
-    document.querySelector(
-      "#fixedCount"
-    );
+  const elementoQuantidade = document.querySelector("#fixedCount");
 
-  const elementoPago =
-    document.querySelector(
-      "#fixedPaid"
-    );
+  const elementoPago = document.querySelector("#fixedPaid");
 
-  const elementoPendente =
-    document.querySelector(
-      "#fixedPending"
-    );
+  const elementoPendente = document.querySelector("#fixedPending");
 
   if (elementoTotal) {
-    elementoTotal.textContent =
-      dinheiro(total);
+    elementoTotal.textContent = dinheiro(total);
   }
 
   if (elementoQuantidade) {
-    elementoQuantidade.textContent =
-      `${quantidade} cadastrada${
-        quantidade === 1
-          ? ""
-          : "s"
-      }`;
+    elementoQuantidade.textContent = `${quantidade} cadastrada${
+      quantidade === 1 ? "" : "s"
+    }`;
   }
 
   if (elementoPago) {
-    elementoPago.textContent =
-      dinheiro(
-        totalPago
-      );
+    elementoPago.textContent = dinheiro(totalPago);
   }
 
   if (elementoPendente) {
-    elementoPendente.textContent =
-      dinheiro(
-        totalPendente
-      );
+    elementoPendente.textContent = dinheiro(totalPendente);
   }
 
   // ==========================================
   // LISTA
   // ==========================================
 
-  const lista =
-    document.querySelector(
-      "#fixedList"
-    );
+  const lista = document.querySelector("#fixedList");
 
   if (!lista) {
     return;
   }
 
   if (
-    contasDoMes.filter(
-      (conta) => {
+    contasDoMes.filter((conta) => {
+      const ehParcelada =
+        conta.tipo === "parcelada" || Number(conta.totalParcelas || 0) > 0;
 
-        const ehParcelada =
-          conta.tipo ===
-            "parcelada" ||
-          Number(
-            conta.totalParcelas ||
-              0
-          ) > 0;
-
-        if (
-          ehParcelada &&
-          conta.finalizada ===
-            true
-        ) {
-          return false;
-        }
-
-        if (!ehParcelada) {
-          return true;
-        }
-
-        const totalParcelas =
-          Number(
-            conta.totalParcelas ||
-              0
-          );
-
-        const parcelaInicial =
-          Number(
-            conta.parcelaAtual ||
-              1
-          );
-
-        const anoInicial =
-          Number(
-            conta.anoInicioParcela ||
-              anoSelecionado
-          );
-
-        const mesInicial =
-          Number(
-            conta.mesInicioParcela ??
-              mesSelecionado
-          );
-
-        const diferencaMeses =
-          (
-            anoSelecionado -
-            anoInicial
-          ) *
-            12 +
-          (
-            mesSelecionado -
-            mesInicial
-          );
-
-        const parcelaDoMes =
-          parcelaInicial +
-          diferencaMeses;
-
-        return (
-          parcelaDoMes >=
-            parcelaInicial &&
-          parcelaDoMes <=
-            totalParcelas
-        );
+      if (ehParcelada && conta.finalizada === true) {
+        return false;
       }
-    ).length === 0
-  ) {
 
+      if (!ehParcelada) {
+        return true;
+      }
+
+      const totalParcelas = Number(conta.totalParcelas || 0);
+
+      const parcelaInicial = Number(conta.parcelaAtual || 1);
+
+      const anoInicial = Number(conta.anoInicioParcela || anoSelecionado);
+
+      const mesInicial = Number(conta.mesInicioParcela ?? mesSelecionado);
+
+      const diferencaMeses =
+        (anoSelecionado - anoInicial) * 12 + (mesSelecionado - mesInicial);
+
+      const parcelaDoMes = parcelaInicial + diferencaMeses;
+
+      return parcelaDoMes >= parcelaInicial && parcelaDoMes <= totalParcelas;
+    }).length === 0
+  ) {
     lista.innerHTML = `
       <div class="empty">
         Nenhuma conta para este mês.
@@ -2118,124 +1336,59 @@ function mostrarContasFixas() {
   // MONTAR LISTA
   // ==========================================
 
-  lista.innerHTML =
-    contasDoMes
-      .map(
-        (conta) => {
+  lista.innerHTML = contasDoMes
+    .map((conta) => {
+      const ehParcelada =
+        conta.tipo === "parcelada" || Number(conta.totalParcelas || 0) > 0;
 
-          const ehParcelada =
-            conta.tipo ===
-              "parcelada" ||
-            Number(
-              conta.totalParcelas ||
-                0
-            ) > 0;
+      let parcelaDoMes = null;
 
-          let parcelaDoMes =
-            null;
+      if (ehParcelada) {
+        const totalParcelas = Number(conta.totalParcelas || 0);
 
-          if (
-            ehParcelada
-          ) {
+        const parcelaInicial = Number(conta.parcelaAtual || 1);
 
-            const totalParcelas =
-              Number(
-                conta.totalParcelas ||
-                  0
-              );
+        const anoInicial = Number(conta.anoInicioParcela || anoSelecionado);
 
-            const parcelaInicial =
-              Number(
-                conta.parcelaAtual ||
-                  1
-              );
+        const mesInicial = Number(conta.mesInicioParcela ?? mesSelecionado);
 
-            const anoInicial =
-              Number(
-                conta.anoInicioParcela ||
-                  anoSelecionado
-              );
+        const diferencaMeses =
+          (anoSelecionado - anoInicial) * 12 + (mesSelecionado - mesInicial);
 
-            const mesInicial =
-              Number(
-                conta.mesInicioParcela ??
-                  mesSelecionado
-              );
+        parcelaDoMes = parcelaInicial + diferencaMeses;
 
-            const diferencaMeses =
-              (
-                anoSelecionado -
-                anoInicial
-              ) *
-                12 +
-              (
-                mesSelecionado -
-                mesInicial
-              );
+        if (parcelaDoMes < parcelaInicial || parcelaDoMes > totalParcelas) {
+          return "";
+        }
+      }
 
-            parcelaDoMes =
-              parcelaInicial +
-              diferencaMeses;
+      const chaveMes = `${anoSelecionado}-${String(mesSelecionado + 1).padStart(
+        2,
+        "0",
+      )}`;
 
-            if (
-              parcelaDoMes <
-                parcelaInicial ||
-              parcelaDoMes >
-                totalParcelas
-            ) {
-              return "";
-            }
-          }
+      const paga =
+        Array.isArray(conta.pagamentos) && conta.pagamentos.includes(chaveMes);
 
-          const chaveMes =
-            `${anoSelecionado}-${String(
-              mesSelecionado + 1
-            ).padStart(
-              2,
-              "0"
-            )}`;
+      let textoParcela = "Conta mensal";
 
-          const paga =
-            Array.isArray(
-              conta.pagamentos
-            ) &&
-            conta.pagamentos.includes(
-              chaveMes
-            );
+      if (ehParcelada) {
+        textoParcela = `Parcela ${parcelaDoMes}/${conta.totalParcelas}`;
+      }
 
-          let textoParcela =
-            "Conta mensal";
-
-          if (
-            ehParcelada
-          ) {
-            textoParcela =
-              `Parcela ${
-                parcelaDoMes
-              }/${
-                conta.totalParcelas
-              }`;
-          }
-
-          return `
+      return `
             <div class="fixed-item">
 
               <div>
 
                 <strong>
-                  ${escapar(
-                    conta.name
-                  )}
+                  ${escapar(conta.name)}
                 </strong>
 
                 <small>
-                  Dia ${
-                    conta.day
-                  }
+                  Dia ${conta.day}
                   ·
-                  ${escapar(
-                    conta.category
-                  )}
+                  ${escapar(conta.category)}
                 </small>
 
                 <small>
@@ -2243,11 +1396,7 @@ function mostrarContasFixas() {
                 </small>
 
                 <small>
-                  ${
-                    paga
-                      ? "🟢 Paga"
-                      : "🔴 Pendente"
-                  }
+                  ${paga ? "🟢 Paga" : "🔴 Pendente"}
                 </small>
 
               </div>
@@ -2255,31 +1404,21 @@ function mostrarContasFixas() {
               <div>
 
                 <strong>
-                  ${dinheiro(
-                    conta.amount
-                  )}
+                  ${dinheiro(conta.amount)}
                 </strong>
 
                 <button
                   type="button"
                   class="primary"
-                  data-pagar-fixa="${
-                    conta.id
-                  }"
+                  data-pagar-fixa="${conta.id}"
                 >
-                  ${
-                    paga
-                      ? "↩ Desmarcar paga"
-                      : "✓ Marcar como paga"
-                  }
+                  ${paga ? "↩ Desmarcar paga" : "✓ Marcar como paga"}
                 </button>
 
                 <button
                   type="button"
                   class="delete-btn"
-                  data-delete-fixed="${
-                    conta.id
-                  }"
+                  data-delete-fixed="${conta.id}"
                 >
                   Excluir
                 </button>
@@ -2288,89 +1427,43 @@ function mostrarContasFixas() {
 
             </div>
           `;
-        }
-      )
-      .filter(
-        (html) =>
-          html
-      )
-      .join("");
+    })
+    .filter((html) => html)
+    .join("");
 
   // ==========================================
   // BOTÃO PAGAR
   // ==========================================
 
-  lista
-    .querySelectorAll(
-      "[data-pagar-fixa]"
-    )
-    .forEach(
-      (botao) => {
-
-        botao.addEventListener(
-          "click",
-          () => {
-
-            marcarContaComoPaga(
-              botao.dataset
-                .pagarFixa
-            );
-
-          }
-        );
-
-      }
-    );
+  lista.querySelectorAll("[data-pagar-fixa]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      marcarContaComoPaga(botao.dataset.pagarFixa);
+    });
+  });
 
   // ==========================================
   // BOTÃO EXCLUIR
   // ==========================================
 
-  lista
-    .querySelectorAll(
-      "[data-delete-fixed]"
-    )
-    .forEach(
-      (botao) => {
+  lista.querySelectorAll("[data-delete-fixed]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      const id = botao.dataset.deleteFixed;
 
-        botao.addEventListener(
-          "click",
-          () => {
+      const confirmou = confirm("Deseja realmente excluir esta conta fixa?");
 
-            const id =
-              botao.dataset
-                .deleteFixed;
-
-            const confirmou =
-              confirm(
-                "Deseja realmente excluir esta conta fixa?"
-              );
-
-            if (!confirmou) {
-              return;
-            }
-
-            const novasContas =
-              pegarContasFixas()
-                .filter(
-                  (conta) =>
-                    String(
-                      conta.id
-                    ) !==
-                    String(id)
-                );
-
-            salvarContasFixas(
-              novasContas
-            );
-
-            mostrarContasFixas();
-
-          }
-        );
-
+      if (!confirmou) {
+        return;
       }
-    );
+
+      const novasContas = pegarContasFixas().filter(
+        (conta) => String(conta.id) !== String(id),
+      );
+
+      salvarContasFixas(novasContas);
+
+      mostrarContasFixas();
+    });
+  });
 }
 
 // ==========================================
@@ -2379,22 +1472,13 @@ function mostrarContasFixas() {
 
 async function carregarCaixinhas() {
   try {
-    const dados =
-      await buscarDados(
-        "/api/caixinhas"
-      );
+    const dados = await buscarDados("/api/caixinhas");
 
-    state.caixinhas =
-      dados.caixinhas ||
-      [];
+    state.caixinhas = dados.caixinhas || [];
 
     mostrarCaixinhas();
-
   } catch (erro) {
-    console.error(
-      "Erro ao carregar caixinhas:",
-      erro
-    );
+    console.error("Erro ao carregar caixinhas:", erro);
   }
 }
 
@@ -2403,10 +1487,7 @@ async function carregarCaixinhas() {
 // ==========================================
 
 function mostrarCaixinhas() {
-  const lista =
-    document.querySelector(
-      "#caixinhasList"
-    );
+  const lista = document.querySelector("#caixinhasList");
 
   if (!lista) {
     return;
@@ -2422,48 +1503,25 @@ function mostrarCaixinhas() {
     return;
   }
 
-  lista.innerHTML =
-    state.caixinhas
-      .map(
-        (caixinha) => {
-          const meta =
-            Number(
-              caixinha.meta ||
-                0
-            );
+  lista.innerHTML = state.caixinhas
+    .map((caixinha) => {
+      const meta = Number(caixinha.meta || 0);
 
-          const saldo =
-            Number(
-              caixinha.saldo ||
-                0
-            );
+      const saldo = Number(caixinha.saldo || 0);
 
-          const progresso =
-            meta > 0
-              ? Math.min(
-                  (saldo /
-                    meta) *
-                    100,
-                  100
-                )
-              : 0;
+      const progresso = meta > 0 ? Math.min((saldo / meta) * 100, 100) : 0;
 
-          return `
+      return `
             <div class="fixed-item">
 
               <div>
 
                 <strong>
-                  ${escapar(
-                    caixinha.nome
-                  )}
+                  ${escapar(caixinha.nome)}
                 </strong>
 
                 <small>
-                  ${escapar(
-                    caixinha.descricao ||
-                      ""
-                  )}
+                  ${escapar(caixinha.descricao || "")}
                 </small>
 
               </div>
@@ -2471,16 +1529,12 @@ function mostrarCaixinhas() {
               <div>
 
                 <strong>
-                  ${dinheiro(
-                    saldo
-                  )}
+                  ${dinheiro(saldo)}
                 </strong>
 
                 <small>
                   Meta:
-                  ${dinheiro(
-                    meta
-                  )}
+                  ${dinheiro(meta)}
                 </small>
 
               </div>
@@ -2505,9 +1559,7 @@ function mostrarCaixinhas() {
               </div>
 
               <small>
-                ${progresso.toFixed(
-                  1
-                )}%
+                ${progresso.toFixed(1)}%
                 da meta
               </small>
 
@@ -2548,194 +1600,104 @@ function mostrarCaixinhas() {
 
             </div>
           `;
-        }
-      )
-      .join("");
+    })
+    .join("");
 
   // ------------------------------------------
   // BOTÃO RENDIMENTO
   // ------------------------------------------
 
-  lista
-    .querySelectorAll(
-      "[data-rendimento-caixinha]"
-    )
-    .forEach(
-      (botao) => {
-        botao.addEventListener(
-          "click",
-          () => {
-            adicionarRendimento(
-              botao.dataset
-                .rendimentoCaixinha
-            );
-          }
-        );
-      }
-    );
+  lista.querySelectorAll("[data-rendimento-caixinha]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      adicionarRendimento(botao.dataset.rendimentoCaixinha);
+    });
+  });
 
   // ------------------------------------------
   // BOTÃO EDITAR
   // ------------------------------------------
 
-  lista
-    .querySelectorAll(
-      "[data-editar-caixinha]"
-    )
-    .forEach(
-      (botao) => {
-        botao.addEventListener(
-          "click",
-          () => {
-            editarCaixinha(
-              botao.dataset
-                .editarCaixinha
-            );
-          }
-        );
-      }
-    );
+  lista.querySelectorAll("[data-editar-caixinha]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      editarCaixinha(botao.dataset.editarCaixinha);
+    });
+  });
 
   // ------------------------------------------
   // BOTÃO EXCLUIR
   // ------------------------------------------
 
-  lista
-    .querySelectorAll(
-      "[data-excluir-caixinha]"
-    )
-    .forEach(
-      (botao) => {
-        botao.addEventListener(
-          "click",
-          () => {
-            excluirCaixinha(
-              botao.dataset
-                .excluirCaixinha
-            );
-          }
-        );
-      }
-    );
+  lista.querySelectorAll("[data-excluir-caixinha]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      excluirCaixinha(botao.dataset.excluirCaixinha);
+    });
+  });
 }
 
 // ==========================================
 // ADICIONAR RENDIMENTO
 // ==========================================
 
-async function adicionarRendimento(
-  id
-) {
-  const caixinha =
-    state.caixinhas.find(
-      (item) =>
-        String(
-          item.id
-        ) ===
-        String(id)
-    );
+async function adicionarRendimento(id) {
+  const caixinha = state.caixinhas.find(
+    (item) => String(item.id) === String(id),
+  );
 
   if (!caixinha) {
-    alert(
-      "Caixinha não encontrada."
-    );
+    alert("Caixinha não encontrada.");
 
     return;
   }
 
-  const valorInformado =
-    prompt(
-      `Adicionar rendimento para "${caixinha.nome}"\n\n` +
-        `Saldo atual: ${dinheiro(
-          caixinha.saldo
-        )}\n\n` +
-        "Digite o valor do rendimento:"
-    );
+  const valorInformado = prompt(
+    `Adicionar rendimento para "${caixinha.nome}"\n\n` +
+      `Saldo atual: ${dinheiro(caixinha.saldo)}\n\n` +
+      "Digite o valor do rendimento:",
+  );
 
-  if (
-    valorInformado ===
-    null
-  ) {
+  if (valorInformado === null) {
     return;
   }
 
-  const valor =
-    Number(
-      String(
-        valorInformado
-      ).replace(
-        ",",
-        "."
-      )
-    );
+  const valor = Number(String(valorInformado).replace(",", "."));
 
-  if (
-    !Number.isFinite(
-      valor
-    ) ||
-    valor <= 0
-  ) {
-    alert(
-      "Digite um valor de rendimento válido."
-    );
+  if (!Number.isFinite(valor) || valor <= 0) {
+    alert("Digite um valor de rendimento válido.");
 
     return;
   }
 
-  const descricaoInformada =
-    prompt(
-      "Descrição do rendimento:",
-      "Rendimento"
-    );
+  const descricaoInformada = prompt("Descrição do rendimento:", "Rendimento");
 
-  if (
-    descricaoInformada ===
-    null
-  ) {
+  if (descricaoInformada === null) {
     return;
   }
 
   try {
-    const dados =
-      await buscarDados(
-        `/api/caixinhas/${id}/rendimento`,
-        {
-          method: "POST",
+    const dados = await buscarDados(`/api/caixinhas/${id}/rendimento`, {
+      method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
+      headers: {
+        "Content-Type": "application/json",
+      },
 
-          body: JSON.stringify({
-            valor,
+      body: JSON.stringify({
+        valor,
 
-            descricao:
-              descricaoInformada.trim() ||
-              "Rendimento",
-          }),
-        }
-      );
+        descricao: descricaoInformada.trim() || "Rendimento",
+      }),
+    });
 
     alert(
       `Rendimento adicionado com sucesso!\n\n` +
-        `Novo saldo: ${dinheiro(
-          dados.caixinha.saldo
-        )}`
+        `Novo saldo: ${dinheiro(dados.caixinha.saldo)}`,
     );
 
     await carregarCaixinhas();
-
   } catch (erro) {
-    console.error(
-      "Erro ao adicionar rendimento:",
-      erro
-    );
+    console.error("Erro ao adicionar rendimento:", erro);
 
-    alert(
-      "Erro ao adicionar rendimento: " +
-        erro.message
-    );
+    alert("Erro ao adicionar rendimento: " + erro.message);
   }
 }
 
@@ -2743,138 +1705,78 @@ async function adicionarRendimento(
 // EDITAR CAIXINHA
 // ==========================================
 
-async function editarCaixinha(
-  id
-) {
-  const caixinha =
-    state.caixinhas.find(
-      (item) =>
-        String(
-          item.id
-        ) ===
-        String(id)
-    );
+async function editarCaixinha(id) {
+  const caixinha = state.caixinhas.find(
+    (item) => String(item.id) === String(id),
+  );
 
   if (!caixinha) {
-    alert(
-      "Caixinha não encontrada."
-    );
+    alert("Caixinha não encontrada.");
 
     return;
   }
 
+  const novoNome = prompt("Nome da caixinha:", caixinha.nome || "");
 
-  const novoNome =
-    prompt(
-      "Nome da caixinha:",
-      caixinha.nome ||
-        ""
-    );
-
-  if (
-    novoNome ===
-    null
-  ) {
+  if (novoNome === null) {
     return;
   }
 
-  const nome =
-    novoNome.trim();
+  const nome = novoNome.trim();
 
   if (!nome) {
-    alert(
-      "O nome da caixinha não pode ficar vazio."
-    );
+    alert("O nome da caixinha não pode ficar vazio.");
 
     return;
   }
 
-  const novaMeta =
-    prompt(
-      "Meta da caixinha:",
-      Number(
-        caixinha.meta ||
-          0
-      )
-    );
+  const novaMeta = prompt("Meta da caixinha:", Number(caixinha.meta || 0));
 
-  if (
-    novaMeta ===
-    null
-  ) {
+  if (novaMeta === null) {
     return;
   }
 
-  const meta =
-    Number(
-      novaMeta
-    );
+  const meta = Number(novaMeta);
 
-  if (
-    !Number.isFinite(
-      meta
-    ) ||
-    meta <= 0
-  ) {
-    alert(
-      "Digite uma meta válida maior que zero."
-    );
+  if (!Number.isFinite(meta) || meta <= 0) {
+    alert("Digite uma meta válida maior que zero.");
 
     return;
   }
 
-  const novaDescricao =
-    prompt(
-      "Descrição da caixinha:",
-      caixinha.descricao ||
-        ""
-    );
+  const novaDescricao = prompt(
+    "Descrição da caixinha:",
+    caixinha.descricao || "",
+  );
 
-  if (
-    novaDescricao ===
-    null
-  ) {
+  if (novaDescricao === null) {
     return;
   }
 
   try {
-    await buscarDados(
-      `/api/caixinhas/${id}`,
-      {
-        method: "PUT",
+    await buscarDados(`/api/caixinhas/${id}`, {
+      method: "PUT",
 
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
+      headers: {
+        "Content-Type": "application/json",
+      },
 
-        body: JSON.stringify({
-          nome,
+      body: JSON.stringify({
+        nome,
 
-          meta,
+        meta,
 
-          descricao:
-            novaDescricao.trim(),
-        }),
-      }
-    );
+        descricao: novaDescricao.trim(),
+      }),
+    });
 
-    alert(
-      "Caixinha atualizada com sucesso!"
-    );
+    alert("Caixinha atualizada com sucesso!");
 
     await carregarCaixinhas();
-
   } catch (erro) {
-    console.error(
-      "Erro ao editar caixinha:",
-      erro
-    );
+    console.error("Erro ao editar caixinha:", erro);
 
-    alert(
-      "Erro ao editar caixinha: " +
-        erro.message
-    );
+    alert("Erro ao editar caixinha: " + erro.message);
   }
 }
 
@@ -2882,60 +1784,38 @@ async function editarCaixinha(
 // EXCLUIR CAIXINHA
 // ==========================================
 
-async function excluirCaixinha(
-  id
-) {
-  const caixinha =
-    state.caixinhas.find(
-      (item) =>
-        String(
-          item.id
-        ) ===
-        String(id)
-    );
+async function excluirCaixinha(id) {
+  const caixinha = state.caixinhas.find(
+    (item) => String(item.id) === String(id),
+  );
 
   if (!caixinha) {
-    alert(
-      "Caixinha não encontrada."
-    );
+    alert("Caixinha não encontrada.");
 
     return;
   }
 
-  const confirmou =
-    confirm(
-      `Tem certeza que deseja excluir a caixinha "${caixinha.nome}"?\n\n` +
-        "As movimentações relacionadas a ela também serão excluídas."
-    );
+  const confirmou = confirm(
+    `Tem certeza que deseja excluir a caixinha "${caixinha.nome}"?\n\n` +
+      "As movimentações relacionadas a ela também serão excluídas.",
+  );
 
   if (!confirmou) {
     return;
   }
 
   try {
-    await buscarDados(
-      `/api/caixinhas/${id}`,
-      {
-        method: "DELETE",
-      }
-    );
+    await buscarDados(`/api/caixinhas/${id}`, {
+      method: "DELETE",
+    });
 
-    alert(
-      "Caixinha excluída com sucesso!"
-    );
+    alert("Caixinha excluída com sucesso!");
 
     await carregarCaixinhas();
-
   } catch (erro) {
-    console.error(
-      "Erro ao excluir caixinha:",
-      erro
-    );
+    console.error("Erro ao excluir caixinha:", erro);
 
-    alert(
-      "Erro ao excluir caixinha: " +
-        erro.message
-    );
+    alert("Erro ao excluir caixinha: " + erro.message);
   }
 }
 
@@ -2944,10 +1824,7 @@ async function excluirCaixinha(
 // ==========================================
 
 function mostrarCartoesEFaturas() {
-  const container =
-    document.querySelector(
-      "#creditCards"
-    );
+  const container = document.querySelector("#creditCards");
 
   if (!container) {
     return;
@@ -2963,116 +1840,52 @@ function mostrarCartoesEFaturas() {
     return;
   }
 
-  container.innerHTML =
-    state.cartoes
-      .map(
-        (cartao) => {
+  container.innerHTML = state.cartoes
+    .map((cartao) => {
+      const faturas = state.faturas
+        .filter((fatura) => String(fatura.accountId) === String(cartao.id))
+        .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
 
-          const faturas =
-            state.faturas
-              .filter(
-                (fatura) =>
-                  String(
-                    fatura.accountId
-                  ) ===
-                  String(
-                    cartao.id
-                  )
-              )
-              .sort(
-                (a, b) =>
-                  new Date(
-                    b.dueDate
-                  ) -
-                  new Date(
-                    a.dueDate
-                  )
-              );
+      const faturaAtual = faturas[0];
 
-          const faturaAtual =
-  faturas[0];
+      let valorFatura = Number(
+        faturaAtual?.totalAmount || faturaAtual?.valor || 0,
+      );
 
-let valorFatura =
-  Number(
-    faturaAtual?.totalAmount ||
-    faturaAtual?.valor ||
-    0
-  );
+      // Se a fatura atual ainda não possui
+      // totalAmount, calcular pelas compras
+      if (faturaAtual && valorFatura === 0) {
+        const fechamento = new Date(faturaAtual.billClosingDate);
 
-// Se a fatura atual ainda não possui
-// totalAmount, calcular pelas compras
-if (
-  faturaAtual &&
-  valorFatura === 0
-) {
+        const dataAnterior = new Date(fechamento);
 
-  const fechamento =
-    new Date(
-      faturaAtual.billClosingDate
-    );
+        dataAnterior.setMonth(dataAnterior.getMonth() - 1);
 
-  const dataAnterior =
-    new Date(
-      fechamento
-    );
+        const comprasFaturaAtual = state.transacoes.filter((transacao) => {
+          if (transacao.conta !== cartao.banco) {
+            return false;
+          }
 
-  dataAnterior.setMonth(
-    dataAnterior.getMonth() - 1
-  );
+          if (transacao.tipoConta !== "CREDIT") {
+            return false;
+          }
 
-  const comprasFaturaAtual =
-    state.transacoes.filter(
-      (transacao) => {
+          if (transacao.tipo !== "DEBIT") {
+            return false;
+          }
 
-        if (
-          transacao.conta !==
-          cartao.banco
-        ) {
-          return false;
-        }
+          const data = new Date(transacao.data);
 
-        if (
-          transacao.tipoConta !==
-          "CREDIT"
-        ) {
-          return false;
-        }
+          return data > dataAnterior && data <= fechamento;
+        });
 
-        if (
-          transacao.tipo !==
-          "DEBIT"
-        ) {
-          return false;
-        }
-
-        const data =
-          new Date(
-            transacao.data
-          );
-
-        return (
-          data >
-            dataAnterior &&
-          data <=
-            fechamento
+        valorFatura = comprasFaturaAtual.reduce(
+          (total, transacao) => total + Math.abs(Number(transacao.valor)),
+          0,
         );
       }
-    );
 
-  valorFatura =
-    comprasFaturaAtual.reduce(
-      (total, transacao) =>
-        total +
-        Math.abs(
-          Number(
-            transacao.valor
-          )
-        ),
-      0
-    );
-}
-
-          return `
+      return `
             <article
               class="card credit-card-item"
               data-card-id="${cartao.id}"
@@ -3084,15 +1897,11 @@ if (
                 <div>
 
                   <strong>
-                    💳 ${escapar(
-                      cartao.nome
-                    )}
+                    💳 ${escapar(cartao.nome)}
                   </strong>
 
                   <div class="meta">
-                    ${escapar(
-                      cartao.banco
-                    )}
+                    ${escapar(cartao.banco)}
                   </div>
 
                 </div>
@@ -3100,9 +1909,7 @@ if (
               </div>
 
               <div class="credit-card-value">
-                ${dinheiro(
-                  valorFatura
-                )}
+                ${dinheiro(valorFatura)}
               </div>
 
               <div class="meta">
@@ -3111,16 +1918,12 @@ if (
 
               <div class="meta">
                 Limite:
-                ${dinheiro(
-                  cartao.limite
-                )}
+                ${dinheiro(cartao.limite)}
               </div>
 
               <div class="meta">
                 Disponível:
-                ${dinheiro(
-                  cartao.limiteDisponivel
-                )}
+                ${dinheiro(cartao.limiteDisponivel)}
               </div>
 
               <div class="credit-card-footer">
@@ -3136,82 +1939,40 @@ if (
 
             </article>
           `;
-        }
-      )
-      .join("");
+    })
+    .join("");
 
-  container
-    .querySelectorAll(
-      "[data-card-id]"
-    )
-    .forEach(
-      (cartaoElemento) => {
-
-        cartaoElemento.addEventListener(
-          "click",
-          () => {
-
-            mostrarDetalhesCartao(
-              cartaoElemento.dataset.cardId
-            );
-
-          }
-        );
-
-      }
-    );
+  container.querySelectorAll("[data-card-id]").forEach((cartaoElemento) => {
+    cartaoElemento.addEventListener("click", () => {
+      mostrarDetalhesCartao(cartaoElemento.dataset.cardId);
+    });
+  });
 }
 
-function mostrarDetalhesCartao(
-  cartaoId
-) {
-  const cartao =
-    state.cartoes.find(
-      (item) =>
-        String(item.id) ===
-        String(cartaoId)
-    );
+function mostrarDetalhesCartao(cartaoId) {
+  const cartao = state.cartoes.find(
+    (item) => String(item.id) === String(cartaoId),
+  );
 
   if (!cartao) {
     return;
   }
 
-  const faturas =
-    state.faturas
-      .filter(
-        (fatura) =>
-          String(
-            fatura.accountId
-          ) ===
-          String(
-            cartao.id
-          )
-      )
-      .sort(
-        (a, b) =>
-          new Date(b.dueDate) -
-          new Date(a.dueDate)
-      );
+  const faturas = state.faturas
+    .filter((fatura) => String(fatura.accountId) === String(cartao.id))
+    .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
 
-  const cards =
-    document.querySelector(
-      "#creditCards"
-    );
+  const cards = document.querySelector("#creditCards");
 
-  const detalhes =
-    document.querySelector(
-      "#creditCardDetails"
-    );
+  const detalhes = document.querySelector("#creditCardDetails");
 
   if (!cards || !detalhes) {
     return;
   }
 
-  cards.style.display =
-    "none";
+  cards.style.display = "none";
 
-  detalhes.style.display =
-    "block";
+  detalhes.style.display = "block";
 
   detalhes.innerHTML = `
 
@@ -3231,15 +1992,11 @@ function mostrarDetalhesCartao(
         </p>
 
         <h2>
-          💳 ${escapar(
-            cartao.nome
-          )}
+          💳 ${escapar(cartao.nome)}
         </h2>
 
         <p>
-          ${escapar(
-            cartao.banco
-          )}
+          ${escapar(cartao.banco)}
         </p>
 
       </div>
@@ -3268,37 +2025,23 @@ function mostrarDetalhesCartao(
         >
 
           ${faturas
-            .map(
-              (fatura, index) => {
+            .map((fatura, index) => {
+              const data = new Date(fatura.dueDate);
 
-                const data =
-                  new Date(
-                    fatura.dueDate
-                  );
+              const texto = data.toLocaleDateString("pt-BR", {
+                month: "long",
+                year: "numeric",
+              });
 
-                const texto =
-                  data.toLocaleDateString(
-                    "pt-BR",
-                    {
-                      month:
-                        "long",
-                      year:
-                        "numeric"
-                    }
-                  );
-
-                return `
+              return `
                   <option
                     value="${fatura.id}"
-                    ${index === 0
-                      ? "selected"
-                      : ""}
+                    ${index === 0 ? "selected" : ""}
                   >
                     ${texto}
                   </option>
                 `;
-              }
-            )
+            })
             .join("")}
 
         </select>
@@ -3314,116 +2057,55 @@ function mostrarDetalhesCartao(
 
   `;
 
-  document
-    .querySelector(
-      "#voltarCartoes"
-    )
-    .addEventListener(
-      "click",
-      () => {
+  document.querySelector("#voltarCartoes").addEventListener("click", () => {
+    detalhes.style.display = "none";
 
-        detalhes.style.display =
-          "none";
+    cards.style.display = "";
+  });
 
-        cards.style.display =
-          "";
-
-      }
-    );
-
-  const select =
-    document.querySelector(
-      "#faturaSelecionada"
-    );
+  const select = document.querySelector("#faturaSelecionada");
 
   function renderizarFatura() {
-
-    const fatura =
-      faturas.find(
-        (item) =>
-          String(item.id) ===
-          String(
-            select.value
-          )
-      );
+    const fatura = faturas.find(
+      (item) => String(item.id) === String(select.value),
+    );
 
     if (!fatura) {
       return;
     }
 
-    const fechamento =
-      new Date(
-        fatura.billClosingDate
-      );
+    const fechamento = new Date(fatura.billClosingDate);
 
-    const dataAnterior =
-      new Date(
-        fechamento
-      );
+    const dataAnterior = new Date(fechamento);
 
-    dataAnterior.setMonth(
-      dataAnterior.getMonth() - 1
+    dataAnterior.setMonth(dataAnterior.getMonth() - 1);
+
+    const transacoes = state.transacoes.filter((transacao) => {
+      if (transacao.conta !== cartao.banco) {
+        return false;
+      }
+
+      if (transacao.tipoConta !== "CREDIT") {
+        return false;
+      }
+
+      const data = new Date(transacao.data);
+
+      return (
+        data > dataAnterior && data <= fechamento && transacao.tipo === "DEBIT"
+      );
+    });
+
+    const totalCompras = transacoes.reduce(
+      (total, transacao) => total + Math.abs(Number(transacao.valor)),
+      0,
     );
 
-    const transacoes =
-      state.transacoes.filter(
-        (transacao) => {
+    const totalDaFatura = fatura.virtual
+      ? totalCompras
+      : Number(fatura.totalAmount || fatura.valor || 0);
 
-          if (
-            transacao.conta !==
-            cartao.banco
-          ) {
-            return false;
-          }
-
-          if (
-            transacao.tipoConta !==
-            "CREDIT"
-          ) {
-            return false;
-          }
-
-          const data =
-            new Date(
-              transacao.data
-            );
-
-          return (
-            data >
-              dataAnterior &&
-            data <=
-              fechamento &&
-            transacao.tipo ===
-              "DEBIT"
-          );
-        }
-      );
-
-    const totalCompras =
-      transacoes.reduce(
-        (total, transacao) =>
-          total +
-          Math.abs(
-            Number(
-              transacao.valor
-            )
-          ),
-        0
-      );
-
-      const totalDaFatura =
-  fatura.virtual
-    ? totalCompras
-    : Number(
-        fatura.totalAmount ||
-        fatura.valor ||
-        0
-      );
-
-    const detalhes =
-      document.querySelector(
-        "#faturaDetalhes"
-      );
+    const detalhes = document.querySelector("#faturaDetalhes");
 
     detalhes.innerHTML = `
 
@@ -3436,9 +2118,7 @@ function mostrarDetalhesCartao(
           </span>
 
      <strong>
-  ${dinheiro(
-    totalDaFatura
-  )}
+  ${dinheiro(totalDaFatura)}
 </strong>
 
         </article>
@@ -3451,9 +2131,7 @@ function mostrarDetalhesCartao(
           </span>
 
           <strong>
-            ${dataBR(
-              fatura.dueDate
-            )}
+            ${dataBR(fatura.dueDate)}
           </strong>
 
         </article>
@@ -3486,9 +2164,7 @@ function mostrarDetalhesCartao(
 
             <p>
               Total identificado:
-              ${dinheiro(
-                totalCompras
-              )}
+              ${dinheiro(totalCompras)}
             </p>
 
           </div>
@@ -3501,15 +2177,7 @@ function mostrarDetalhesCartao(
           ${
             transacoes.length
               ? transacoes
-                  .sort(
-                    (a, b) =>
-                      new Date(
-                        b.data
-                      ) -
-                      new Date(
-                        a.data
-                      )
-                  )
+                  .sort((a, b) => new Date(b.data) - new Date(a.data))
                   .map(
                     (transacao) => `
 
@@ -3522,21 +2190,15 @@ function mostrarDetalhesCartao(
                           <div
                             class="desc"
                           >
-                            ${escapar(
-                              transacao.descricao
-                            )}
+                            ${escapar(transacao.descricao)}
                           </div>
 
                           <div
                             class="meta"
                           >
-                            ${dataBR(
-                              transacao.data
-                            )}
+                            ${dataBR(transacao.data)}
                             ·
-                            ${escapar(
-                              transacao.categoria
-                            )}
+                            ${escapar(transacao.categoria)}
                           </div>
 
                         </div>
@@ -3544,18 +2206,12 @@ function mostrarDetalhesCartao(
                         <div
                           class="amount expense"
                         >
-                          - ${dinheiro(
-                            Math.abs(
-                              Number(
-                                transacao.valor
-                              )
-                            )
-                          )}
+                          - ${dinheiro(Math.abs(Number(transacao.valor)))}
                         </div>
 
                       </div>
 
-                    `
+                    `,
                   )
                   .join("")
               : `
@@ -3573,10 +2229,7 @@ function mostrarDetalhesCartao(
     `;
   }
 
-  select.addEventListener(
-    "change",
-    renderizarFatura
-  );
+  select.addEventListener("change", renderizarFatura);
 
   renderizarFatura();
 }
@@ -3586,102 +2239,63 @@ function mostrarDetalhesCartao(
 // ==========================================
 
 function configurarFormularioCaixinha() {
-  const formularioCaixinha =
-    document.querySelector(
-      "#caixinhaForm"
-    );
+  const formularioCaixinha = document.querySelector("#caixinhaForm");
 
   if (!formularioCaixinha) {
     return;
   }
 
-  formularioCaixinha.addEventListener(
-    "submit",
-    async (evento) => {
-      evento.preventDefault();
+  formularioCaixinha.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
 
-      const nome =
-        document.querySelector(
-          "#caixinhaNome"
-        ).value.trim();
+    const nome = document.querySelector("#caixinhaNome").value.trim();
 
-      const meta =
-        Number(
-          document.querySelector(
-            "#caixinhaMeta"
-          ).value
-        );
+    const meta = Number(document.querySelector("#caixinhaMeta").value);
 
-      const descricao =
-        document.querySelector(
-          "#caixinhaDescricao"
-        ).value.trim();
+    const descricao = document.querySelector("#caixinhaDescricao").value.trim();
 
-      if (!nome) {
-        alert(
-          "Digite o nome da caixinha."
-        );
+    if (!nome) {
+      alert("Digite o nome da caixinha.");
 
-        return;
-      }
-
-      if (
-        !Number.isFinite(
-          meta
-        ) ||
-        meta <= 0
-      ) {
-        alert(
-          "Digite uma meta válida."
-        );
-
-        return;
-      }
-
-      try {
-        await buscarDados(
-          "/api/caixinhas",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              nome,
-
-              meta,
-
-              saldo: 0,
-
-              descricao,
-            }),
-          }
-        );
-
-        alert(
-          "Caixinha criada com sucesso!"
-        );
-
-        formularioCaixinha.reset();
-
-        await carregarCaixinhas();
-
-      } catch (erro) {
-        console.error(
-          "Erro ao criar caixinha:",
-          erro
-        );
-
-        alert(
-          "Erro ao criar caixinha: " +
-            erro.message
-        );
-      }
+      return;
     }
-  );
+
+    if (!Number.isFinite(meta) || meta <= 0) {
+      alert("Digite uma meta válida.");
+
+      return;
+    }
+
+    try {
+      await buscarDados("/api/caixinhas", {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          nome,
+
+          meta,
+
+          saldo: 0,
+
+          descricao,
+        }),
+      });
+
+      alert("Caixinha criada com sucesso!");
+
+      formularioCaixinha.reset();
+
+      await carregarCaixinhas();
+    } catch (erro) {
+      console.error("Erro ao criar caixinha:", erro);
+
+      alert("Erro ao criar caixinha: " + erro.message);
+    }
+  });
 }
 
 // ==========================================
@@ -3690,132 +2304,131 @@ function configurarFormularioCaixinha() {
 
 async function carregarDados() {
   try {
-    const connectionText =
-      document.querySelector(
-        "#connectionText"
-      );
+    const connectionText = document.querySelector("#connectionText");
 
     if (connectionText) {
-      connectionText.textContent =
-        "Sincronizando...";
+      connectionText.textContent = "Sincronizando...";
     }
 
-    const inicio =
-      document.querySelector(
-        "#startDate"
-      )?.value;
+    const inicio = document.querySelector("#startDate")?.value;
 
-    const fim =
-      document.querySelector(
-        "#endDate"
-      )?.value;
+    const fim = document.querySelector("#endDate")?.value;
 
-    const parametros =
-      new URLSearchParams();
+    const parametros = new URLSearchParams();
 
     if (inicio) {
-      parametros.set(
-        "startDate",
-        inicio
-      );
+      parametros.set("startDate", inicio);
     }
 
     if (fim) {
-      parametros.set(
-        "endDate",
-        fim
-      );
-    }
+  const fimBusca = new Date(`${fim}T00:00:00`);
 
-        const [
-      dadosContas,
-      dadosTransacoes,
-      dadosFaturas,
-    ] = await Promise.all([
-      buscarDados(
-        "/api/accounts"
-      ),
+  fimBusca.setDate(
+    fimBusca.getDate() + 1
+  );
 
-      buscarDados(
-        `/api/transactions?${parametros.toString()}`
-      ),
+  parametros.set(
+    "endDate",
+    fimBusca.toISOString().slice(0, 10)
+  );
+}
 
-      buscarDados(
-        "/api/bills"
-      ),
-    ]);
+    const hoje = new Date();
 
-    state.contas =
-      dadosContas.contas ||
-      [];
+const inicioParcelamentos = new Date(hoje);
 
-    state.cartoes =
-      dadosContas.cartoes ||
-      [];
+inicioParcelamentos.setFullYear(
+  inicioParcelamentos.getFullYear() - 5
+);
 
-    console.log(
-      "CARTÕES DO PIERRE:",
-       state.cartoes
-    );  
+const fimParcelamentos = new Date(hoje);
 
-    state.investimentos =
-      dadosContas.investimentos ||
-      [];
+fimParcelamentos.setMonth(
+  fimParcelamentos.getMonth() + 24
+);
 
-    state.transacoes =
-      dadosTransacoes.transacoes ||
-      [];
+const formatarData = (data) =>
+  data.toISOString().slice(0, 10);
 
-    state.faturas =
-  dadosFaturas.faturas ||
-  [];
+const parametrosParcelamentos =
+  new URLSearchParams();
 
-state.resumos =
-  dadosFaturas.resumos ||
-  [];
+parametrosParcelamentos.set(
+  "startDate",
+  formatarData(inicioParcelamentos)
+);
 
-mostrarContas();
+parametrosParcelamentos.set(
+  "endDate",
+  formatarData(fimParcelamentos)
+);
 
-mostrarCartoesEFaturas();
+const [
+  dadosContas,
+  dadosTransacoes,
+  dadosParcelamentos,
+  dadosFaturas,
+] = await Promise.all([
+  buscarDados("/api/accounts"),
 
-atualizarDashboard();
+  buscarDados(
+    `/api/transactions?${parametros.toString()}`
+  ),
 
-mostrarTabela();
+  buscarDados(
+    `/api/installments?${parametrosParcelamentos.toString()}`
+  ),
 
-mostrarContasFixas();
+  buscarDados("/api/bills"),
+]);
 
-await carregarCaixinhas();
+    state.contas = dadosContas.contas || [];
+
+    state.cartoes = dadosContas.cartoes || [];
+
+    console.log("CARTÕES DO PIERRE:", state.cartoes);
+
+    state.investimentos = dadosContas.investimentos || [];
+
+   state.transacoes = dadosTransacoes.transacoes || [];
+
+state.parcelamentos =
+  dadosParcelamentos.compras || [];
+  
+  state.faturas =
+  dadosFaturas.faturas || [];
+
+    state.resumos = dadosFaturas.resumos || [];
+
+    mostrarContas();
+
+    mostrarCartoesEFaturas();
+
+    atualizarDashboard();
+
+    mostrarTabela();
+
+    mostrarContasFixas();
+
+    mostrarParcelas();
+
+    await carregarCaixinhas();
 
     if (connectionText) {
       connectionText.textContent =
-        `${state.contas.length} contas · ` +
-        `${state.cartoes.length} cartões`;
+        `${state.contas.length} contas · ` + `${state.cartoes.length} cartões`;
     }
-
   } catch (erro) {
-    console.error(
-      "Erro ao carregar dados:",
-      erro
-    );
+    console.error("Erro ao carregar dados:", erro);
 
-    const connectionText =
-      document.querySelector(
-        "#connectionText"
-      );
+    const connectionText = document.querySelector("#connectionText");
 
     if (connectionText) {
-      connectionText.textContent =
-        "Erro na conexão";
+      connectionText.textContent = "Erro na conexão";
     }
 
-    if (
-      erro.message !==
-      "Sua sessão expirou. Faça login novamente."
-    ) {
-      alert(
-        "Erro ao carregar os dados: " +
-          erro.message
-      );
+    if (erro.message !== "Sua sessão expirou. Faça login novamente.") {
+      alert("Erro ao carregar os dados: " + erro.message);
     }
   }
 }
@@ -3824,67 +2437,35 @@ await carregarCaixinhas();
 // NAVEGAÇÃO
 // ==========================================
 
-function navegar(
-  secao
-) {
-  document
-    .querySelectorAll(
-      ".section"
-    )
-    .forEach(
-      (elemento) => {
-        elemento.classList.toggle(
-          "active",
-          elemento.id ===
-            secao
-        );
-      }
-    );
+function navegar(secao) {
+  document.querySelectorAll(".section").forEach((elemento) => {
+    elemento.classList.toggle("active", elemento.id === secao);
+  });
 
-  document
-    .querySelectorAll(
-      ".nav-item"
-    )
-    .forEach(
-      (botao) => {
-        botao.classList.toggle(
-          "active",
-          botao.dataset
-            .section ===
-            secao
-        );
-      }
-    );
+  document.querySelectorAll(".nav-item").forEach((botao) => {
+    botao.classList.toggle("active", botao.dataset.section === secao);
+  });
 
- const titulos = {
-  dashboard:
-    "Dashboard",
+  const titulos = {
+    dashboard: "Dashboard",
 
-  contas:
-    "Contas",
+    contas: "Contas",
 
-  cartoes:
-    "Cartões e faturas",
+    cartoes: "Cartões e faturas",
 
-  transacoes:
-    "Transações",
+    transacoes: "Transações",
 
-  fixas:
-    "Contas fixas",
+    parcelas: "Parcelamentos",
 
-  caixinhas:
-    "Caixinhas",
-};
+    fixas: "Contas fixas",
 
-  const titulo =
-    document.querySelector(
-      "#pageTitle"
-    );
+    caixinhas: "Caixinhas",
+  };
+
+  const titulo = document.querySelector("#pageTitle");
 
   if (titulo) {
-    titulo.textContent =
-      titulos[secao] ||
-      "Dashboard";
+    titulo.textContent = titulos[secao] || "Dashboard";
   }
 }
 
@@ -3893,41 +2474,17 @@ function navegar(
 // ==========================================
 
 function configurarNavegacao() {
-  document
-    .querySelectorAll(
-      ".nav-item"
-    )
-    .forEach(
-      (botao) => {
-        botao.addEventListener(
-          "click",
-          () => {
-            navegar(
-              botao.dataset
-                .section
-            );
-          }
-        );
-      }
-    );
+  document.querySelectorAll(".nav-item").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      navegar(botao.dataset.section);
+    });
+  });
 
-  document
-    .querySelectorAll(
-      "[data-go]"
-    )
-    .forEach(
-      (botao) => {
-        botao.addEventListener(
-          "click",
-          () => {
-            navegar(
-              botao.dataset
-                .go
-            );
-          }
-        );
-      }
-    );
+  document.querySelectorAll("[data-go]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      navegar(botao.dataset.go);
+    });
+  });
 }
 
 // ==========================================
@@ -3936,23 +2493,15 @@ function configurarNavegacao() {
 
 async function sincronizarCaixinhas() {
   try {
-    return await buscarDados(
-      "/api/caixinhas/sincronizar",
-      {
-        method: "POST",
+    return await buscarDados("/api/caixinhas/sincronizar", {
+      method: "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-      }
-    );
-
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
   } catch (erro) {
-    console.error(
-      "Erro ao sincronizar caixinhas:",
-      erro
-    );
+    console.error("Erro ao sincronizar caixinhas:", erro);
 
     throw erro;
   }
@@ -3963,91 +2512,49 @@ async function sincronizarCaixinhas() {
 // ==========================================
 
 function configurarBotaoAtualizar() {
-  const botaoAtualizar =
-    document.querySelector(
-      "#refreshBtn"
-    );
+  const botaoAtualizar = document.querySelector("#refreshBtn");
 
   if (!botaoAtualizar) {
     return;
   }
 
-  botaoAtualizar.addEventListener(
-    "click",
-    async () => {
-      try {
-        botaoAtualizar.disabled =
-          true;
+  botaoAtualizar.addEventListener("click", async () => {
+    try {
+      botaoAtualizar.disabled = true;
 
-        botaoAtualizar.textContent =
-          "↻ Sincronizando...";
+      botaoAtualizar.textContent = "↻ Sincronizando...";
 
-        const resultado =
-          await sincronizarCaixinhas();
+      const resultado = await sincronizarCaixinhas();
 
-        await carregarDados();
+      await carregarDados();
 
-        const quantidade =
-          resultado
-            ?.sincronizadas
-            ?.length ||
-          0;
+      const quantidade = resultado?.sincronizadas?.length || 0;
 
-        if (
-          quantidade > 0
-        ) {
-          alert(
-            `Sincronização concluída!\n\n` +
-              `${quantidade} nova${
-                quantidade ===
-                1
-                  ? ""
-                  : "s"
-              } movimentação${
-                quantidade ===
-                1
-                  ? ""
-                  : "ões"
-              } sincronizada${
-                quantidade ===
-                1
-                  ? ""
-                  : "s"
-              }.`
-          );
-
-        } else {
-          alert(
-            "Sincronização concluída!\n\n" +
-              "Nenhuma nova movimentação encontrada."
-          );
-        }
-
-      } catch (erro) {
-        console.error(
-          "Erro ao atualizar:",
-          erro
+      if (quantidade > 0) {
+        alert(
+          `Sincronização concluída!\n\n` +
+            `${quantidade} nova${quantidade === 1 ? "" : "s"} movimentação${
+              quantidade === 1 ? "" : "ões"
+            } sincronizada${quantidade === 1 ? "" : "s"}.`,
         );
-
-        if (
-          erro.message !==
-          "Sua sessão expirou. Faça login novamente."
-        ) {
-          alert(
-            "Erro ao sincronizar:\n\n" +
-              erro.message
-          );
-        }
-
-      } finally {
-        botaoAtualizar.disabled =
-          false;
-
-        botaoAtualizar.textContent =
-          "↻ Atualizar";
+      } else {
+        alert(
+          "Sincronização concluída!\n\n" +
+            "Nenhuma nova movimentação encontrada.",
+        );
       }
+    } catch (erro) {
+      console.error("Erro ao atualizar:", erro);
+
+      if (erro.message !== "Sua sessão expirou. Faça login novamente.") {
+        alert("Erro ao sincronizar:\n\n" + erro.message);
+      }
+    } finally {
+      botaoAtualizar.disabled = false;
+
+      botaoAtualizar.textContent = "↻ Atualizar";
     }
-  );
+  });
 }
 
 // ==========================================
@@ -4055,21 +2562,15 @@ function configurarBotaoAtualizar() {
 // ==========================================
 
 function configurarFiltro() {
-  const botaoFiltro =
-    document.querySelector(
-      "#filterBtn"
-    );
+  const botaoFiltro = document.querySelector("#filterBtn");
 
   if (!botaoFiltro) {
     return;
   }
 
-  botaoFiltro.addEventListener(
-    "click",
-    () => {
-      carregarDados();
-    }
-  );
+  botaoFiltro.addEventListener("click", () => {
+    carregarDados();
+  });
 }
 
 // ==========================================
@@ -4081,76 +2582,46 @@ function configurarFiltro() {
 // ==========================================
 
 function configurarFormularioContaFixa() {
-  const formulario =
-    document.querySelector(
-      "#fixedForm"
-    );
+  const formulario = document.querySelector("#fixedForm");
 
   if (!formulario) {
     return;
   }
 
-  const tipoConta =
-    document.querySelector(
-      "#fixedType"
-    );
+  const tipoConta = document.querySelector("#fixedType");
 
-  const camposParcelas =
-    document.querySelector(
-      "#installmentFields"
-    );
+  const camposParcelas = document.querySelector("#installmentFields");
 
-  const totalParcelas =
-    document.querySelector(
-      "#fixedTotalInstallments"
-    );
+  const totalParcelas = document.querySelector("#fixedTotalInstallments");
 
-  const parcelaAtual =
-    document.querySelector(
-      "#fixedCurrentInstallment"
-    );
+  const parcelaAtual = document.querySelector("#fixedCurrentInstallment");
 
   // ==========================================
   // MOSTRAR / ESCONDER CAMPOS DE PARCELAS
   // ==========================================
 
   function atualizarCamposParcelas() {
-
     if (!tipoConta) {
       return;
     }
 
-    const ehParcelada =
-      tipoConta.value ===
-      "parcelada";
+    const ehParcelada = tipoConta.value === "parcelada";
 
     if (camposParcelas) {
-
-      camposParcelas.style.display =
-        ehParcelada
-          ? "block"
-          : "none";
+      camposParcelas.style.display = ehParcelada ? "block" : "none";
     }
 
     if (totalParcelas) {
-
-      totalParcelas.required =
-        ehParcelada;
+      totalParcelas.required = ehParcelada;
     }
 
     if (parcelaAtual) {
-
-      parcelaAtual.required =
-        ehParcelada;
+      parcelaAtual.required = ehParcelada;
     }
   }
 
   if (tipoConta) {
-
-    tipoConta.addEventListener(
-      "change",
-      atualizarCamposParcelas
-    );
+    tipoConta.addEventListener("change", atualizarCamposParcelas);
 
     atualizarCamposParcelas();
   }
@@ -4159,272 +2630,155 @@ function configurarFormularioContaFixa() {
   // CADASTRAR CONTA
   // ==========================================
 
-  formulario.addEventListener(
-    "submit",
-    (evento) => {
+  formulario.addEventListener("submit", (evento) => {
+    evento.preventDefault();
 
-      evento.preventDefault();
+    const nome = document.querySelector("#fixedName").value.trim();
 
-      const nome =
-        document
-          .querySelector(
-            "#fixedName"
-          )
-          .value
-          .trim();
+    const valor = Number(document.querySelector("#fixedAmount").value);
 
-      const valor =
-        Number(
-          document.querySelector(
-            "#fixedAmount"
-          ).value
-        );
+    const dia = Number(document.querySelector("#fixedDay").value);
 
-      const dia =
-        Number(
-          document.querySelector(
-            "#fixedDay"
-          ).value
-        );
+    const categoria = document.querySelector("#fixedCategory").value;
 
-      const categoria =
-        document.querySelector(
-          "#fixedCategory"
-        ).value;
+    const tipo = tipoConta ? tipoConta.value : "fixa";
 
-      const tipo =
-        tipoConta
-          ? tipoConta.value
-          : "fixa";
+    const quantidadeParcelas = Number(totalParcelas ? totalParcelas.value : 0);
 
-      const quantidadeParcelas =
-        Number(
-          totalParcelas
-            ? totalParcelas.value
-            : 0
-        );
+    const numeroParcelaAtual = Number(parcelaAtual ? parcelaAtual.value : 1);
 
-      const numeroParcelaAtual =
-        Number(
-          parcelaAtual
-            ? parcelaAtual.value
-            : 1
-        );
+    // ==========================================
+    // VALIDAÇÕES
+    // ==========================================
 
-      // ==========================================
-      // VALIDAÇÕES
-      // ==========================================
+    if (!nome) {
+      alert("Digite o nome da conta.");
 
-      if (!nome) {
-
-        alert(
-          "Digite o nome da conta."
-        );
-
-        return;
-      }
-
-      if (
-        !Number.isFinite(
-          valor
-        ) ||
-        valor <= 0
-      ) {
-
-        alert(
-          "Digite um valor válido."
-        );
-
-        return;
-      }
-
-      if (
-        !Number.isInteger(
-          dia
-        ) ||
-        dia < 1 ||
-        dia > 31
-      ) {
-
-        alert(
-          "Digite um dia de vencimento entre 1 e 31."
-        );
-
-        return;
-      }
-
-      if (
-        tipo ===
-        "parcelada"
-      ) {
-
-        if (
-          !Number.isInteger(
-            quantidadeParcelas
-          ) ||
-          quantidadeParcelas < 1
-        ) {
-
-          alert(
-            "Informe o total de parcelas."
-          );
-
-          return;
-        }
-
-        if (
-          !Number.isInteger(
-            numeroParcelaAtual
-          ) ||
-          numeroParcelaAtual < 1 ||
-          numeroParcelaAtual >
-            quantidadeParcelas
-        ) {
-
-          alert(
-            "A parcela atual deve estar entre 1 e o total de parcelas."
-          );
-
-          return;
-        }
-      }
-
-      // ==========================================
-      // DEFINIR MÊS DE INÍCIO DA PARCELA
-      // ==========================================
-
-      const dataInicioParcela =
-        new Date();
-
-      const anoInicioParcela =
-        dataInicioParcela.getFullYear();
-
-      const mesInicioParcela =
-        dataInicioParcela.getMonth();
-
-      // ==========================================
-      // CRIAR CONTA
-      // ==========================================
-
-      const conta = {
-
-        id:
-          crypto.randomUUID(),
-
-        name:
-          nome,
-
-        amount:
-          valor,
-
-        day:
-          dia,
-
-        category:
-          categoria,
-
-        tipo:
-          tipo,
-
-        totalParcelas:
-          tipo ===
-          "parcelada"
-            ? quantidadeParcelas
-            : null,
-
-        parcelaAtual:
-          tipo ===
-          "parcelada"
-            ? numeroParcelaAtual
-            : null,
-
-        // ========================================
-        // INÍCIO DA PARCELA
-        // ========================================
-
-        anoInicioParcela:
-          tipo ===
-          "parcelada"
-            ? anoInicioParcela
-            : null,
-
-        mesInicioParcela:
-          tipo ===
-          "parcelada"
-            ? mesInicioParcela
-            : null,
-
-        pagamentos:
-          [],
-
-        finalizada:
-          false,
-      };
-
-      // ==========================================
-      // SALVAR
-      // ==========================================
-
-      const contas =
-        pegarContasFixas();
-
-      contas.push(
-        conta
-      );
-
-      salvarContasFixas(
-        contas
-      );
-
-      // ==========================================
-      // LIMPAR FORMULÁRIO
-      // ==========================================
-
-      formulario.reset();
-
-      if (tipoConta) {
-
-        tipoConta.value =
-          "fixa";
-      }
-
-      if (camposParcelas) {
-
-        camposParcelas.style.display =
-          "none";
-      }
-
-      if (totalParcelas) {
-
-        totalParcelas.required =
-          false;
-
-        totalParcelas.value =
-          "";
-      }
-
-      if (parcelaAtual) {
-
-        parcelaAtual.required =
-          false;
-
-        parcelaAtual.value =
-          "1";
-      }
-
-      // ==========================================
-      // ATUALIZAR LISTA
-      // ==========================================
-
-      mostrarContasFixas();
-
-      alert(
-        tipo === "parcelada"
-          ? "Conta parcelada adicionada com sucesso!"
-          : "Conta fixa adicionada com sucesso!"
-      );
+      return;
     }
-  );
+
+    if (!Number.isFinite(valor) || valor <= 0) {
+      alert("Digite um valor válido.");
+
+      return;
+    }
+
+    if (!Number.isInteger(dia) || dia < 1 || dia > 31) {
+      alert("Digite um dia de vencimento entre 1 e 31.");
+
+      return;
+    }
+
+    if (tipo === "parcelada") {
+      if (!Number.isInteger(quantidadeParcelas) || quantidadeParcelas < 1) {
+        alert("Informe o total de parcelas.");
+
+        return;
+      }
+
+      if (
+        !Number.isInteger(numeroParcelaAtual) ||
+        numeroParcelaAtual < 1 ||
+        numeroParcelaAtual > quantidadeParcelas
+      ) {
+        alert("A parcela atual deve estar entre 1 e o total de parcelas.");
+
+        return;
+      }
+    }
+
+    // ==========================================
+    // DEFINIR MÊS DE INÍCIO DA PARCELA
+    // ==========================================
+
+    const dataInicioParcela = new Date();
+
+    const anoInicioParcela = dataInicioParcela.getFullYear();
+
+    const mesInicioParcela = dataInicioParcela.getMonth();
+
+    // ==========================================
+    // CRIAR CONTA
+    // ==========================================
+
+    const conta = {
+      id: crypto.randomUUID(),
+
+      name: nome,
+
+      amount: valor,
+
+      day: dia,
+
+      category: categoria,
+
+      tipo: tipo,
+
+      totalParcelas: tipo === "parcelada" ? quantidadeParcelas : null,
+
+      parcelaAtual: tipo === "parcelada" ? numeroParcelaAtual : null,
+
+      // ========================================
+      // INÍCIO DA PARCELA
+      // ========================================
+
+      anoInicioParcela: tipo === "parcelada" ? anoInicioParcela : null,
+
+      mesInicioParcela: tipo === "parcelada" ? mesInicioParcela : null,
+
+      pagamentos: [],
+
+      finalizada: false,
+    };
+
+    // ==========================================
+    // SALVAR
+    // ==========================================
+
+    const contas = pegarContasFixas();
+
+    contas.push(conta);
+
+    salvarContasFixas(contas);
+
+    // ==========================================
+    // LIMPAR FORMULÁRIO
+    // ==========================================
+
+    formulario.reset();
+
+    if (tipoConta) {
+      tipoConta.value = "fixa";
+    }
+
+    if (camposParcelas) {
+      camposParcelas.style.display = "none";
+    }
+
+    if (totalParcelas) {
+      totalParcelas.required = false;
+
+      totalParcelas.value = "";
+    }
+
+    if (parcelaAtual) {
+      parcelaAtual.required = false;
+
+      parcelaAtual.value = "1";
+    }
+
+    // ==========================================
+    // ATUALIZAR LISTA
+    // ==========================================
+
+    mostrarContasFixas();
+
+    alert(
+      tipo === "parcelada"
+        ? "Conta parcelada adicionada com sucesso!"
+        : "Conta fixa adicionada com sucesso!",
+    );
+  });
 }
 
 // ==========================================
@@ -4432,48 +2786,24 @@ function configurarFormularioContaFixa() {
 // ==========================================
 
 function configurarDatas() {
-  const fim =
-    new Date();
+  const fim = new Date();
 
-  const inicio =
-    new Date(fim);
+  const inicio = new Date(fim);
 
-  inicio.setMonth(
-    inicio.getMonth() -
-      3
-  );
+  inicio.setMonth(inicio.getMonth() - 3);
 
-  const formatar =
-    (data) =>
-      data
-        .toISOString()
-        .slice(
-          0,
-          10
-        );
+  const formatar = (data) => data.toISOString().slice(0, 10);
 
-  const campoInicio =
-    document.querySelector(
-      "#startDate"
-    );
+  const campoInicio = document.querySelector("#startDate");
 
-  const campoFim =
-    document.querySelector(
-      "#endDate"
-    );
+  const campoFim = document.querySelector("#endDate");
 
   if (campoInicio) {
-    campoInicio.value =
-      formatar(
-        inicio
-      );
+    campoInicio.value = formatar(inicio);
   }
 
   if (campoFim) {
-    campoFim.value =
-      formatar(
-        fim
-      );
+    campoFim.value = formatar(fim);
   }
 }
 
@@ -4512,16 +2842,12 @@ async function iniciarSistema() {
   carregarTokenSalvo();
 
   // Verifica se existe uma sessão válida.
-  const autenticado =
-    await verificarSessao();
+  const autenticado = await verificarSessao();
 
   if (!autenticado) {
     mostrarLogin();
 
-    const email =
-      document.querySelector(
-        "#loginEmail"
-      );
+    const email = document.querySelector("#loginEmail");
 
     if (email) {
       email.focus();
@@ -4540,13 +2866,759 @@ async function iniciarSistema() {
 // INICIALIZAÇÃO
 // ==========================================
 
-document.addEventListener(
-  "DOMContentLoaded",
-  async () => {
-    configurarLogin();
+document.addEventListener("DOMContentLoaded", async () => {
+  configurarLogin();
 
-    configurarLogout();
+  configurarLogout();
 
-    await iniciarSistema();
+  await iniciarSistema();
+});
+
+// ==========================================
+// COMPRAS PARCELADAS
+// ==========================================
+
+function mostrarParcelas() {
+  const lista = document.querySelector("#parcelasLista");
+  const filtroConta = document.querySelector("#parcelasFiltroConta");
+  const filtroMes = document.querySelector("#parcelasFiltroMes");
+
+  const elementoAndamento = document.querySelector(
+    "#parcelasEmAndamento",
+  );
+
+  const elementoValorTotal = document.querySelector(
+    "#parcelasValorTotal",
+  );
+
+  const elementoJaPago = document.querySelector(
+    "#parcelasJaPago",
+  );
+
+  const elementoRestante = document.querySelector(
+    "#parcelasRestante",
+  );
+
+  const elementoProgresso = document.querySelector(
+    "#parcelasProgresso",
+  );
+
+  const elementoProgressoTexto = document.querySelector(
+    "#parcelasProgressoTexto",
+  );
+
+  const elementoUltimaData = document.querySelector(
+    "#parcelasUltimaData",
+  );
+
+  if (!lista) {
+    return;
   }
+
+  // ==========================================
+  // DADOS REAIS DO PIERRE
+  // ==========================================
+
+  const compras = Array.isArray(state.parcelamentos)
+    ? state.parcelamentos
+    : [];
+
+  const cartoes = Array.isArray(state.cartoes)
+    ? state.cartoes
+    : [];
+
+  // ==========================================
+  // NORMALIZAR COMPRA
+  // ==========================================
+
+  const comprasNormalizadas = compras.map((compra, index) => {
+    const parcelas = Array.isArray(compra.parcelas)
+      ? [...compra.parcelas]
+      : [];
+
+    parcelas.sort(
+      (a, b) =>
+        Number(a.parcelaAtual || 0) -
+        Number(b.parcelaAtual || 0),
+    );
+
+    const totalParcelas = Math.max(
+      Number(compra.totalParcelas || 0),
+      ...parcelas.map((parcela) =>
+        Number(
+          parcela.totalParcelas ||
+            parcela.totalInstallments ||
+            0,
+        ),
+      ),
+    );
+
+    const valorTotalInformado = Number(
+      compra.valorTotal || 0,
+    );
+
+    const valorTotalParcelas = parcelas.reduce(
+      (total, parcela) =>
+        total + Math.abs(Number(parcela.valor || 0)),
+      0,
+    );
+
+    const valorTotal =
+      valorTotalInformado > 0
+        ? valorTotalInformado
+        : valorTotalParcelas;
+
+    const valorJaPago = parcelas
+      .filter((parcela) => {
+        const status = String(
+          parcela.status || "",
+        ).toUpperCase();
+
+        return status === "POSTED";
+      })
+      .reduce(
+        (total, parcela) =>
+          total + Math.abs(Number(parcela.valor || 0)),
+        0,
+      );
+
+    const valorRestante = Math.max(
+      valorTotal - valorJaPago,
+      0,
+    );
+
+    const ultimaParcela =
+      parcelas.length > 0
+        ? Math.max(
+            ...parcelas.map((parcela) =>
+              Number(parcela.parcelaAtual || 0),
+            ),
+          )
+        : 0;
+
+    const finalizada =
+      totalParcelas > 0 &&
+      parcelas.length > 0 &&
+      parcelas.every((parcela) => {
+        const status = String(
+          parcela.status || "",
+        ).toUpperCase();
+
+        return (
+          status === "POSTED" &&
+          Number(parcela.parcelaAtual || 0) >=
+            totalParcelas
+        );
+      });
+
+    return {
+      ...compra,
+
+      _id: compra.id || `${index}`,
+
+      nome:
+        compra.nome ||
+        compra.descricao ||
+        "Compra parcelada",
+
+      cartaoId: compra.cartaoId || "",
+
+      cartaoNome:
+        compra.cartaoNome ||
+        compra.cartao ||
+        "Cartão",
+
+      banco: compra.banco || "",
+
+      parcelas,
+
+      totalParcelas,
+
+      valorTotal,
+
+      valorJaPago,
+
+      valorRestante,
+
+      ultimaParcela,
+
+      finalizada,
+    };
+  });
+
+  // ==========================================
+  // FILTRO DE CARTÕES
+  // ==========================================
+
+  if (filtroConta) {
+    const valorAtual =
+      filtroConta.value || "TODAS";
+
+    filtroConta.innerHTML = `
+      <option value="TODAS">
+        Todos os cartões
+      </option>
+
+      ${cartoes
+        .map(
+          (cartao) => `
+            <option value="${escapar(cartao.id)}">
+              ${escapar(
+                cartao.nome ||
+                  cartao.banco ||
+                  "Cartão",
+              )}
+            </option>
+          `,
+        )
+        .join("")}
+    `;
+
+    if (
+      [...filtroConta.options].some(
+        (option) =>
+          option.value === valorAtual,
+      )
+    ) {
+      filtroConta.value = valorAtual;
+    }
+  }
+
+  // ==========================================
+  // FILTRO DE MESES
+  // ==========================================
+
+  if (filtroMes) {
+    const valorAtual =
+      filtroMes.value || "";
+
+    const meses = new Set();
+
+    comprasNormalizadas.forEach((compra) => {
+      compra.parcelas.forEach((parcela) => {
+        const vencimento =
+          parcela.vencimento ||
+          parcela.dueDate;
+
+        if (vencimento) {
+          const mes = String(vencimento).substring(
+            0,
+            7,
+          );
+
+          if (/^\d{4}-\d{2}$/.test(mes)) {
+            meses.add(mes);
+          }
+        }
+      });
+    });
+
+    // Sempre incluir alguns meses ao redor do atual.
+    const hoje = new Date();
+
+    const inicio = new Date(
+      hoje.getFullYear(),
+      hoje.getMonth() - 12,
+      1,
+    );
+
+    for (let i = 0; i < 37; i++) {
+      const ano = inicio.getFullYear();
+
+      const mes = String(
+        inicio.getMonth() + 1,
+      ).padStart(2, "0");
+
+      meses.add(`${ano}-${mes}`);
+
+      inicio.setMonth(
+        inicio.getMonth() + 1,
+      );
+    }
+
+    const mesesOrdenados = [...meses].sort();
+
+    filtroMes.innerHTML = `
+      <option value="TODOS">
+        Todos os meses
+      </option>
+
+      ${mesesOrdenados
+        .map((mes) => {
+          const [ano, numeroMes] =
+            mes.split("-");
+
+          const nomeMes = new Date(
+            Number(ano),
+            Number(numeroMes) - 1,
+            1,
+          ).toLocaleDateString(
+            "pt-BR",
+            {
+              month: "long",
+              year: "numeric",
+            },
+          );
+
+          return `
+            <option value="${mes}">
+              ${
+                nomeMes.charAt(0).toUpperCase() +
+                nomeMes.slice(1)
+              }
+            </option>
+          `;
+        })
+        .join("")}
+    `;
+
+    if (
+      valorAtual &&
+      [...filtroMes.options].some(
+        (option) =>
+          option.value === valorAtual,
+      )
+    ) {
+      filtroMes.value = valorAtual;
+    } else {
+      const mesAtual =
+        `${hoje.getFullYear()}-${String(
+          hoje.getMonth() + 1,
+        ).padStart(2, "0")}`;
+
+      if (
+        [...filtroMes.options].some(
+          (option) =>
+            option.value === mesAtual,
+        )
+      ) {
+        filtroMes.value = mesAtual;
+      } else {
+        filtroMes.value = "TODOS";
+      }
+    }
+  }
+
+  // ==========================================
+  // FILTROS SELECIONADOS
+  // ==========================================
+
+  const contaSelecionada =
+    filtroConta?.value || "TODAS";
+
+  const mesSelecionado =
+    filtroMes?.value || "TODOS";
+
+  let comprasFiltradas =
+    comprasNormalizadas.filter(
+      (compra) => {
+        // --------------------------------------
+        // CARTÃO
+        // --------------------------------------
+
+        if (
+          contaSelecionada !== "TODAS" &&
+          String(compra.cartaoId) !==
+            String(contaSelecionada)
+        ) {
+          return false;
+        }
+
+        // --------------------------------------
+        // MÊS DA PARCELA
+        // --------------------------------------
+
+        if (mesSelecionado !== "TODOS") {
+          const possuiParcelaNoMes =
+            compra.parcelas.some(
+              (parcela) => {
+                const vencimento =
+                  parcela.vencimento ||
+                  parcela.dueDate;
+
+                return (
+                  vencimento &&
+                  String(vencimento).substring(
+                    0,
+                    7,
+                  ) === mesSelecionado
+                );
+              },
+            );
+
+          if (!possuiParcelaNoMes) {
+            return false;
+          }
+        }
+
+        return true;
+      },
+    );
+
+  // ==========================================
+  // STATUS
+  // ==========================================
+
+  const status =
+    window.parcelasStatus ||
+    "ANDAMENTO";
+
+  if (status === "FINALIZADAS") {
+    comprasFiltradas =
+      comprasFiltradas.filter(
+        (compra) =>
+          compra.finalizada,
+      );
+  } else {
+    comprasFiltradas =
+      comprasFiltradas.filter(
+        (compra) =>
+          !compra.finalizada,
+      );
+  }
+
+  // ==========================================
+  // RESUMO
+  // ==========================================
+
+  const quantidade =
+    comprasFiltradas.length;
+
+  const valorTotal =
+    comprasFiltradas.reduce(
+      (total, compra) =>
+        total + compra.valorTotal,
+      0,
+    );
+
+  const valorPago =
+    comprasFiltradas.reduce(
+      (total, compra) =>
+        total + compra.valorJaPago,
+      0,
+    );
+
+  const valorRestante =
+    comprasFiltradas.reduce(
+      (total, compra) =>
+        total + compra.valorRestante,
+      0,
+    );
+
+  const percentual =
+    valorTotal > 0
+      ? Math.min(
+          (valorPago / valorTotal) * 100,
+          100,
+        )
+      : 0;
+
+  if (elementoAndamento) {
+    elementoAndamento.textContent =
+      quantidade;
+  }
+
+  if (elementoValorTotal) {
+    elementoValorTotal.textContent =
+      dinheiro(valorTotal);
+  }
+
+  if (elementoJaPago) {
+    elementoJaPago.textContent =
+      dinheiro(valorPago);
+  }
+
+  if (elementoRestante) {
+    elementoRestante.textContent =
+      dinheiro(valorRestante);
+  }
+
+  if (elementoProgresso) {
+    elementoProgresso.style.width =
+      `${percentual}%`;
+  }
+
+  if (elementoProgressoTexto) {
+    elementoProgressoTexto.textContent =
+      `${Math.round(percentual)}% pago`;
+  }
+
+  // ==========================================
+  // ÚLTIMA DATA
+  // ==========================================
+
+  const datas = comprasFiltradas
+    .flatMap((compra) =>
+      compra.parcelas.map(
+        (parcela) =>
+          parcela.vencimento ||
+          parcela.dueDate,
+      ),
+    )
+    .filter(Boolean)
+    .sort(
+      (a, b) =>
+        new Date(b) - new Date(a),
+    );
+
+  if (elementoUltimaData) {
+    elementoUltimaData.textContent =
+      datas.length
+        ? dataBR(datas[0])
+        : "—";
+  }
+
+  // ==========================================
+  // LISTA
+  // ==========================================
+
+  if (!comprasFiltradas.length) {
+    lista.innerHTML = `
+      <div class="empty">
+        Nenhuma compra parcelada encontrada
+        para os filtros selecionados.
+      </div>
+    `;
+
+    return;
+  }
+
+  lista.innerHTML =
+    comprasFiltradas
+      .map((compra) => {
+        // --------------------------------------
+        // PARCELA DO MÊS SELECIONADO
+        // --------------------------------------
+
+        let parcelaExibida = null;
+
+        if (mesSelecionado !== "TODOS") {
+          parcelaExibida =
+            compra.parcelas.find(
+              (parcela) => {
+                const vencimento =
+                  parcela.vencimento ||
+                  parcela.dueDate;
+
+                return (
+                  vencimento &&
+                  String(vencimento).substring(
+                    0,
+                    7,
+                  ) === mesSelecionado
+                );
+              },
+            );
+        }
+
+        // Se "todos", mostra a próxima pendente.
+        if (!parcelaExibida) {
+          parcelaExibida =
+            compra.parcelas.find(
+              (parcela) =>
+                String(
+                  parcela.status || "",
+                ).toUpperCase() !==
+                "POSTED",
+            );
+        }
+
+        // Se não encontrou pendente,
+        // mostra a última parcela.
+        if (!parcelaExibida) {
+          parcelaExibida =
+            compra.parcelas[
+              compra.parcelas.length - 1
+            ];
+        }
+
+        const numeroParcela = Number(
+          parcelaExibida?.parcelaAtual || 0,
+        );
+
+        const totalParcelas =
+          Number(
+            parcelaExibida?.totalParcelas ||
+              compra.totalParcelas ||
+              0,
+          );
+
+        const valorParcela = Number(
+          parcelaExibida?.valor || 0,
+        );
+
+        const vencimento =
+          parcelaExibida?.vencimento ||
+          parcelaExibida?.dueDate;
+
+        const progresso =
+          compra.valorTotal > 0
+            ? Math.min(
+                (compra.valorJaPago /
+                  compra.valorTotal) *
+                  100,
+                100,
+              )
+            : 0;
+
+        const statusParcela =
+          String(
+            parcelaExibida?.status || "",
+          ).toUpperCase();
+
+        const textoStatus =
+          statusParcela === "POSTED"
+            ? "🟢 Lançada"
+            : "🟡 Pendente";
+
+        return `
+          <div class="transaction">
+
+            <div style="flex:1;">
+
+              <div class="desc">
+                ${escapar(compra.nome)}
+              </div>
+
+              <div class="meta">
+                💳
+                ${escapar(
+                  compra.cartaoNome,
+                )}
+              </div>
+
+              <div class="meta">
+                Parcela
+                ${numeroParcela}/${totalParcelas}
+                ·
+                ${textoStatus}
+              </div>
+
+              <div class="meta">
+                Valor desta parcela:
+                ${dinheiro(valorParcela)}
+              </div>
+
+              <div class="meta">
+                Vencimento:
+                ${dataBR(vencimento)}
+              </div>
+
+              <div class="meta">
+                Total da compra:
+                ${dinheiro(
+                  compra.valorTotal,
+                )}
+              </div>
+
+              <div class="meta">
+                Já pago:
+                ${dinheiro(
+                  compra.valorJaPago,
+                )}
+              </div>
+
+              <div class="meta">
+                Restante:
+                ${dinheiro(
+                  compra.valorRestante,
+                )}
+              </div>
+
+              <div
+                style="
+                  margin-top:10px;
+                  width:100%;
+                  height:7px;
+                  background:#e5e7eb;
+                  border-radius:999px;
+                  overflow:hidden;
+                "
+              >
+                <div
+                  style="
+                    width:${progresso}%;
+                    height:100%;
+                    background:#16a34a;
+                    border-radius:999px;
+                  "
+                ></div>
+              </div>
+
+              <div
+                class="meta"
+                style="margin-top:5px;"
+              >
+                ${Math.round(progresso)}% pago
+              </div>
+
+            </div>
+
+            <div
+              class="amount ${
+                compra.finalizada
+                  ? "income"
+                  : "expense"
+              }"
+            >
+              ${
+                compra.finalizada
+                  ? "✓ Finalizada"
+                  : dinheiro(
+                      valorParcela,
+                    )
+              }
+            </div>
+
+          </div>
+        `;
+      })
+      .join("");
+}
+
+// ==========================================
+// FILTROS DE PARCELAS
+// ==========================================
+
+document.addEventListener(
+  "change",
+  (evento) => {
+    if (
+      evento.target?.id ===
+        "parcelasFiltroConta" ||
+      evento.target?.id ===
+        "parcelasFiltroMes"
+    ) {
+      mostrarParcelas();
+    }
+  },
+);
+
+// ==========================================
+// ABAS DE PARCELAMENTOS
+// ==========================================
+
+document.addEventListener(
+  "click",
+  (evento) => {
+    if (
+      evento.target?.id ===
+      "parcelasTabAndamento"
+    ) {
+      window.parcelasStatus =
+        "ANDAMENTO";
+
+      mostrarParcelas();
+    }
+
+    if (
+      evento.target?.id ===
+      "parcelasTabFinalizadas"
+    ) {
+      window.parcelasStatus =
+        "FINALIZADAS";
+
+      mostrarParcelas();
+    }
+  },
 );

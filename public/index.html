@@ -109,6 +109,11 @@
             <span> Transações </span>
           </button>
 
+          <button class="nav-item" data-section="parcelas">
+  📊
+  <span> Parcelas </span>
+</button>
+
           <button class="nav-item" data-section="fixas">
             🗓️
             <span> Contas fixas </span>
@@ -368,6 +373,260 @@
     <div
       id="transactionTable"
       class="table-wrap"
+    ></div>
+
+  </div>
+
+</section>
+
+<!-- ================================================= -->
+<!-- COMPRAS PARCELADAS -->
+<!-- ================================================= -->
+
+<section id="parcelas" class="section">
+
+<div class="section-title">
+
+  <div>
+
+    <p class="eyebrow">
+      CONTROLE
+    </p>
+
+    <h2>
+      Compras parceladas
+    </h2>
+
+    <p>
+      Acompanhe suas compras parceladas e veja quanto ainda falta pagar.
+    </p>
+
+  </div>
+
+  <div class="filters">
+
+    <label>
+      Cartão
+
+      <select id="parcelasFiltroConta">
+        <option value="TODAS">
+          Todos os cartões
+        </option>
+      </select>
+
+    </label>
+
+    <label>
+      Mês da fatura
+
+      <select id="parcelasFiltroMes">
+        <option value="TODOS">
+          Todos os meses
+        </option>
+      </select>
+
+    </label>
+
+  </div>
+
+</div>
+
+
+  <!-- RESUMO -->
+
+  <div class="panel">
+
+    <div class="cards">
+
+      <article class="card">
+
+        <span>
+          Em andamento
+        </span>
+
+        <strong id="parcelasEmAndamento">
+          0
+        </strong>
+
+        <small>
+          compras parceladas
+        </small>
+
+      </article>
+
+
+      <article class="card">
+
+        <span>
+          Valor total
+        </span>
+
+        <strong id="parcelasValorTotal">
+          R$ 0,00
+        </strong>
+
+      </article>
+
+
+      <article class="card">
+
+        <span>
+          Já pago
+        </span>
+
+        <strong id="parcelasJaPago">
+          R$ 0,00
+        </strong>
+
+      </article>
+
+
+      <article class="card highlight">
+
+        <span>
+          Restante
+        </span>
+
+        <strong id="parcelasRestante">
+          R$ 0,00
+        </strong>
+
+      </article>
+
+    </div>
+
+
+    <!-- PROGRESSO -->
+
+    <div style="margin-top: 24px;">
+
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        "
+      >
+
+        <span>
+          Progresso geral
+        </span>
+
+        <strong id="parcelasProgressoTexto">
+          0% pago
+        </strong>
+
+      </div>
+
+
+      <div
+        style="
+          width: 100%;
+          height: 10px;
+          background: #e5e7eb;
+          border-radius: 999px;
+          overflow: hidden;
+        "
+      >
+
+        <div
+          id="parcelasProgresso"
+          style="
+            width: 0%;
+            height: 100%;
+            border-radius: 999px;
+            background: #16a34a;
+            transition: width 0.3s ease;
+          "
+        ></div>
+
+      </div>
+
+    </div>
+
+
+    <!-- ÚLTIMA PARCELA -->
+
+    <div
+      style="
+        margin-top: 24px;
+        padding-top: 18px;
+        border-top: 1px solid #e5e7eb;
+      "
+    >
+
+      <span>
+        📅 Última parcela:
+      </span>
+
+      <strong id="parcelasUltimaData">
+        -
+      </strong>
+
+    </div>
+
+  </div>
+
+
+  <!-- FILTROS -->
+
+  <div
+    class="panel"
+    style="margin-top: 20px;"
+  >
+
+    <div class="panel-head">
+
+      <div>
+
+        <h2>
+          Minhas compras parceladas
+        </h2>
+
+        <p>
+          Compras identificadas automaticamente nas transações.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <!-- ABAS -->
+
+    <div
+      style="
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      "
+    >
+
+      <button
+        type="button"
+        class="primary"
+        id="parcelasTabAndamento"
+      >
+        Em andamento
+      </button>
+
+
+      <button
+        type="button"
+        class="secondary"
+        id="parcelasTabFinalizadas"
+      >
+        Finalizadas
+      </button>
+
+    </div>
+
+
+    <!-- LISTA -->
+
+    <div
+      id="parcelasLista"
+      class="transactions"
     ></div>
 
   </div>
