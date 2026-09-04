@@ -1569,6 +1569,14 @@ function mostrarCaixinhas() {
             flex-wrap:wrap;
           "
         >
+        
+        <button
+  type="button"
+  class="primary"
+  data-dashboard-caixinha="${caixinha.id}"
+>
+  📊 Dashboard
+</button>
 
           <button
             type="button"
@@ -1614,6 +1622,21 @@ function mostrarCaixinhas() {
       `;
     })
     .join("");
+
+    // ------------------------------------------
+// BOTÃO DASHBOARD
+// ------------------------------------------
+
+lista
+  .querySelectorAll("[data-dashboard-caixinha]")
+  .forEach((botao) => {
+    botao.addEventListener("click", () => {
+      abrirDashboardCaixinha(
+        botao.dataset.dashboardCaixinha,
+      );
+    });
+  });
+
 
   // ------------------------------------------
   // BOTÃO ADICIONAR
@@ -1684,6 +1707,705 @@ function mostrarCaixinhas() {
         );
       });
     });
+}
+// ==========================================
+// DASHBOARD DA CAIXINHA
+// ==========================================
+
+async function abrirDashboardCaixinha(id) {
+  try {
+    const dados = await buscarDados(
+      `/api/caixinhas/${id}/dashboard`,
+    );
+
+    if (!dados || !dados.sucesso) {
+      throw new Error(
+        dados?.erro ||
+          "Não foi possível carregar o dashboard.",
+      );
+    }
+
+    const caixinha = dados.caixinha;
+    const resumo = dados.resumo;
+    const historico = dados.historico || [];
+
+    // ------------------------------------------
+    // REMOVER DASHBOARD ANTERIOR
+    // ------------------------------------------
+
+    const dashboardAnterior =
+      document.querySelector(
+        "#modalDashboardCaixinha",
+      );
+
+    if (dashboardAnterior) {
+      dashboardAnterior.remove();
+    }
+
+    // ------------------------------------------
+    // FORMATAR HISTÓRICO
+    // ------------------------------------------
+
+    const historicoOrdenado = [
+      ...historico,
+    ].sort(
+      (a, b) =>
+        new Date(a.data) -
+        new Date(b.data),
+    );
+
+    // ------------------------------------------
+    // CALCULAR EVOLUÇÃO DO SALDO
+    // ------------------------------------------
+
+    let saldoGrafico = 0;
+
+    const pontosGrafico =
+      historicoOrdenado.map((item) => {
+        const valor = Number(
+          item.valor || 0,
+        );
+
+        if (
+          item.tipo === "ENTRADA" ||
+          item.tipo === "RENDIMENTO"
+        ) {
+          saldoGrafico += valor;
+        }
+
+        if (item.tipo === "SAIDA") {
+          saldoGrafico -= valor;
+        }
+
+        return {
+          data: item.data,
+          saldo: saldoGrafico,
+        };
+      });
+
+    // ------------------------------------------
+    // GERAR GRÁFICO
+    // ------------------------------------------
+
+    let graficoHTML = `
+      <div
+        style="
+          height:240px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          color:#64748b;
+          background:#f8fafc;
+          border-radius:16px;
+        "
+      >
+        Ainda não existem movimentações
+        suficientes para mostrar o gráfico.
+      </div>
+    `;
+
+    if (pontosGrafico.length > 0) {
+      const largura = 700;
+      const altura = 220;
+      const margem = 35;
+
+      const valores = pontosGrafico.map(
+        (ponto) => ponto.saldo,
+      );
+
+      const maiorValor = Math.max(
+        ...valores,
+        1,
+      );
+
+      const menorValor = Math.min(
+        ...valores,
+        0,
+      );
+
+      const diferenca =
+        maiorValor - menorValor || 1;
+
+      const pontos = pontosGrafico
+        .map((ponto, indice) => {
+          const x =
+            margem +
+            (indice /
+              Math.max(
+                pontosGrafico.length - 1,
+                1,
+              )) *
+              (largura - margem * 2);
+
+          const y =
+            altura -
+            margem -
+            ((ponto.saldo - menorValor) /
+              diferenca) *
+              (altura - margem * 2);
+
+          return `${x},${y}`;
+        })
+        .join(" ");
+
+      graficoHTML = `
+        <div
+          style="
+            width:100%;
+            overflow:hidden;
+            background:#f8fafc;
+            border-radius:16px;
+            padding:10px;
+          "
+        >
+          <svg
+            viewBox="0 0 ${largura} ${altura}"
+            width="100%"
+            height="220"
+            preserveAspectRatio="none"
+          >
+
+            <line
+              x1="${margem}"
+              y1="${altura - margem}"
+              x2="${largura - margem}"
+              y2="${altura - margem}"
+              stroke="#cbd5e1"
+              stroke-width="1"
+            />
+
+            <polyline
+              points="${pontos}"
+              fill="none"
+              stroke="#4054c6"
+              stroke-width="4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+
+            ${
+              pontosGrafico
+                .map((ponto, indice) => {
+                  const x =
+                    margem +
+                    (indice /
+                      Math.max(
+                        pontosGrafico.length - 1,
+                        1,
+                      )) *
+                      (largura - margem * 2);
+
+                  const y =
+                    altura -
+                    margem -
+                    ((ponto.saldo -
+                      menorValor) /
+                      diferenca) *
+                      (altura -
+                        margem * 2);
+
+                  return `
+                    <circle
+                      cx="${x}"
+                      cy="${y}"
+                      r="4"
+                      fill="#4054c6"
+                    />
+                  `;
+                })
+                .join("")
+            }
+
+          </svg>
+        </div>
+      `;
+    }
+
+    // ------------------------------------------
+    // HISTÓRICO
+    // ------------------------------------------
+
+    const historicoHTML =
+      historico.length
+        ? historico
+            .map((item) => {
+              const tipo =
+                item.tipo || "";
+
+              let icone = "↔️";
+              let classe = "#64748b";
+              let sinal = "";
+
+              if (tipo === "ENTRADA") {
+                icone = "🟢";
+                classe = "#16a34a";
+                sinal = "+";
+              }
+
+              if (tipo === "SAIDA") {
+                icone = "🔴";
+                classe = "#dc2626";
+                sinal = "-";
+              }
+
+              if (tipo === "RENDIMENTO") {
+                icone = "📈";
+                classe = "#2563eb";
+                sinal = "+";
+              }
+
+              const origem =
+                item.tipo === "RENDIMENTO"
+                  ? "Rendimento manual"
+                  : item.origem === "AUTOMATICO"
+                    ? "Automático • Pierre"
+                    : "Movimentação manual";
+
+              return `
+                <div
+                  style="
+                    display:flex;
+                    align-items:center;
+                    justify-content:space-between;
+                    gap:16px;
+                    padding:14px 0;
+                    border-bottom:1px solid #e2e8f0;
+                  "
+                >
+
+                  <div
+                    style="
+                      display:flex;
+                      align-items:center;
+                      gap:12px;
+                      min-width:0;
+                    "
+                  >
+
+                    <span
+                      style="
+                        font-size:20px;
+                      "
+                    >
+                      ${icone}
+                    </span>
+
+                    <div
+                      style="
+                        min-width:0;
+                      "
+                    >
+
+                      <strong>
+                        ${escapar(
+                          item.descricao ||
+                            "Movimentação",
+                        )}
+                      </strong>
+
+                      <small
+                        style="
+                          display:block;
+                          color:#64748b;
+                          margin-top:3px;
+                        "
+                      >
+                        ${origem}
+                        ·
+                        ${dataBR(item.data)}
+                      </small>
+
+                    </div>
+
+                  </div>
+
+                  <strong
+                    style="
+                      color:${classe};
+                      white-space:nowrap;
+                    "
+                  >
+                    ${sinal}
+                    ${dinheiro(
+                      Math.abs(
+                        Number(
+                          item.valor || 0,
+                        ),
+                      ),
+                    )}
+                  </strong>
+
+                </div>
+              `;
+            })
+            .join("")
+        : `
+          <div class="empty">
+            Nenhuma movimentação encontrada.
+          </div>
+        `;
+
+    // ------------------------------------------
+    // CRIAR MODAL
+    // ------------------------------------------
+
+    const modal =
+      document.createElement("div");
+
+    modal.id =
+      "modalDashboardCaixinha";
+
+    modal.style.cssText = `
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.65);
+      z-index:9999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      overflow:auto;
+    `;
+
+    modal.innerHTML = `
+      <div
+        style="
+          width:100%;
+          max-width:1000px;
+          max-height:92vh;
+          overflow:auto;
+          background:white;
+          border-radius:24px;
+          padding:28px;
+          box-shadow:0 25px 60px rgba(0,0,0,.25);
+        "
+      >
+
+        <!-- CABEÇALHO -->
+
+        <div
+          style="
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:20px;
+            margin-bottom:25px;
+          "
+        >
+
+          <div>
+
+            <small
+              style="
+                color:#4054c6;
+                font-weight:700;
+                text-transform:uppercase;
+              "
+            >
+              Dashboard da caixinha
+            </small>
+
+            <h2
+              style="
+                margin:5px 0;
+                font-size:28px;
+              "
+            >
+              ${escapar(caixinha.nome)}
+            </h2>
+
+            <p
+              style="
+                margin:0;
+                color:#64748b;
+              "
+            >
+              ${escapar(
+                caixinha.descricao || "",
+              )}
+            </p>
+
+          </div>
+
+          <button
+            type="button"
+            id="fecharDashboardCaixinha"
+            style="
+              border:0;
+              background:#f1f5f9;
+              width:42px;
+              height:42px;
+              border-radius:50%;
+              cursor:pointer;
+              font-size:20px;
+            "
+          >
+            ×
+          </button>
+
+        </div>
+
+        <!-- CARDS -->
+
+        <div
+          style="
+            display:grid;
+            grid-template-columns:
+              repeat(
+                auto-fit,
+                minmax(180px,1fr)
+              );
+            gap:16px;
+            margin-bottom:22px;
+          "
+        >
+
+          <div
+            style="
+              background:#f8fafc;
+              border-radius:18px;
+              padding:20px;
+            "
+          >
+            <small>Saldo atual</small>
+
+            <strong
+              style="
+                display:block;
+                font-size:26px;
+                margin-top:8px;
+              "
+            >
+              ${dinheiro(caixinha.saldo)}
+            </strong>
+          </div>
+
+          <div
+            style="
+              background:#f8fafc;
+              border-radius:18px;
+              padding:20px;
+            "
+          >
+            <small>Meta</small>
+
+            <strong
+              style="
+                display:block;
+                font-size:26px;
+                margin-top:8px;
+              "
+            >
+              ${dinheiro(caixinha.meta)}
+            </strong>
+          </div>
+
+          <div
+            style="
+              background:#f8fafc;
+              border-radius:18px;
+              padding:20px;
+            "
+          >
+            <small>Total adicionado</small>
+
+            <strong
+              style="
+                display:block;
+                font-size:26px;
+                margin-top:8px;
+                color:#16a34a;
+              "
+            >
+              ${dinheiro(
+                resumo.totalEntradas,
+              )}
+            </strong>
+          </div>
+
+          <div
+            style="
+              background:#f8fafc;
+              border-radius:18px;
+              padding:20px;
+            "
+          >
+            <small>Total retirado</small>
+
+            <strong
+              style="
+                display:block;
+                font-size:26px;
+                margin-top:8px;
+                color:#dc2626;
+              "
+            >
+              ${dinheiro(
+                resumo.totalSaidas,
+              )}
+            </strong>
+          </div>
+
+          <div
+            style="
+              background:#f8fafc;
+              border-radius:18px;
+              padding:20px;
+            "
+          >
+            <small>Rendimentos</small>
+
+            <strong
+              style="
+                display:block;
+                font-size:26px;
+                margin-top:8px;
+                color:#2563eb;
+              "
+            >
+              ${dinheiro(
+                resumo.totalRendimentos,
+              )}
+            </strong>
+          </div>
+
+        </div>
+
+        <!-- PROGRESSO -->
+
+        <div
+          style="
+            background:#f8fafc;
+            padding:20px;
+            border-radius:18px;
+            margin-bottom:22px;
+          "
+        >
+
+          <div
+            style="
+              display:flex;
+              justify-content:space-between;
+              margin-bottom:10px;
+            "
+          >
+
+            <strong>
+              Progresso da meta
+            </strong>
+
+            <strong>
+              ${Number(
+                caixinha.progresso || 0,
+              ).toFixed(1)}%
+            </strong>
+
+          </div>
+
+          <div
+            style="
+              height:12px;
+              background:#e2e8f0;
+              border-radius:20px;
+              overflow:hidden;
+            "
+          >
+
+            <div
+              style="
+                width:${Math.min(
+                  Number(
+                    caixinha.progresso || 0,
+                  ),
+                  100,
+                )}%;
+                height:100%;
+                background:#4054c6;
+                border-radius:20px;
+              "
+            ></div>
+
+          </div>
+
+        </div>
+
+        <!-- GRÁFICO -->
+
+        <div
+          style="
+            margin-bottom:22px;
+          "
+        >
+
+          <h3>
+            📈 Evolução do saldo
+          </h3>
+
+          ${graficoHTML}
+
+        </div>
+
+        <!-- HISTÓRICO -->
+
+        <div>
+
+          <h3>
+            📋 Histórico completo
+          </h3>
+
+          <div>
+            ${historicoHTML}
+          </div>
+
+        </div>
+
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // ------------------------------------------
+    // FECHAR
+    // ------------------------------------------
+
+    const botaoFechar =
+      document.querySelector(
+        "#fecharDashboardCaixinha",
+      );
+
+    if (botaoFechar) {
+      botaoFechar.addEventListener(
+        "click",
+        () => {
+          modal.remove();
+        },
+      );
+    }
+
+    // ------------------------------------------
+    // FECHAR CLICANDO FORA
+    // ------------------------------------------
+
+    modal.addEventListener(
+      "click",
+      (evento) => {
+        if (evento.target === modal) {
+          modal.remove();
+        }
+      },
+    );
+
+  } catch (erro) {
+    console.error(
+      "Erro ao abrir dashboard da caixinha:",
+      erro,
+    );
+
+    alert(
+      "Erro ao carregar dashboard: " +
+        erro.message,
+    );
+  }
 }
 
 // ==========================================

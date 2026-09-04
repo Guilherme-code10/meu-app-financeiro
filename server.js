@@ -2012,6 +2012,185 @@ app.delete("/api/caixinhas/:id", exigirAdmin, async (req, res) => {
 });
 
 // ==========================================
+// DASHBOARD DA CAIXINHA
+// ==========================================
+
+app.get("/api/caixinhas/:id/dashboard", exigirAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // ==========================================
+    // BUSCAR CAIXINHA
+    // ==========================================
+
+    const { data: caixinha, error: erroCaixinha } = await supabase
+      .from("caixinhas")
+      .select("id, nome, descricao, saldo, meta, created_at, updated_at")
+      .eq("id", id)
+      .single();
+
+    if (erroCaixinha || !caixinha) {
+      return res.status(404).json({
+        sucesso: false,
+        erro: "Caixinha não encontrada.",
+      });
+    }
+
+    // ==========================================
+    // BUSCAR MOVIMENTAÇÕES
+    // ==========================================
+
+    const {
+      data: movimentacoes,
+      error: erroMovimentacoes,
+    } = await supabase
+      .from("movimentacoes_caixinhas")
+      .select(
+        "id, caixinha_id, tipo, valor, descricao, transacao_pierre_id, created_at",
+      )
+      .eq("caixinha_id", id)
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (erroMovimentacoes) {
+      throw erroMovimentacoes;
+    }
+
+    // ==========================================
+    // BUSCAR RENDIMENTOS
+    // ==========================================
+
+    const {
+      data: rendimentos,
+      error: erroRendimentos,
+    } = await supabase
+      .from("rendimentos_caixinhas")
+      .select("id, caixinha_id, valor, descricao, created_at")
+      .eq("caixinha_id", id)
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (erroRendimentos) {
+      throw erroRendimentos;
+    }
+
+    // ==========================================
+    // CALCULAR TOTAIS
+    // ==========================================
+
+    const listaMovimentacoes = movimentacoes || [];
+    const listaRendimentos = rendimentos || [];
+
+    const totalEntradas = listaMovimentacoes
+      .filter((item) => item.tipo === "ENTRADA")
+      .reduce((total, item) => {
+        return total + Number(item.valor || 0);
+      }, 0);
+
+    const totalSaidas = listaMovimentacoes
+      .filter((item) => item.tipo === "SAIDA")
+      .reduce((total, item) => {
+        return total + Number(item.valor || 0);
+      }, 0);
+
+    const totalRendimentos = listaRendimentos.reduce(
+      (total, item) => {
+        return total + Number(item.valor || 0);
+      },
+      0,
+    );
+
+    // ==========================================
+    // PROGRESSO DA META
+    // ==========================================
+
+    const saldo = Number(caixinha.saldo || 0);
+    const meta = Number(caixinha.meta || 0);
+
+    const progresso =
+      meta > 0
+        ? Math.min((saldo / meta) * 100, 100)
+        : 0;
+
+    // ==========================================
+    // HISTÓRICO UNIFICADO
+    // ==========================================
+
+    const historicoMovimentacoes = listaMovimentacoes.map(
+      (item) => ({
+        id: item.id,
+        tipo: item.tipo,
+        valor: Number(item.valor || 0),
+        descricao: item.descricao || "",
+        transacao_pierre_id:
+          item.transacao_pierre_id || null,
+        data: item.created_at,
+        origem: item.transacao_pierre_id
+          ? "AUTOMATICO"
+          : "MANUAL",
+      }),
+    );
+
+    const historicoRendimentos = listaRendimentos.map(
+      (item) => ({
+        id: item.id,
+        tipo: "RENDIMENTO",
+        valor: Number(item.valor || 0),
+        descricao: item.descricao || "Rendimento",
+        transacao_pierre_id: null,
+        data: item.created_at,
+        origem: "MANUAL",
+      }),
+    );
+
+    const historico = [
+      ...historicoMovimentacoes,
+      ...historicoRendimentos,
+    ].sort((a, b) => {
+      return new Date(b.data) - new Date(a.data);
+    });
+
+    // ==========================================
+    // RESPOSTA
+    // ==========================================
+
+    res.json({
+      sucesso: true,
+
+      caixinha: {
+        ...caixinha,
+
+        saldo,
+
+        meta,
+
+        progresso,
+      },
+
+      resumo: {
+        totalEntradas,
+        totalSaidas,
+        totalRendimentos,
+      },
+
+      historico,
+    });
+  } catch (erro) {
+    console.error(
+      "Erro ao carregar dashboard da caixinha:",
+      erro.message,
+    );
+
+    res.status(500).json({
+      sucesso: false,
+      erro: erro.message,
+    });
+  }
+});
+
+// ==========================================
 // ABRIR O SITE
 // ==========================================
 
