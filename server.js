@@ -1209,12 +1209,16 @@ app.post("/api/caixinhas/:id/movimentacoes", exigirAdmin, async (req, res) => {
       });
     }
 
-    const tiposPermitidos = ["ENTRADA", "SAIDA"];
+    const tiposPermitidos = [
+  "ENTRADA",
+  "SAIDA",
+  "RENDIMENTO",
+];
 
     if (!tiposPermitidos.includes(tipo)) {
       return res.status(400).json({
         sucesso: false,
-        erro: "Tipo de movimentação inválido. Use ENTRADA ou SAIDA.",
+        erro: "Tipo de movimentação inválido. Use ENTRADA, SAIDA ou RENDIMENTO.",
       });
     }
 
@@ -1244,11 +1248,16 @@ app.post("/api/caixinhas/:id/movimentacoes", exigirAdmin, async (req, res) => {
 
     let novoSaldo;
 
-    if (tipo === "ENTRADA") {
-      novoSaldo = saldoAtual + valorNumerico;
-    } else {
-      novoSaldo = saldoAtual - valorNumerico;
-    }
+    if (
+  tipo === "ENTRADA" ||
+  tipo === "RENDIMENTO"
+) {
+  novoSaldo =
+    saldoAtual + valorNumerico;
+} else {
+  novoSaldo =
+    saldoAtual - valorNumerico;
+}
 
     if (novoSaldo < 0) {
       return res.status(400).json({
@@ -1383,7 +1392,13 @@ app.post("/api/caixinhas/sincronizar", exigirAdmin, async (req, res) => {
 
     const dataInicioFormatada = dataInicio.toISOString().slice(0, 10);
 
-    const dataFimFormatada = agora.toISOString().slice(0, 10);
+    const dataFim = new Date(agora);
+
+dataFim.setDate(dataFim.getDate() + 1);
+
+const dataFimFormatada = dataFim
+  .toISOString()
+  .slice(0, 10);
 
     console.log("📅 Período:", dataInicioFormatada, "até", dataFimFormatada);
 
@@ -1642,6 +1657,8 @@ const ehRetirada =
       console.log("➡️ TENTANDO SINCRONIZAR:", {
         caixinha: caixinhaEncontrada.nome,
 
+        
+
         tipo: tipoMovimentacao,
 
         valor,
@@ -1650,6 +1667,16 @@ const ehRetirada =
 
         descricao,
       });
+
+      console.log(
+  "🔎 TESTE SALÁRIOS:",
+  {
+    transacaoId,
+    descricao,
+    valorOriginal,
+    tipoPierre,
+  }
+);
 
       const { data: movimentacao, error: erroInsercao } = await supabase
         .from("movimentacoes_caixinhas")
