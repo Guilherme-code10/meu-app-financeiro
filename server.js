@@ -1525,17 +1525,24 @@ const ehRetirada =
         throw erroMovimentacaoExistente;
       }
 
-      if (movimentacaoExistente) {
-        ignoradas.push({
-          transacao_id: transacaoId,
+     if (movimentacaoExistente) {
+  console.log(
+    "ℹ️ Transação já sincronizada:",
+    descricao,
+    transacaoId
+  );
 
-          descricao,
+  ignoradas.push({
+    transacao_id: transacaoId,
 
-          motivo: "Transação já sincronizada anteriormente.",
-        });
+    descricao,
 
-        continue;
-      }
+    motivo:
+      "Transação já sincronizada anteriormente. Nenhuma duplicação criada.",
+  });
+
+  continue;
+}
 
       // ==========================================
       // ENCONTRAR CAIXINHA
