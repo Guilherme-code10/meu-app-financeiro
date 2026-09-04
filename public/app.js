@@ -1506,139 +1506,191 @@ function mostrarCaixinhas() {
   lista.innerHTML = state.caixinhas
     .map((caixinha) => {
       const meta = Number(caixinha.meta || 0);
-
       const saldo = Number(caixinha.saldo || 0);
 
-      const progresso = meta > 0 ? Math.min((saldo / meta) * 100, 100) : 0;
+      const progresso =
+        meta > 0 ? Math.min((saldo / meta) * 100, 100) : 0;
 
       return `
-            <div class="fixed-item">
+        <div class="fixed-item">
 
-              <div>
+          <div>
+            <strong>
+              ${escapar(caixinha.nome)}
+            </strong>
 
-                <strong>
-                  ${escapar(caixinha.nome)}
-                </strong>
+            <small>
+              ${escapar(caixinha.descricao || "")}
+            </small>
+          </div>
 
-                <small>
-                  ${escapar(caixinha.descricao || "")}
-                </small>
+          <div>
+            <strong>
+              ${dinheiro(saldo)}
+            </strong>
 
-              </div>
+            <small>
+              Meta:
+              ${dinheiro(meta)}
+            </small>
+          </div>
 
-              <div>
+        </div>
 
-                <strong>
-                  ${dinheiro(saldo)}
-                </strong>
+        <div
+          style="
+            margin-bottom:16px;
+          "
+        >
 
-                <small>
-                  Meta:
-                  ${dinheiro(meta)}
-                </small>
-
-              </div>
-
-            </div>
-
-            <div
-              style="
-                margin-bottom:16px;
-              "
-            >
-
-              <div class="bar-track">
-
-                <div
-                  class="bar"
-                  style="
-                    width:${progresso}%
-                  "
-                ></div>
-
-              </div>
-
-              <small>
-                ${progresso.toFixed(1)}%
-                da meta
-              </small>
-
-            </div>
+          <div class="bar-track">
 
             <div
+              class="bar"
               style="
-                display:flex;
-                gap:8px;
-                margin-bottom:20px;
-                flex-wrap:wrap;
+                width:${progresso}%
               "
-            >
+            ></div>
 
-              <button
-                type="button"
-                class="primary"
-                data-rendimento-caixinha="${caixinha.id}"
-              >
-                📈 Rendimento
-              </button>
+          </div>
 
-              <button
-                type="button"
-                class="primary"
-                data-editar-caixinha="${caixinha.id}"
-              >
-                ✏️ Editar
-              </button>
+          <small>
+            ${progresso.toFixed(1)}%
+            da meta
+          </small>
 
-              <button
-                type="button"
-                class="delete-btn"
-                data-excluir-caixinha="${caixinha.id}"
-              >
-                🗑️ Excluir
-              </button>
+        </div>
 
-            </div>
-          `;
+        <div
+          style="
+            display:flex;
+            gap:8px;
+            margin-bottom:20px;
+            flex-wrap:wrap;
+          "
+        >
+
+          <button
+            type="button"
+            class="primary"
+            data-adicionar-caixinha="${caixinha.id}"
+          >
+            ➕ Adicionar
+          </button>
+
+          <button
+            type="button"
+            class="primary"
+            data-retirar-caixinha="${caixinha.id}"
+          >
+            ➖ Retirar
+          </button>
+
+          <button
+            type="button"
+            class="primary"
+            data-rendimento-caixinha="${caixinha.id}"
+          >
+            📈 Rendimento
+          </button>
+
+          <button
+            type="button"
+            class="primary"
+            data-editar-caixinha="${caixinha.id}"
+          >
+            ✏️ Editar
+          </button>
+
+          <button
+            type="button"
+            class="delete-btn"
+            data-excluir-caixinha="${caixinha.id}"
+          >
+            🗑️ Excluir
+          </button>
+
+        </div>
+      `;
     })
     .join("");
+
+  // ------------------------------------------
+  // BOTÃO ADICIONAR
+  // ------------------------------------------
+
+  lista
+    .querySelectorAll("[data-adicionar-caixinha]")
+    .forEach((botao) => {
+      botao.addEventListener("click", () => {
+        adicionarDinheiroCaixinha(
+          botao.dataset.adicionarCaixinha,
+        );
+      });
+    });
+
+  // ------------------------------------------
+  // BOTÃO RETIRAR
+  // ------------------------------------------
+
+  lista
+    .querySelectorAll("[data-retirar-caixinha]")
+    .forEach((botao) => {
+      botao.addEventListener("click", () => {
+        retirarDinheiroCaixinha(
+          botao.dataset.retirarCaixinha,
+        );
+      });
+    });
 
   // ------------------------------------------
   // BOTÃO RENDIMENTO
   // ------------------------------------------
 
-  lista.querySelectorAll("[data-rendimento-caixinha]").forEach((botao) => {
-    botao.addEventListener("click", () => {
-      adicionarRendimento(botao.dataset.rendimentoCaixinha);
+  lista
+    .querySelectorAll("[data-rendimento-caixinha]")
+    .forEach((botao) => {
+      botao.addEventListener("click", () => {
+        adicionarRendimento(
+          botao.dataset.rendimentoCaixinha,
+        );
+      });
     });
-  });
 
   // ------------------------------------------
   // BOTÃO EDITAR
   // ------------------------------------------
 
-  lista.querySelectorAll("[data-editar-caixinha]").forEach((botao) => {
-    botao.addEventListener("click", () => {
-      editarCaixinha(botao.dataset.editarCaixinha);
+  lista
+    .querySelectorAll("[data-editar-caixinha]")
+    .forEach((botao) => {
+      botao.addEventListener("click", () => {
+        editarCaixinha(
+          botao.dataset.editarCaixinha,
+        );
+      });
     });
-  });
 
   // ------------------------------------------
   // BOTÃO EXCLUIR
   // ------------------------------------------
 
-  lista.querySelectorAll("[data-excluir-caixinha]").forEach((botao) => {
-    botao.addEventListener("click", () => {
-      excluirCaixinha(botao.dataset.excluirCaixinha);
+  lista
+    .querySelectorAll("[data-excluir-caixinha]")
+    .forEach((botao) => {
+      botao.addEventListener("click", () => {
+        excluirCaixinha(
+          botao.dataset.excluirCaixinha,
+        );
+      });
     });
-  });
 }
 
 // ==========================================
-// ADICIONAR RENDIMENTO
+// ADICIONAR DINHEIRO NA CAIXINHA
 // ==========================================
 
-async function adicionarRendimento(id) {
+async function adicionarDinheiroCaixinha(id) {
   const caixinha = state.caixinhas.find(
     (item) => String(item.id) === String(id),
   );
@@ -1650,62 +1702,77 @@ async function adicionarRendimento(id) {
   }
 
   const valorInformado = prompt(
-    `Adicionar rendimento para "${caixinha.nome}"\n\n` +
+    `Adicionar dinheiro em "${caixinha.nome}"\n\n` +
       `Saldo atual: ${dinheiro(caixinha.saldo)}\n\n` +
-      "Digite o valor do rendimento:",
+      "Digite o valor:",
   );
 
   if (valorInformado === null) {
     return;
   }
 
-  const valor = Number(String(valorInformado).replace(",", "."));
+  const valor = Number(
+    String(valorInformado).replace(",", "."),
+  );
 
   if (!Number.isFinite(valor) || valor <= 0) {
-    alert("Digite um valor de rendimento válido.");
+    alert("Digite um valor válido maior que zero.");
 
     return;
   }
 
-  const descricaoInformada = prompt("Descrição do rendimento:", "Rendimento");
+  const descricaoInformada = prompt(
+    "Descrição da entrada:",
+    "Adição manual",
+  );
 
   if (descricaoInformada === null) {
     return;
   }
 
   try {
-    const dados = await buscarDados(`/api/caixinhas/${id}/rendimento`, {
-      method: "POST",
+    const dados = await buscarDados(
+      `/api/caixinhas/${id}/movimentacoes`,
+      {
+        method: "POST",
 
-      headers: {
-        "Content-Type": "application/json",
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          tipo: "ENTRADA",
+          valor,
+          descricao:
+            descricaoInformada.trim() || "Adição manual",
+        }),
       },
-
-      body: JSON.stringify({
-        valor,
-
-        descricao: descricaoInformada.trim() || "Rendimento",
-      }),
-    });
+    );
 
     alert(
-      `Rendimento adicionado com sucesso!\n\n` +
+      `Dinheiro adicionado com sucesso!\n\n` +
         `Novo saldo: ${dinheiro(dados.caixinha.saldo)}`,
     );
 
     await carregarCaixinhas();
   } catch (erro) {
-    console.error("Erro ao adicionar rendimento:", erro);
+    console.error(
+      "Erro ao adicionar dinheiro:",
+      erro,
+    );
 
-    alert("Erro ao adicionar rendimento: " + erro.message);
+    alert(
+      "Erro ao adicionar dinheiro: " +
+        erro.message,
+    );
   }
 }
 
 // ==========================================
-// EDITAR CAIXINHA
+// RETIRAR DINHEIRO DA CAIXINHA
 // ==========================================
 
-async function editarCaixinha(id) {
+async function retirarDinheiroCaixinha(id) {
   const caixinha = state.caixinhas.find(
     (item) => String(item.id) === String(id),
   );
@@ -1716,106 +1783,80 @@ async function editarCaixinha(id) {
     return;
   }
 
-  const novoNome = prompt("Nome da caixinha:", caixinha.nome || "");
+  const saldoAtual = Number(caixinha.saldo || 0);
 
-  if (novoNome === null) {
-    return;
-  }
-
-  const nome = novoNome.trim();
-
-  if (!nome) {
-    alert("O nome da caixinha não pode ficar vazio.");
-
-    return;
-  }
-
-  const novaMeta = prompt("Meta da caixinha:", Number(caixinha.meta || 0));
-
-  if (novaMeta === null) {
-    return;
-  }
-
-  const meta = Number(novaMeta);
-
-  if (!Number.isFinite(meta) || meta <= 0) {
-    alert("Digite uma meta válida maior que zero.");
-
-    return;
-  }
-
-  const novaDescricao = prompt(
-    "Descrição da caixinha:",
-    caixinha.descricao || "",
+  const valorInformado = prompt(
+    `Retirar dinheiro de "${caixinha.nome}"\n\n` +
+      `Saldo atual: ${dinheiro(saldoAtual)}\n\n` +
+      "Digite o valor:",
   );
 
-  if (novaDescricao === null) {
+  if (valorInformado === null) {
+    return;
+  }
+
+  const valor = Number(
+    String(valorInformado).replace(",", "."),
+  );
+
+  if (!Number.isFinite(valor) || valor <= 0) {
+    alert("Digite um valor válido maior que zero.");
+
+    return;
+  }
+
+  if (valor > saldoAtual) {
+    alert(
+      "Não é possível retirar um valor maior que o saldo da caixinha.",
+    );
+
+    return;
+  }
+
+  const descricaoInformada = prompt(
+    "Descrição da retirada:",
+    "Retirada manual",
+  );
+
+  if (descricaoInformada === null) {
     return;
   }
 
   try {
-    await buscarDados(`/api/caixinhas/${id}`, {
-      method: "PUT",
+    const dados = await buscarDados(
+      `/api/caixinhas/${id}/movimentacoes`,
+      {
+        method: "POST",
 
-      headers: {
-        "Content-Type": "application/json",
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          tipo: "SAIDA",
+          valor,
+          descricao:
+            descricaoInformada.trim() || "Retirada manual",
+        }),
       },
+    );
 
-      body: JSON.stringify({
-        nome,
-
-        meta,
-
-        descricao: novaDescricao.trim(),
-      }),
-    });
-
-    alert("Caixinha atualizada com sucesso!");
+    alert(
+      `Retirada realizada com sucesso!\n\n` +
+        `Novo saldo: ${dinheiro(dados.caixinha.saldo)}`,
+    );
 
     await carregarCaixinhas();
   } catch (erro) {
-    console.error("Erro ao editar caixinha:", erro);
+    console.error(
+      "Erro ao retirar dinheiro:",
+      erro,
+    );
 
-    alert("Erro ao editar caixinha: " + erro.message);
-  }
-}
-
-// ==========================================
-// EXCLUIR CAIXINHA
-// ==========================================
-
-async function excluirCaixinha(id) {
-  const caixinha = state.caixinhas.find(
-    (item) => String(item.id) === String(id),
-  );
-
-  if (!caixinha) {
-    alert("Caixinha não encontrada.");
-
-    return;
-  }
-
-  const confirmou = confirm(
-    `Tem certeza que deseja excluir a caixinha "${caixinha.nome}"?\n\n` +
-      "As movimentações relacionadas a ela também serão excluídas.",
-  );
-
-  if (!confirmou) {
-    return;
-  }
-
-  try {
-    await buscarDados(`/api/caixinhas/${id}`, {
-      method: "DELETE",
-    });
-
-    alert("Caixinha excluída com sucesso!");
-
-    await carregarCaixinhas();
-  } catch (erro) {
-    console.error("Erro ao excluir caixinha:", erro);
-
-    alert("Erro ao excluir caixinha: " + erro.message);
+    alert(
+      "Erro ao retirar dinheiro: " +
+        erro.message,
+    );
   }
 }
 
