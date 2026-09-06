@@ -771,6 +771,7 @@ function atualizarDashboard() {
       return total + analise.valor;
     }, 0);
 
+
   // ==========================================
   // CONTAS FIXAS DO MÊS
   // ==========================================
@@ -816,6 +817,42 @@ function atualizarDashboard() {
   mostrarRecentes();
 
   mostrarCategorias();
+}
+
+// ==========================================
+// TOTAL DAS CAIXINHAS NO DASHBOARD
+// ==========================================
+
+function atualizarTotalCaixinhas() {
+  const elemento = document.querySelector("#totalCaixinhas");
+
+  if (!elemento) {
+    return;
+  }
+
+  const total = state.caixinhas.reduce(
+    (soma, caixinha) =>
+      soma + Number(caixinha.saldo || 0),
+    0,
+  );
+
+  elemento.textContent = dinheiro(total);
+}
+
+// ==========================================
+// CLIQUE NO TOTAL DAS CAIXINHAS
+// ==========================================
+
+function configurarCardTotalCaixinhas() {
+  const card = document.querySelector("#totalCaixinhasCard");
+
+  if (!card) {
+    return;
+  }
+
+  card.addEventListener("click", () => {
+    navegar("caixinhas");
+  });
 }
 
 // ==========================================
@@ -1477,6 +1514,8 @@ async function carregarCaixinhas() {
     state.caixinhas = dados.caixinhas || [];
 
     mostrarCaixinhas();
+
+    atualizarTotalCaixinhas();
   } catch (erro) {
     console.error("Erro ao carregar caixinhas:", erro);
   }
@@ -3590,7 +3629,10 @@ async function iniciarAplicacao() {
 
   configurarFormularioCaixinha();
 
+  configurarCardTotalCaixinhas();
+
   await carregarDados();
+
 }
 
 // ==========================================
