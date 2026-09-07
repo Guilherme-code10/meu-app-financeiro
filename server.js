@@ -1833,7 +1833,7 @@ function comprasSaoDuplicadas(compraA, compraB) {
     return false;
   }
 
-  // Mesmo vencimento da primeira parcela
+  // Datas da primeira parcela
   const vencimentoA =
     String(
       primeiraA.vencimento || "",
@@ -1844,15 +1844,24 @@ function comprasSaoDuplicadas(compraA, compraB) {
       primeiraB.vencimento || "",
     ).slice(0, 10);
 
-  if (
-    vencimentoA &&
-    vencimentoB &&
-    vencimentoA !== vencimentoB
-  ) {
-    return false;
+  // Se as duas datas existem, permite diferença de até 10 dias
+  if (vencimentoA && vencimentoB) {
+    const dataA = new Date(vencimentoA);
+    const dataB = new Date(vencimentoB);
+
+    const diferencaDias =
+      Math.abs(
+        dataA.getTime() -
+        dataB.getTime(),
+      ) /
+      (1000 * 60 * 60 * 24);
+
+    if (diferencaDias > 10) {
+      return false;
+    }
   }
 
-  // Diferença pequena de valor
+  // Valor total
   const valorA = Number(
     compraA.valorTotal || 0,
   );
@@ -1861,16 +1870,34 @@ function comprasSaoDuplicadas(compraA, compraB) {
     compraB.valorTotal || 0,
   );
 
-  const diferenca = Math.abs(
-    valorA - valorB,
-  );
+  const diferencaTotal =
+    Math.abs(valorA - valorB);
 
-  // Diferença máxima de R$ 5,00
-  if (diferenca > 5) {
-    return false;
+  // Se o total for praticamente igual,
+  // consideramos a mesma compra.
+  if (diferencaTotal <= 5) {
+    return true;
   }
 
-  return true;
+  // Caso o total seja diferente,
+  // comparamos o valor da primeira parcela.
+  const valorParcelaA =
+    Number(primeiraA.valor || 0);
+
+  const valorParcelaB =
+    Number(primeiraB.valor || 0);
+
+  const diferencaParcela =
+    Math.abs(
+      valorParcelaA -
+      valorParcelaB,
+    );
+
+  if (diferencaParcela <= 5) {
+    return true;
+  }
+
+  return false;
 }
 
 const comprasSemDuplicacao = [];
@@ -3147,9 +3174,57 @@ app.get("/api/contas-fixas", exigirAdmin, async (req, res) => {
     }
 
     res.json({
-      sucesso: true,
-      contas: data || [],
-    });
+  sucesso: true,
+
+  contas: (data || []).map((conta) => ({
+    id: conta.id,
+
+    name: conta.name,
+
+    amount: Number(conta.amount || 0),
+
+    day: Number(conta.day || 1),
+
+    category: conta.category || "Outros",
+
+    tipo: conta.tipo || "fixa",
+
+    totalParcelas:
+      conta.total_parcelas !== null &&
+      conta.total_parcelas !== undefined
+        ? Number(conta.total_parcelas)
+        : null,
+
+    parcelaAtual:
+      conta.parcela_atual !== null &&
+      conta.parcela_atual !== undefined
+        ? Number(conta.parcela_atual)
+        : null,
+
+    anoInicioParcela:
+      conta.ano_inicio_parcela !== null &&
+      conta.ano_inicio_parcela !== undefined
+        ? Number(conta.ano_inicio_parcela)
+        : null,
+
+    mesInicioParcela:
+      conta.mes_inicio_parcela !== null &&
+      conta.mes_inicio_parcela !== undefined
+        ? Number(conta.mes_inicio_parcela)
+        : null,
+
+    pagamentos:
+      Array.isArray(conta.pagamentos)
+        ? conta.pagamentos
+        : [],
+
+    finalizada: conta.finalizada === true,
+
+    created_at: conta.created_at,
+
+    updated_at: conta.updated_at,
+  })),
+});
   } catch (erro) {
     console.error(
       "Erro ao buscar contas fixas:",
@@ -3256,12 +3331,43 @@ app.post("/api/contas-fixas", exigirAdmin, async (req, res) => {
         finalizada === true,
     };
 
-    // Preservar o ID antigo durante a migração
+        // Preservar o ID antigo durante a migração
     if (id) {
       conta.id = id;
     }
 
-    const { data, error } = await supabase
+    // ==========================================
+    // EVITAR DUPLICAÇÃO DE CONTA FIXA
+    // ==========================================
+
+    const {
+      data: contaExistente,
+      error: erroExistente,
+    } = await supabase
+      .from("contas_fixas")
+      .select("id")
+      .eq("user_id", req.usuario.id)
+      .eq("name", conta.name)
+      .eq("amount", conta.amount)
+      .eq("day", conta.day)
+      .eq("tipo", conta.tipo)
+      .maybeSingle();
+
+    if (erroExistente) {
+      throw erroExistente;
+    }
+
+    if (contaExistente) {
+      return res.status(409).json({
+        sucesso: false,
+        erro: "Essa conta já está cadastrada.",
+      });
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase
       .from("contas_fixas")
       .insert([conta])
       .select()

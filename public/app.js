@@ -1045,32 +1045,66 @@ function contaFoiPaga(conta) {
 // MARCAR / DESMARCAR CONTA COMO PAGA
 // ==========================================
 
-function marcarContaComoPaga(id) {
-  const contas = pegarContasFixas();
+async function marcarContaComoPaga(id) {
+  try {
+    const contas = pegarContasFixas();
 
-  const conta = contas.find((item) => String(item.id) === String(id));
+    const conta = contas.find(
+      (item) => String(item.id) === String(id),
+    );
 
-  if (!conta) {
-    return;
+    if (!conta) {
+      return;
+    }
+
+    const pagamentosAtuais = Array.isArray(conta.pagamentos)
+      ? [...conta.pagamentos]
+      : [];
+
+    const mesAtual = obterMesAtual();
+
+    const indice = pagamentosAtuais.indexOf(mesAtual);
+
+    if (indice >= 0) {
+      // Desmarcar como paga
+      pagamentosAtuais.splice(indice, 1);
+    } else {
+      // Marcar como paga
+      pagamentosAtuais.push(mesAtual);
+    }
+
+    await buscarDados(`/api/contas-fixas/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: conta.name,
+        amount: conta.amount,
+        day: conta.day,
+        category: conta.category,
+        tipo: conta.tipo,
+        totalParcelas: conta.totalParcelas,
+        parcelaAtual: conta.parcelaAtual,
+        anoInicioParcela: conta.anoInicioParcela,
+        mesInicioParcela: conta.mesInicioParcela,
+        pagamentos: pagamentosAtuais,
+        finalizada: conta.finalizada,
+      }),
+    });
+
+    await carregarContasFixas();
+  } catch (erro) {
+    console.error(
+      "Erro ao atualizar pagamento da conta fixa:",
+      erro,
+    );
+
+    alert(
+      "Não foi possível atualizar o pagamento da conta fixa:\n\n" +
+        erro.message,
+    );
   }
-
-  if (!Array.isArray(conta.pagamentos)) {
-    conta.pagamentos = [];
-  }
-
-  const mesAtual = obterMesAtual();
-
-  const indice = conta.pagamentos.indexOf(mesAtual);
-
-  if (indice >= 0) {
-    conta.pagamentos.splice(indice, 1);
-  } else {
-    conta.pagamentos.push(mesAtual);
-  }
-
-  salvarContasFixas(contas);
-
-  mostrarContasFixas();
 }
 
 // ==========================================
@@ -1465,29 +1499,49 @@ function mostrarContasFixas() {
     });
   });
 
-  // ==========================================
-  // BOTÃO EXCLUIR
-  // ==========================================
+ // ==========================================
+// BOTÃO EXCLUIR
+// ==========================================
 
-  lista.querySelectorAll("[data-delete-fixed]").forEach((botao) => {
-    botao.addEventListener("click", () => {
-      const id = botao.dataset.deleteFixed;
+lista.querySelectorAll("[data-delete-fixed]").forEach((botao) => {
+  botao.addEventListener("click", async () => {
+    const id = botao.dataset.deleteFixed;
 
-      const confirmou = confirm("Deseja realmente excluir esta conta fixa?");
+    const confirmou = confirm(
+      "Deseja realmente excluir esta conta fixa?",
+    );
 
-      if (!confirmou) {
-        return;
-      }
+    if (!confirmou) {
+      return;
+    }
 
-      const novasContas = pegarContasFixas().filter(
-        (conta) => String(conta.id) !== String(id),
+    try {
+      botao.disabled = true;
+      botao.textContent = "Excluindo...";
+
+      await buscarDados(`/api/contas-fixas/${id}`, {
+        method: "DELETE",
+      });
+
+      await carregarContasFixas();
+
+      alert("Conta fixa excluída com sucesso!");
+    } catch (erro) {
+      console.error(
+        "Erro ao excluir conta fixa:",
+        erro,
       );
 
-      salvarContasFixas(novasContas);
+      alert(
+        "Não foi possível excluir a conta fixa:\n\n" +
+          erro.message,
+      );
 
-      mostrarContasFixas();
-    });
+      botao.disabled = false;
+      botao.textContent = "Excluir";
+    }
   });
+});
 }
 
 // ==========================================
@@ -3556,7 +3610,7 @@ function configurarFormularioContaFixa() {
   // CADASTRAR CONTA
   // ==========================================
 
-  formulario.addEventListener("submit", (evento) => {
+  formulario.addEventListener("submit", async (evento) => {
     evento.preventDefault();
 
     const nome = document.querySelector("#fixedName").value.trim();
@@ -3658,14 +3712,37 @@ function configurarFormularioContaFixa() {
     };
 
     // ==========================================
-    // SALVAR
-    // ==========================================
+// SALVAR NO BANCO
+// ==========================================
 
-    const contas = pegarContasFixas();
+try {
+  const resposta = await buscarDados(
+    "/api/contas-fixas",
+    {
+      method: "POST",
 
-    contas.push(conta);
+      headers: {
+        "Content-Type": "application/json",
+      },
 
-    salvarContasFixas(contas);
+      body: JSON.stringify(conta),
+    },
+  );
+
+ // Recarregar as contas do banco
+// para receber os dados já normalizados
+await carregarContasFixas();
+
+} catch (erro) {
+  console.error("Erro ao salvar conta fixa:", erro);
+
+  alert(
+    "Não foi possível adicionar a conta:\n\n" +
+      erro.message,
+  );
+
+  return;
+}
 
     // ==========================================
     // LIMPAR FORMULÁRIO
