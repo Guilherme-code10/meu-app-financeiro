@@ -936,76 +936,1005 @@ app.get("/api/installments", exigirAdmin, async (req, res) => {
     const fim = new Date(hoje);
     fim.setMonth(fim.getMonth() + 24);
 
-    const dataInicio = req.query.startDate || inicio.toISOString().slice(0, 10);
+    const dataInicio =
+      req.query.startDate ||
+      inicio.toISOString().slice(0, 10);
 
-    const dataFim = req.query.endDate || fim.toISOString().slice(0, 10);
+    const dataFim =
+      req.query.endDate ||
+      fim.toISOString().slice(0, 10);
 
     // ==========================================
-    // PEGAR DIRETAMENTE DO PIERRE
+    // BUSCAR PARCELAMENTOS
     // ==========================================
 
-    const dadosPierre = await pierreRequest("get-installments", {
-      startDate: dataInicio,
-      endDate: dataFim,
-    });
+    const dadosPierre = await pierreRequest(
+      "get-installments",
+      {
+        startDate: dataInicio,
+        endDate: dataFim,
+      },
+    );
 
-    const compras = Array.isArray(dadosPierre?.data?.purchases)
+    const compras = Array.isArray(
+      dadosPierre?.data?.purchases,
+    )
       ? dadosPierre.data.purchases
       : [];
 
     // ==========================================
-    // FORMATAR SEM ALTERAR OS VALORES
+// MESCLAR COMPRAS DUPLICADAS DO PIERRE
+// ==========================================
+
+const comprasMescladas = [];
+
+for (const compra of compras) {
+  const nomeCompra = String(
+    compra.description || "",
+  )
+    .replace(/\d+\s*\/\s*\d+/g, "")
+    .trim()
+    .toLowerCase();
+
+  const existente = comprasMescladas.find(
+    (item) => {
+      const nomeExistente = String(
+        item.description || "",
+      )
+        .replace(/\d+\s*\/\s*\d+/g, "")
+        .trim()
+        .toLowerCase();
+
+      return (
+        String(item.accountId || "") ===
+          String(compra.accountId || "") &&
+        String(item.purchaseDate || "") ===
+          String(compra.purchaseDate || "") &&
+        Number(item.totalInstallments || 0) ===
+          Number(compra.totalInstallments || 0) &&
+        nomeExistente === nomeCompra
+      );
+    },
+  );
+
+  if (!existente) {
+    comprasMescladas.push({
+      ...compra,
+      installments: Array.isArray(
+        compra.installments,
+      )
+        ? [...compra.installments]
+        : [],
+    });
+
+    continue;
+  }
+
+  // ========================================
+  // MESCLAR AS PARCELAS
+  // ========================================
+
+  const mapaParcelas = new Map();
+
+  const adicionarParcelas = (
+    origem,
+  ) => {
+    if (
+      !Array.isArray(
+        origem.installments,
+      )
+    ) {
+      return;
+    }
+
+    for (const parcela of origem.installments) {
+      const numero = Number(
+        parcela.installmentNumber || 0,
+      );
+
+      if (!numero) {
+        continue;
+      }
+
+      const atual =
+        mapaParcelas.get(numero);
+
+      if (!atual) {
+        mapaParcelas.set(
+          numero,
+          { ...parcela },
+        );
+
+        continue;
+      }
+
+      // Prefere parcela REAL do banco
+      // em vez de parcela projetada.
+
+      const atualProjetada =
+        atual.isProjected === true;
+
+      const novaProjetada =
+        parcela.isProjected === true;
+
+      if (
+        atualProjetada &&
+        !novaProjetada
+      ) {
+        mapaParcelas.set(
+          numero,
+          { ...parcela },
+        );
+      }
+    }
+  };
+
+  adicionarParcelas(existente);
+  adicionarParcelas(compra);
+
+  existente.installments =
+    Array.from(
+      mapaParcelas.values(),
+    ).sort(
+      (a, b) =>
+        Number(
+          a.installmentNumber || 0,
+        ) -
+        Number(
+          b.installmentNumber || 0,
+        ),
+    );
+
+  // Usa o maior total informado
+  existente.totalInstallments =
+    Math.max(
+      Number(
+        existente.totalInstallments || 0,
+      ),
+      Number(
+        compra.totalInstallments || 0,
+      ),
+    );
+
+  // Mantém o maior valor pago
+  existente.amountPaid =
+    Math.max(
+      Number(
+        existente.amountPaid || 0,
+      ),
+      Number(
+        compra.amountPaid || 0,
+      ),
+    );
+
+  existente.amountRemaining =
+    existente.installments
+      .filter(
+        (parcela) =>
+          !parcela.isPaid,
+      )
+      .reduce(
+        (total, parcela) =>
+          total +
+          Number(
+            parcela.amount || 0,
+          ),
+        0,
+      );
+
+  // Se existir uma parcela real com
+  // valor diferente, usa o valor dela.
+  const primeiraReal =
+    existente.installments.find(
+      (parcela) =>
+        parcela.isProjected !== true,
+    );
+
+  if (primeiraReal) {
+    existente.installmentValue =
+      Number(
+        primeiraReal.amount || 0,
+      );
+  }
+}  
+
+    // ==========================================
+    // BUSCAR TRANSAÇÕES
     // ==========================================
 
-    const comprasFormatadas = compras.map((compra) => {
-      const parcelas = Array.isArray(compra.installments)
-        ? compra.installments
+    let transacoes = [];
+
+    try {
+      const dadosTransacoes =
+        await pierreRequest(
+          "get-transactions",
+          {
+            startDate: dataInicio,
+            endDate: dataFim,
+            format: "raw",
+          },
+        );
+
+      transacoes = Array.isArray(
+        dadosTransacoes?.data,
+      )
+        ? dadosTransacoes.data
         : [];
+    } catch (erro) {
+      console.warn(
+        "Aviso ao buscar transações para parcelamentos:",
+        erro.message,
+      );
+    }
 
-      const nomeCompra = String(parcelas[0]?.description || "Compra parcelada")
-        .replace(/\d+\s*\/\s*\d+/g, "")
-        .replace(/^[-–—:|]+/, "")
-        .trim();
+    // ==========================================
+    // BUSCAR CARTÕES
+    // ==========================================
 
-      return {
-        nome: nomeCompra,
+    const dadosContas =
+      await pierreRequest("get-accounts");
 
-        dataCompra: compra.purchaseDate || null,
+    const registros = Array.isArray(
+      dadosContas?.data,
+    )
+      ? dadosContas.data
+      : [];
 
-        valorTotal: Number(compra.totalAmount || 0),
+    const cartoes = registros.filter(
+      (conta) =>
+        conta.type === "CREDIT" &&
+        conta.itemIsActive !== false,
+    );
 
-        parcelas: parcelas
-          .map((parcela) => ({
-            descricao: parcela.description || nomeCompra,
+    const mapaCartoes = new Map();
 
-            valor: Number(parcela.amount || 0),
+    cartoes.forEach((cartao) => {
+      mapaCartoes.set(
+        String(cartao.id),
+        {
+          id: cartao.id,
 
-            parcelaAtual: Number(parcela.installmentNumber || 0),
+          nome:
+            cartao.customName ||
+            cartao.name ||
+            "Cartão",
 
-            totalParcelas: Number(parcela.totalInstallments || 0),
-
-            vencimento: parcela.dueDate || null,
-
-            status: String(parcela.status || "PENDING").toUpperCase(),
-
-            categoria: parcela.category || null,
-          }))
-          .filter(
-            (parcela) => parcela.parcelaAtual > 0 && parcela.totalParcelas > 0,
-          )
-          .sort((a, b) => a.parcelaAtual - b.parcelaAtual),
-
-        totalParcelas: parcelas.length
-          ? Math.max(
-              ...parcelas.map((parcela) =>
-                Number(parcela.totalInstallments || 0),
-              ),
-            )
-          : 0,
-
-        categoria: parcelas[0]?.category || null,
-      };
+          banco:
+            cartao.connectorName ||
+            cartao.marketingName ||
+            "Banco não informado",
+        },
+      );
     });
+
+    // ==========================================
+    // NORMALIZAR DESCRIÇÃO
+    // ==========================================
+
+    function normalizarDescricao(valor) {
+      return String(valor || "")
+        .normalize("NFD")
+        .replace(
+          /[\u0300-\u036f]/g,
+          "",
+        )
+        .replace(
+          /\d+\s*\/\s*\d+/g,
+          "",
+        )
+        .replace(
+          /[^a-zA-Z0-9]+/g,
+          " ",
+        )
+        .toLowerCase()
+        .trim();
+    }
+
+    // ==========================================
+    // ENCONTRAR TRANSAÇÕES DA COMPRA
+    // ==========================================
+
+   function encontrarTransacoes(compra, descricao) {
+  const base =
+    normalizarDescricao(descricao);
+
+  if (!base) {
+    return [];
+  }
+
+  const accountIdCompra =
+    compra.accountId ||
+    compra.account_id ||
+    null;
+
+  return transacoes
+    .filter((transacao) => {
+      const accountIdTransacao =
+        transacao.account_id ||
+        transacao.accountId ||
+        null;
+
+      // ==========================================
+      // PRIMEIRO: MESMO CARTÃO/CONTA
+      // ==========================================
+
+      if (
+        accountIdCompra &&
+        accountIdTransacao &&
+        String(accountIdCompra) !==
+          String(accountIdTransacao)
+      ) {
+        return false;
+      }
+
+      // ==========================================
+      // DEPOIS: DESCRIÇÃO
+      // ==========================================
+
+      const descricaoTransacao =
+        normalizarDescricao(
+          transacao.description,
+        );
+
+      if (!descricaoTransacao) {
+        return false;
+      }
+
+      return (
+        descricaoTransacao.includes(base) ||
+        base.includes(descricaoTransacao)
+      );
+    })
+    .sort((a, b) => {
+      const aParcela =
+        String(
+          a.description || "",
+        ).match(
+          /(\d+)\s*\/\s*(\d+)/,
+        );
+
+      const bParcela =
+        String(
+          b.description || "",
+        ).match(
+          /(\d+)\s*\/\s*(\d+)/,
+        );
+
+      const numeroA = aParcela
+        ? Number(aParcela[1])
+        : 9999;
+
+      const numeroB = bParcela
+        ? Number(bParcela[1])
+        : 9999;
+
+      return numeroA - numeroB;
+    });
+}
+
+    // ==========================================
+    // ADICIONAR MESES
+    // ==========================================
+
+    function adicionarMeses(
+      dataOriginal,
+      quantidade,
+    ) {
+      if (!dataOriginal) {
+        return null;
+      }
+
+      const data = new Date(
+        dataOriginal,
+      );
+
+      data.setMonth(
+        data.getMonth() +
+          quantidade,
+      );
+
+      return data
+        .toISOString()
+        .slice(0, 10);
+    }
+
+    // ==========================================
+    // FORMATAR COMPRAS
+    // ==========================================
+
+    const comprasFormatadas =
+  comprasMescladas.map((compra) => {
+        let parcelas =
+          Array.isArray(
+            compra.installments,
+          )
+            ? compra.installments
+                .map((parcela) => ({
+                  descricao:
+                    parcela.description ||
+                    "Parcela",
+
+                  valor: Number(
+                    parcela.amount ||
+                      0,
+                  ),
+
+                  parcelaAtual:
+                    Number(
+                      parcela.installmentNumber ||
+                        0,
+                    ),
+
+                  totalParcelas:
+                    Number(
+                      parcela.totalInstallments ||
+                        0,
+                    ),
+
+                  vencimento:
+                    parcela.dueDate ||
+                    null,
+
+                  status:
+                    String(
+                      parcela.status ||
+                        "PENDING",
+                    ).toUpperCase(),
+
+                  categoria:
+                    parcela.category ||
+                    null,
+
+                  accountId:
+                    parcela.accountId ||
+                    parcela.account_id ||
+                    null,
+                }))
+                .filter(
+                  (parcela) =>
+                    parcela.parcelaAtual >
+                      0 &&
+                    parcela.totalParcelas >
+                      0,
+                )
+            : [];
+
+        parcelas.sort(
+          (a, b) =>
+            a.parcelaAtual -
+            b.parcelaAtual,
+        );
+
+        // ======================================
+        // NOME DA COMPRA
+        // ======================================
+
+        const nomeCompra =
+          String(
+            parcelas[0]?.descricao ||
+              compra.description ||
+              compra.name ||
+              "Compra parcelada",
+          )
+            .replace(
+              /\d+\s*\/\s*\d+/g,
+              "",
+            )
+            .replace(
+              /^[-–—:|]+/,
+              "",
+            )
+            .trim();
+
+        // ======================================
+        // TRANSAÇÕES RELACIONADAS
+        // ======================================
+
+        const transacoesRelacionadas =
+          encontrarTransacoes(
+            compra,
+            nomeCompra,
+          );
+
+        // ======================================
+        // DESCOBRIR CARTÃO
+        // ======================================
+
+        let cartaoId =
+          compra.accountId ||
+          compra.account_id ||
+          parcelas.find(
+            (parcela) =>
+              parcela.accountId,
+          )?.accountId ||
+          parcelas.find(
+            (parcela) =>
+              parcela.accountId,
+          )?.account_id ||
+          null;
+
+        let transacaoParcela1 =
+          transacoesRelacionadas.find(
+            (transacao) =>
+              /1\s*\/\s*\d+/.test(
+                String(
+                  transacao.description ||
+                    "",
+                ),
+              ),
+          );
+
+        if (
+          !transacaoParcela1 &&
+          transacoesRelacionadas.length
+        ) {
+          transacaoParcela1 =
+            transacoesRelacionadas[0];
+        }
+
+        if (
+          !cartaoId &&
+          transacaoParcela1
+        ) {
+          cartaoId =
+            transacaoParcela1.account_id ||
+            transacaoParcela1.accountId ||
+            null;
+        }
+
+        const cartao =
+          cartaoId
+            ? mapaCartoes.get(
+                String(cartaoId),
+              )
+            : null;
+
+        // ======================================
+        // CORRIGIR PARCELAMENTO INCOMPLETO
+        // ======================================
+
+        const primeiraTransacao =
+          transacaoParcela1;
+
+        const matchParcela =
+          String(
+            primeiraTransacao?.description ||
+              "",
+          ).match(
+            /(\d+)\s*\/\s*(\d+)/,
+          );
+
+        const numeroPrimeiraParcela =
+          matchParcela
+            ? Number(
+                matchParcela[1],
+              )
+            : null;
+
+        const totalParcelasDaTransacao =
+          matchParcela
+            ? Number(
+                matchParcela[2],
+              )
+            : 0;
+
+        const valorPrimeiraTransacao =
+          primeiraTransacao
+            ? Math.abs(
+                Number(
+                  primeiraTransacao.amount ||
+                    0,
+                ),
+              )
+            : 0;
+
+      
+
+      // ==========================================
+// CORRIGIR PARCELAMENTO INCOMPLETO
+// ==========================================
+
+const transacoesParceladas = transacoesRelacionadas
+  .map((transacao) => {
+    const match = String(
+      transacao.description || "",
+    ).match(/(\d+)\s*\/\s*(\d+)/);
+
+    if (!match) {
+      return null;
+    }
+
+    return {
+      transacao,
+      parcela: Number(match[1]),
+      total: Number(match[2]),
+      valor: Math.abs(
+        Number(transacao.amount || 0),
+      ),
+    };
+  })
+  .filter(Boolean);
+
+// ==========================================
+// VALORES REAIS DAS TRANSAÇÕES
+// ==========================================
+
+const parcelasComValoresReais = [];
+
+for (const parcela of parcelas) {
+  const numeroParcela = Number(
+    parcela.parcelaAtual || 0,
+  );
+
+  const transacaoCorrespondente =
+    transacoesParceladas.find(
+      (item) =>
+        item.parcela === numeroParcela,
+    );
+
+  if (
+    transacaoCorrespondente &&
+    transacaoCorrespondente.valor > 0
+  ) {
+    parcelasComValoresReais.push({
+      ...parcela,
+      valor:
+        transacaoCorrespondente.valor,
+      vencimento:
+        transacaoCorrespondente.transacao.date ||
+        parcela.vencimento,
+      status: String(
+        transacaoCorrespondente.transacao.status ||
+          parcela.status ||
+          "PENDING",
+      ).toUpperCase(),
+    });
+  } else {
+    parcelasComValoresReais.push(parcela);
+  }
+}
+
+// ==========================================
+// ADICIONAR PARCELAS QUE O PIERRE NÃO ENVIOU
+// ==========================================
+
+if (
+  totalParcelasDaTransacao > 0 &&
+  parcelasComValoresReais.length <
+    totalParcelasDaTransacao
+) {
+  const vencimentoInicial =
+    parcelasComValoresReais[0]?.vencimento ||
+    compra.purchaseDate ||
+    hoje.toISOString().slice(0, 10);
+
+  for (
+    let i = 1;
+    i <= totalParcelasDaTransacao;
+    i++
+  ) {
+    const jaExiste =
+      parcelasComValoresReais.some(
+        (parcela) =>
+          Number(parcela.parcelaAtual) === i,
+      );
+
+    if (jaExiste) {
+      continue;
+    }
+
+    const transacaoDaParcela =
+      transacoesParceladas.find(
+        (item) => item.parcela === i,
+      );
+
+    // Só adiciona se existir uma transação REAL
+    if (
+      !transacaoDaParcela ||
+      transacaoDaParcela.valor <= 0
+    ) {
+      continue;
+    }
+
+    parcelasComValoresReais.push({
+      descricao: nomeCompra,
+
+      valor:
+        transacaoDaParcela.valor,
+
+      parcelaAtual: i,
+
+      totalParcelas:
+        totalParcelasDaTransacao,
+
+      vencimento:
+        transacaoDaParcela.transacao.date ||
+        adicionarMeses(
+          vencimentoInicial,
+          i - 1,
+        ),
+
+      status: String(
+        transacaoDaParcela.transacao.status ||
+          "PENDING",
+      ).toUpperCase(),
+
+      categoria:
+        parcelas[0]?.categoria ||
+        null,
+
+      accountId:
+        transacaoDaParcela.transacao.account_id ||
+        transacaoDaParcela.transacao.accountId ||
+        null,
+    });
+  }
+}
+
+// ==========================================
+// ORDENAR PARCELAS
+// ==========================================
+
+parcelasComValoresReais.sort(
+  (a, b) =>
+    Number(a.parcelaAtual) -
+    Number(b.parcelaAtual),
+);
+
+parcelas = parcelasComValoresReais;
+         
+
+        // ======================================
+        // TOTAL DE PARCELAS
+        // ======================================
+
+        const totalParcelas =
+          Math.max(
+            Number(
+              compra.totalParcelas ||
+                0,
+            ),
+            ...parcelas.map(
+              (parcela) =>
+                Number(
+                  parcela.totalParcelas ||
+                    0,
+                ),
+            ),
+            totalParcelasDaTransacao,
+          );
+
+        // ======================================
+        // TOTAL DA COMPRA
+        // ======================================
+
+        const valorTotal =
+          parcelas.reduce(
+            (total, parcela) =>
+              total +
+              Math.abs(
+                Number(
+                  parcela.valor ||
+                    0,
+                ),
+              ),
+            0,
+          ) ||
+          Number(
+            compra.totalAmount ||
+              0,
+          );
+
+        // ======================================
+        // DATA DA COMPRA
+        // ======================================
+
+        const dataCompra =
+          compra.purchaseDate ||
+          primeiraTransacao?.date ||
+          null;
+
+        return {
+          id:
+            compra.id ||
+            `${normalizarDescricao(
+              nomeCompra,
+            )}-${dataCompra || ""}`,
+
+          nome:
+            nomeCompra,
+
+          descricao:
+            nomeCompra,
+
+          dataCompra,
+
+          valorTotal,
+
+          cartaoId:
+            cartao?.id ||
+            cartaoId ||
+            "",
+
+          cartaoNome:
+            cartao?.nome ||
+            "Cartão",
+
+          banco:
+            cartao?.banco ||
+            primeiraTransacao?.account_name ||
+            "",
+
+          parcelas,
+
+          totalParcelas,
+
+          categoria:
+            parcelas[0]?.categoria ||
+            null,
+        };
+      });
+
+    // ==========================================
+// REMOVER DUPLICAÇÕES DE COMPRAS
+// ==========================================
+
+function comprasSaoDuplicadas(compraA, compraB) {
+  // Mesmo cartão
+  if (
+    String(compraA.cartaoId || "") !==
+    String(compraB.cartaoId || "")
+  ) {
+    return false;
+  }
+
+  // Mesma quantidade de parcelas
+  if (
+    Number(compraA.totalParcelas || 0) !==
+    Number(compraB.totalParcelas || 0)
+  ) {
+    return false;
+  }
+
+  // Nome normalizado
+  const nomeA = normalizarDescricao(
+    compraA.nome,
+  );
+
+  const nomeB = normalizarDescricao(
+    compraB.nome,
+  );
+
+  const nomesParecidos =
+    nomeA === nomeB ||
+    nomeA.includes(nomeB) ||
+    nomeB.includes(nomeA);
+
+  if (!nomesParecidos) {
+    return false;
+  }
+
+  // Primeiras parcelas
+  const primeiraA =
+    compraA.parcelas?.[0];
+
+  const primeiraB =
+    compraB.parcelas?.[0];
+
+  if (!primeiraA || !primeiraB) {
+    return false;
+  }
+
+  // Mesmo número da parcela inicial
+  if (
+    Number(primeiraA.parcelaAtual || 0) !==
+    Number(primeiraB.parcelaAtual || 0)
+  ) {
+    return false;
+  }
+
+  // Mesmo vencimento da primeira parcela
+  const vencimentoA =
+    String(
+      primeiraA.vencimento || "",
+    ).slice(0, 10);
+
+  const vencimentoB =
+    String(
+      primeiraB.vencimento || "",
+    ).slice(0, 10);
+
+  if (
+    vencimentoA &&
+    vencimentoB &&
+    vencimentoA !== vencimentoB
+  ) {
+    return false;
+  }
+
+  // Diferença pequena de valor
+  const valorA = Number(
+    compraA.valorTotal || 0,
+  );
+
+  const valorB = Number(
+    compraB.valorTotal || 0,
+  );
+
+  const diferenca = Math.abs(
+    valorA - valorB,
+  );
+
+  // Diferença máxima de R$ 5,00
+  if (diferenca > 5) {
+    return false;
+  }
+
+  return true;
+}
+
+const comprasSemDuplicacao = [];
+
+for (
+  const compra of comprasFormatadas
+) {
+  const duplicada =
+    comprasSemDuplicacao.find(
+      (existente) =>
+        comprasSaoDuplicadas(
+          compra,
+          existente,
+        ),
+    );
+
+  if (duplicada) {
+    console.log(
+      "🗑️ COMPRA DUPLICADA REMOVIDA:",
+      compra.nome,
+      "→ R$",
+      compra.valorTotal,
+    );
+
+    continue;
+  }
+
+  comprasSemDuplicacao.push(
+    compra,
+  );
+}
+
+    // ==========================================
+    // DEBUG AEROVIAS
+    // ==========================================
+
+    const aerovias =
+      comprasSemDuplicacao.filter(
+        (compra) =>
+          normalizarDescricao(
+            compra.nome,
+          ).includes(
+            "aerovias",
+          ),
+      );
+
+    if (aerovias.length) {
+      console.log(
+        "==========================================",
+      );
+
+      console.log(
+        "✈️ AEROVIAS CORRIGIDA:",
+        JSON.stringify(
+          aerovias,
+          null,
+          2,
+        ),
+      );
+
+      console.log(
+        "==========================================",
+      );
+    }
 
     res.json({
       sucesso: true,
@@ -1014,19 +1943,28 @@ app.get("/api/installments", exigirAdmin, async (req, res) => {
 
       dataFim,
 
-      quantidade: comprasFormatadas.length,
+      quantidade:
+        comprasSemDuplicacao.length,
 
-      compras: comprasFormatadas,
+      compras:
+        comprasSemDuplicacao,
 
-      resumo: dadosPierre?.data?.summary || null,
+      resumo:
+        dadosPierre?.data?.summary ||
+        null,
     });
   } catch (erro) {
-    console.error("Erro ao buscar parcelamentos do Pierre:", erro.message);
+    console.error(
+      "Erro ao buscar parcelamentos do Pierre:",
+      erro.message,
+    );
 
     res.status(500).json({
       sucesso: false,
 
-      erro: erro.message || "Erro ao buscar parcelamentos",
+      erro:
+        erro.message ||
+        "Erro ao buscar parcelamentos",
     });
   }
 });
@@ -2180,6 +3118,303 @@ app.get("/api/caixinhas/:id/dashboard", exigirAdmin, async (req, res) => {
   } catch (erro) {
     console.error(
       "Erro ao carregar dashboard da caixinha:",
+      erro.message,
+    );
+
+    res.status(500).json({
+      sucesso: false,
+      erro: erro.message,
+    });
+  }
+});
+
+// ==========================================
+// CONTAS FIXAS - BUSCAR
+// ==========================================
+
+app.get("/api/contas-fixas", exigirAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("contas_fixas")
+      .select("*")
+      .eq("user_id", req.usuario.id)
+      .order("created_at", {
+        ascending: true,
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      sucesso: true,
+      contas: data || [],
+    });
+  } catch (erro) {
+    console.error(
+      "Erro ao buscar contas fixas:",
+      erro.message,
+    );
+
+    res.status(500).json({
+      sucesso: false,
+      erro: erro.message,
+    });
+  }
+});
+
+// ==========================================
+// CONTAS FIXAS - CRIAR
+// ==========================================
+
+app.post("/api/contas-fixas", exigirAdmin, async (req, res) => {
+  try {
+    const {
+      id,
+      name,
+      amount,
+      day,
+      category,
+      tipo,
+      totalParcelas,
+      parcelaAtual,
+      anoInicioParcela,
+      mesInicioParcela,
+      pagamentos,
+      finalizada,
+    } = req.body;
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: "O nome da conta é obrigatório.",
+      });
+    }
+
+    const valor = Number(amount);
+    const dia = Number(day);
+
+    if (!Number.isFinite(valor) || valor <= 0) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: "O valor da conta deve ser maior que zero.",
+      });
+    }
+
+    if (!Number.isInteger(dia) || dia < 1 || dia > 31) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: "O dia deve estar entre 1 e 31.",
+      });
+    }
+
+    const conta = {
+      user_id: req.usuario.id,
+
+      name: String(name).trim(),
+
+      amount: valor,
+
+      day: dia,
+
+      category: category || "Outros",
+
+      tipo: tipo || "fixa",
+
+      total_parcelas:
+        totalParcelas !== null &&
+        totalParcelas !== undefined &&
+        totalParcelas !== ""
+          ? Number(totalParcelas)
+          : null,
+
+      parcela_atual:
+        parcelaAtual !== null &&
+        parcelaAtual !== undefined &&
+        parcelaAtual !== ""
+          ? Number(parcelaAtual)
+          : null,
+
+      ano_inicio_parcela:
+        anoInicioParcela !== null &&
+        anoInicioParcela !== undefined
+          ? Number(anoInicioParcela)
+          : null,
+
+      mes_inicio_parcela:
+        mesInicioParcela !== null &&
+        mesInicioParcela !== undefined
+          ? Number(mesInicioParcela)
+          : null,
+
+      pagamentos:
+        Array.isArray(pagamentos)
+          ? pagamentos
+          : [],
+
+      finalizada:
+        finalizada === true,
+    };
+
+    // Preservar o ID antigo durante a migração
+    if (id) {
+      conta.id = id;
+    }
+
+    const { data, error } = await supabase
+      .from("contas_fixas")
+      .insert([conta])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(201).json({
+      sucesso: true,
+      mensagem: "Conta fixa criada com sucesso.",
+      conta: data,
+    });
+  } catch (erro) {
+    console.error(
+      "Erro ao criar conta fixa:",
+      erro.message,
+    );
+
+    res.status(500).json({
+      sucesso: false,
+      erro: erro.message,
+    });
+  }
+});
+
+// ==========================================
+// CONTAS FIXAS - ATUALIZAR
+// ==========================================
+
+app.put("/api/contas-fixas/:id", exigirAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      name,
+      amount,
+      day,
+      category,
+      tipo,
+      totalParcelas,
+      parcelaAtual,
+      anoInicioParcela,
+      mesInicioParcela,
+      pagamentos,
+      finalizada,
+    } = req.body;
+
+    const { data, error } = await supabase
+      .from("contas_fixas")
+      .update({
+        name: String(name || "").trim(),
+
+        amount: Number(amount),
+
+        day: Number(day),
+
+        category: category || "Outros",
+
+        tipo: tipo || "fixa",
+
+        total_parcelas:
+          totalParcelas !== null &&
+          totalParcelas !== undefined &&
+          totalParcelas !== ""
+            ? Number(totalParcelas)
+            : null,
+
+        parcela_atual:
+          parcelaAtual !== null &&
+          parcelaAtual !== undefined &&
+          parcelaAtual !== ""
+            ? Number(parcelaAtual)
+            : null,
+
+        ano_inicio_parcela:
+          anoInicioParcela !== null &&
+          anoInicioParcela !== undefined
+            ? Number(anoInicioParcela)
+            : null,
+
+        mes_inicio_parcela:
+          mesInicioParcela !== null &&
+          mesInicioParcela !== undefined
+            ? Number(mesInicioParcela)
+            : null,
+
+        pagamentos:
+          Array.isArray(pagamentos)
+            ? pagamentos
+            : [],
+
+        finalizada:
+          finalizada === true,
+
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", req.usuario.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      sucesso: true,
+      mensagem: "Conta fixa atualizada.",
+      conta: data,
+    });
+  } catch (erro) {
+    console.error(
+      "Erro ao atualizar conta fixa:",
+      erro.message,
+    );
+
+    res.status(500).json({
+      sucesso: false,
+      erro: erro.message,
+    });
+  }
+});
+
+// ==========================================
+// CONTAS FIXAS - EXCLUIR
+// ==========================================
+
+app.delete("/api/contas-fixas/:id", exigirAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+      .from("contas_fixas")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", req.usuario.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      sucesso: true,
+      mensagem: "Conta fixa excluída.",
+      conta: data,
+    });
+  } catch (erro) {
+    console.error(
+      "Erro ao excluir conta fixa:",
       erro.message,
     );
 

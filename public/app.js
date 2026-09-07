@@ -1,5 +1,6 @@
 const state = {
   contas: [],
+  contasFixas: [],
   cartoes: [],
   investimentos: [],
   transacoes: [],
@@ -1024,21 +1025,7 @@ function mostrarTabela() {
 // CONTAS FIXAS
 // ==========================================
 
-function pegarContasFixas() {
-  try {
-    const contas = JSON.parse(localStorage.getItem("fixedAccounts") || "[]");
 
-    return Array.isArray(contas) ? contas : [];
-  } catch (erro) {
-    console.error("Erro ao carregar contas fixas:", erro);
-
-    return [];
-  }
-}
-
-function salvarContasFixas(contas) {
-  localStorage.setItem("fixedAccounts", JSON.stringify(contas));
-}
 
 function obterMesAtual() {
   const agora = new Date();
@@ -3376,8 +3363,145 @@ function configurarFiltro() {
 }
 
 // ==========================================
-// CONTAS FIXAS
+// CONTAS FIXAS - CARREGAR DO BANCO
 // ==========================================
+
+async function carregarContasFixas() {
+  try {
+    const dados = await buscarDados("/api/contas-fixas");
+
+    state.contasFixas = dados.contas || [];
+
+    mostrarContasFixas();
+
+    atualizarDashboard();
+  } catch (erro) {
+    console.error(
+      "Erro ao carregar contas fixas:",
+      erro,
+    );
+  }
+}
+
+// ==========================================
+// MIGRAR CONTAS FIXAS DO LOCALSTORAGE
+// ==========================================
+
+async function migrarContasFixas() {
+  const contasLocais = JSON.parse(
+  localStorage.getItem("fixedAccounts") || "[]"
+);
+
+  if (!contasLocais.length) {
+    return;
+  }
+
+  try {
+    const dadosBanco = await buscarDados(
+      "/api/contas-fixas",
+    );
+
+    const contasBanco = dadosBanco.contas || [];
+
+    const idsBanco = new Set(
+      contasBanco.map((conta) =>
+        String(conta.id),
+      ),
+    );
+
+    const contasParaMigrar =
+      contasLocais.filter(
+        (conta) =>
+          !idsBanco.has(String(conta.id)),
+      );
+
+    if (!contasParaMigrar.length) {
+      return;
+    }
+
+    console.log(
+      `Migrando ${contasParaMigrar.length} conta(s) fixa(s)...`,
+    );
+
+    for (const conta of contasParaMigrar) {
+      await buscarDados(
+        "/api/contas-fixas",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            id: conta.id,
+
+            name: conta.name,
+
+            amount: Number(conta.amount || 0),
+
+            day: Number(conta.day || 1),
+
+            category:
+              conta.category || "Outros",
+
+            tipo:
+              conta.tipo || "fixa",
+
+            totalParcelas:
+              conta.totalParcelas ??
+              null,
+
+            parcelaAtual:
+              conta.parcelaAtual ??
+              null,
+
+            anoInicioParcela:
+              conta.anoInicioParcela ??
+              null,
+
+            mesInicioParcela:
+              conta.mesInicioParcela ??
+              null,
+
+            pagamentos:
+              Array.isArray(
+                conta.pagamentos,
+              )
+                ? conta.pagamentos
+                : [],
+
+            finalizada:
+              conta.finalizada === true,
+          }),
+        },
+      );
+    }
+
+    console.log(
+      "Migração das contas fixas concluída.",
+    );
+
+    await carregarContasFixas();
+
+  } catch (erro) {
+    console.error(
+      "Erro ao migrar contas fixas:",
+      erro,
+    );
+
+    alert(
+      "Não foi possível migrar as contas fixas: " +
+        erro.message,
+    );
+  }
+}
+
+function pegarContasFixas() {
+  return Array.isArray(state.contasFixas)
+    ? state.contasFixas
+    : [];
+}
 
 // ==========================================
 // CONTAS FIXAS
@@ -3633,6 +3757,9 @@ async function iniciarAplicacao() {
 
   await carregarDados();
 
+  //await migrarContasFixas();
+
+  await carregarContasFixas();
 }
 
 // ==========================================
@@ -3688,41 +3815,17 @@ function mostrarParcelas() {
   const filtroConta = document.querySelector("#parcelasFiltroConta");
   const filtroMes = document.querySelector("#parcelasFiltroMes");
 
-  const elementoAndamento = document.querySelector(
-    "#parcelasEmAndamento",
-  );
-
-  const elementoValorTotal = document.querySelector(
-    "#parcelasValorTotal",
-  );
-
-  const elementoJaPago = document.querySelector(
-    "#parcelasJaPago",
-  );
-
-  const elementoRestante = document.querySelector(
-    "#parcelasRestante",
-  );
-
-  const elementoProgresso = document.querySelector(
-    "#parcelasProgresso",
-  );
-
-  const elementoProgressoTexto = document.querySelector(
-    "#parcelasProgressoTexto",
-  );
-
-  const elementoUltimaData = document.querySelector(
-    "#parcelasUltimaData",
-  );
+  const elementoAndamento = document.querySelector("#parcelasEmAndamento");
+  const elementoValorTotal = document.querySelector("#parcelasValorTotal");
+  const elementoJaPago = document.querySelector("#parcelasJaPago");
+  const elementoRestante = document.querySelector("#parcelasRestante");
+  const elementoProgresso = document.querySelector("#parcelasProgresso");
+  const elementoProgressoTexto = document.querySelector("#parcelasProgressoTexto");
+  const elementoUltimaData = document.querySelector("#parcelasUltimaData");
 
   if (!lista) {
     return;
   }
-
-  // ==========================================
-  // DADOS REAIS DO PIERRE
-  // ==========================================
 
   const compras = Array.isArray(state.parcelamentos)
     ? state.parcelamentos
@@ -3732,124 +3835,520 @@ function mostrarParcelas() {
     ? state.cartoes
     : [];
 
+  const transacoes = Array.isArray(state.transacoes)
+    ? state.transacoes
+    : [];
+
   // ==========================================
-  // NORMALIZAR COMPRA
+  // NORMALIZAR TEXTO
   // ==========================================
 
-  const comprasNormalizadas = compras.map((compra, index) => {
-    const parcelas = Array.isArray(compra.parcelas)
-      ? [...compra.parcelas]
-      : [];
+  function normalizarTexto(valor) {
+    return String(valor || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\d+\s*\/\s*\d+/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, " ")
+      .toLowerCase()
+      .trim();
+  }
 
-    parcelas.sort(
-      (a, b) =>
-        Number(a.parcelaAtual || 0) -
-        Number(b.parcelaAtual || 0),
-    );
+  // ==========================================
+  // ENCONTRAR TRANSAÇÃO REAL
+  // PARA PARCELAMENTOS MAL FORMADOS
+  // ==========================================
 
-    const totalParcelas = Math.max(
-      Number(compra.totalParcelas || 0),
-      ...parcelas.map((parcela) =>
-        Number(
-          parcela.totalParcelas ||
-            parcela.totalInstallments ||
-            0,
-        ),
-      ),
-    );
+ function encontrarTransacaoParcelada(compra, parcela) {
+  const nome = normalizarTexto(
+    compra.nome ||
+      compra.descricao ||
+      parcela?.descricao ||
+      "",
+  );
 
-    const valorTotalInformado = Number(
-      compra.valorTotal || 0,
-    );
+  if (!nome) {
+    return null;
+  }
 
-    const valorTotalParcelas = parcelas.reduce(
-      (total, parcela) =>
-        total + Math.abs(Number(parcela.valor || 0)),
-      0,
-    );
-
-    const valorTotal =
-      valorTotalInformado > 0
-        ? valorTotalInformado
-        : valorTotalParcelas;
-
-    const valorJaPago = parcelas
-      .filter((parcela) => {
-        const status = String(
-          parcela.status || "",
-        ).toUpperCase();
-
-        return status === "POSTED";
-      })
-      .reduce(
-        (total, parcela) =>
-          total + Math.abs(Number(parcela.valor || 0)),
-        0,
+  const candidatos = transacoes
+    .filter((transacao) => {
+      const descricao = normalizarTexto(
+        transacao.descricao,
       );
 
-    const valorRestante = Math.max(
-      valorTotal - valorJaPago,
-      0,
-    );
+      if (!descricao) {
+        return false;
+      }
 
-    const ultimaParcela =
-      parcelas.length > 0
-        ? Math.max(
-            ...parcelas.map((parcela) =>
-              Number(parcela.parcelaAtual || 0),
-            ),
-          )
-        : 0;
+      const corresponde =
+        descricao.includes(nome) ||
+        nome.includes(descricao);
 
-    const finalizada =
-      totalParcelas > 0 &&
-      parcelas.length > 0 &&
-      parcelas.every((parcela) => {
-        const status = String(
-          parcela.status || "",
-        ).toUpperCase();
+      if (!corresponde) {
+        return false;
+      }
+
+      if (
+        compra.dataCompra &&
+        transacao.data
+      ) {
+        const dataCompra = new Date(
+          compra.dataCompra,
+        );
+
+        const dataTransacao = new Date(
+          transacao.data,
+        );
+
+        const diferenca =
+          Math.abs(
+            dataCompra - dataTransacao,
+          ) /
+          (1000 * 60 * 60 * 24);
+
+        if (diferenca > 10) {
+          return false;
+        }
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      const aDescricao =
+        String(a.descricao || "");
+
+      const bDescricao =
+        String(b.descricao || "");
+
+      const aTemParcela =
+        /\b\d+\s*\/\s*\d+\b/.test(
+          aDescricao,
+        );
+
+      const bTemParcela =
+        /\b\d+\s*\/\s*\d+\b/.test(
+          bDescricao,
+        );
+
+      if (
+        aTemParcela !==
+        bTemParcela
+      ) {
+        return aTemParcela
+          ? -1
+          : 1;
+      }
+
+      if (
+        compra.dataCompra &&
+        a.data &&
+        b.data
+      ) {
+        const dataCompra =
+          new Date(
+            compra.dataCompra,
+          );
+
+        const distanciaA =
+          Math.abs(
+            dataCompra -
+              new Date(a.data),
+          );
+
+        const distanciaB =
+          Math.abs(
+            dataCompra -
+              new Date(b.data),
+          );
 
         return (
-          status === "POSTED" &&
-          Number(parcela.parcelaAtual || 0) >=
-            totalParcelas
+          distanciaA -
+          distanciaB
         );
-      });
+      }
 
-    return {
-      ...compra,
+      return 0;
+    });
 
-      _id: compra.id || `${index}`,
+  return candidatos[0] || null;
+}
 
-      nome:
-        compra.nome ||
-        compra.descricao ||
-        "Compra parcelada",
+  // ==========================================
+  // NORMALIZAR COMPRAS
+  // ==========================================
 
-      cartaoId: compra.cartaoId || "",
+  const comprasNormalizadas = compras.map(
+    (compra, index) => {
+      let parcelas = Array.isArray(compra.parcelas)
+        ? [...compra.parcelas]
+        : [];
 
-      cartaoNome:
+      parcelas = parcelas
+        .map((parcela) => ({
+          ...parcela,
+
+          valor: Number(parcela.valor || 0),
+
+          parcelaAtual: Number(
+            parcela.parcelaAtual ||
+              parcela.installmentNumber ||
+              0,
+          ),
+
+          totalParcelas: Number(
+            parcela.totalParcelas ||
+              parcela.totalInstallments ||
+              0,
+          ),
+
+          status: String(
+            parcela.status || "PENDING",
+          ).toUpperCase(),
+
+          vencimento:
+            parcela.vencimento ||
+            parcela.dueDate ||
+            null,
+        }))
+        .sort(
+          (a, b) =>
+            a.parcelaAtual -
+            b.parcelaAtual,
+        );
+
+      // ========================================
+      // CORREÇÃO DE PARCELAMENTO MAL FORMADO
+      // ========================================
+
+      const primeiraParcela =
+        parcelas[0];
+
+      const parcelamentoInvalido =
+        parcelas.length === 0 ||
+        (
+          parcelas.length === 1 &&
+          (
+            primeiraParcela?.totalParcelas <= 1 ||
+            primeiraParcela?.parcelaAtual <= 0 ||
+            primeiraParcela?.valor === 0
+          )
+        );
+
+      if (parcelamentoInvalido) {
+        const transacao =
+          encontrarTransacaoParcelada(
+            compra,
+            primeiraParcela,
+          );
+
+        if (transacao) {
+          const descricao =
+            String(
+              transacao.descricao || "",
+            );
+
+          const match =
+            descricao.match(
+              /(\d+)\s*\/\s*(\d+)/,
+            );
+
+          if (match) {
+            const numeroAtual =
+              Number(match[1]);
+
+            const total =
+              Number(match[2]);
+
+            parcelas = [
+              {
+                descricao,
+
+                valor: Math.abs(
+                  Number(
+                    transacao.valor || 0,
+                  ),
+                ),
+
+                parcelaAtual:
+                  numeroAtual,
+
+                totalParcelas:
+                  total,
+
+                vencimento:
+                  transacao.data || null,
+
+                status:
+                  String(
+                    transacao.status ||
+                      "PENDING",
+                  ).toUpperCase(),
+
+                categoria:
+                  transacao.categoria ||
+                  null,
+              },
+            ];
+          }
+        }
+      }
+
+      // ========================================
+      // TOTAL DE PARCELAS
+      // ========================================
+
+      const totalParcelas = Math.max(
+        Number(
+          compra.totalParcelas || 0,
+        ),
+
+        ...parcelas.map(
+          (parcela) =>
+            Number(
+              parcela.totalParcelas ||
+                0,
+            ),
+        ),
+      );
+
+      // ========================================
+      // VALOR TOTAL
+      // ========================================
+
+      const somaParcelas =
+        parcelas.reduce(
+          (total, parcela) =>
+            total +
+            Math.abs(
+              Number(
+                parcela.valor || 0,
+              ),
+            ),
+          0,
+        );
+
+      const valorInformado =
+        Number(
+          compra.valorTotal || 0,
+        );
+
+      /*
+       * Se temos valores reais das parcelas,
+       * damos prioridade a eles.
+       *
+       * Isso preserva:
+       * 1ª parcela = R$ 803,03
+       * próximas = R$ 300 e pouco
+       */
+      const valorTotal =
+        somaParcelas > 0
+          ? somaParcelas
+          : valorInformado;
+
+      // ========================================
+      // PARCELAS PAGAS
+      // ========================================
+
+      const valorJaPago =
+        parcelas.reduce(
+          (total, parcela) => {
+            const status =
+              String(
+                parcela.status || "",
+              ).toUpperCase();
+
+            if (
+              status === "POSTED" ||
+              status === "PAID" ||
+              status === "SETTLED"
+            ) {
+              return (
+                total +
+                Math.abs(
+                  Number(
+                    parcela.valor || 0,
+                  ),
+                )
+              );
+            }
+
+            return total;
+          },
+          0,
+        );
+
+      // ========================================
+      // PARCELA ATUAL
+      // ========================================
+
+      const parcelaAtual =
+        parcelas.length
+          ? Math.max(
+              ...parcelas.map(
+                (parcela) =>
+                  Number(
+                    parcela.parcelaAtual ||
+                      0,
+                  ),
+              ),
+            )
+          : 0;
+
+      // ========================================
+      // FINALIZADA
+      // ========================================
+
+      const ultimaParcela =
+        parcelas.length
+          ? parcelas[
+              parcelas.length - 1
+            ]
+          : null;
+
+      const finalizada =
+        totalParcelas > 0 &&
+        parcelaAtual >= totalParcelas &&
+        !!ultimaParcela &&
+        [
+          "POSTED",
+          "PAID",
+          "SETTLED",
+        ].includes(
+          String(
+            ultimaParcela.status || "",
+          ).toUpperCase(),
+        );
+
+      // ========================================
+      // CARTÃO
+      // ========================================
+
+      let cartaoId =
+        compra.cartaoId ||
+        compra.accountId ||
+        compra.account_id ||
+        "";
+
+      let cartaoNome =
         compra.cartaoNome ||
         compra.cartao ||
-        "Cartão",
+        "";
 
-      banco: compra.banco || "",
+      let banco =
+        compra.banco || "";
 
-      parcelas,
+      // Se o backend encontrou o cartão,
+      // usamos ele.
+      const cartaoEncontrado =
+        cartoes.find(
+          (cartao) =>
+            String(cartao.id) ===
+            String(cartaoId),
+        );
 
-      totalParcelas,
+      if (cartaoEncontrado) {
+        cartaoNome =
+          cartaoEncontrado.nome ||
+          cartaoEncontrado.banco ||
+          cartaoNome;
 
-      valorTotal,
+        banco =
+          cartaoEncontrado.banco ||
+          banco;
+      }
 
-      valorJaPago,
+      // ========================================
+      // TENTAR DESCOBRIR CARTÃO PELA TRANSAÇÃO
+      // ========================================
 
-      valorRestante,
+      if (!cartaoId || !cartaoNome) {
+        const transacao =
+          encontrarTransacaoParcelada(
+            compra,
+            parcelas[0],
+          );
 
-      ultimaParcela,
+        if (transacao) {
+          const nomeConta =
+            normalizarTexto(
+              transacao.conta,
+            );
 
-      finalizada,
-    };
+          const cartaoDaTransacao =
+  cartoes.find((cartao) => {
+    const nomeCartao =
+      normalizarTexto(
+        cartao.nome,
+      );
+
+    const bancoCartao =
+      normalizarTexto(
+        cartao.banco,
+      );
+
+    return (
+      nomeConta === nomeCartao ||
+      nomeConta === bancoCartao
+    );
   });
+
+          if (cartaoDaTransacao) {
+            cartaoId =
+              cartaoDaTransacao.id;
+
+            cartaoNome =
+              cartaoDaTransacao.nome ||
+              cartaoDaTransacao.banco;
+
+            banco =
+              cartaoDaTransacao.banco;
+          }
+        }
+      }
+
+      const valorRestante =
+        Math.max(
+          valorTotal -
+            valorJaPago,
+          0,
+        );
+
+      return {
+        ...compra,
+
+        _id:
+          compra.id ||
+          `${index}`,
+
+        nome:
+          compra.nome ||
+          compra.descricao ||
+          "Compra parcelada",
+
+        cartaoId,
+
+        cartaoNome:
+          cartaoNome ||
+          "Cartão",
+
+        banco,
+
+        parcelas,
+
+        totalParcelas,
+
+        valorTotal,
+
+        valorJaPago,
+
+        valorRestante,
+
+        parcelaAtual,
+
+        finalizada,
+      };
+    },
+  );
 
   // ==========================================
   // FILTRO DE CARTÕES
@@ -3857,7 +4356,8 @@ function mostrarParcelas() {
 
   if (filtroConta) {
     const valorAtual =
-      filtroConta.value || "TODAS";
+      filtroConta.value ||
+      "TODAS";
 
     filtroConta.innerHTML = `
       <option value="TODAS">
@@ -3867,7 +4367,9 @@ function mostrarParcelas() {
       ${cartoes
         .map(
           (cartao) => `
-            <option value="${escapar(cartao.id)}">
+            <option value="${escapar(
+              cartao.id,
+            )}">
               ${escapar(
                 cartao.nome ||
                   cartao.banco ||
@@ -3882,10 +4384,12 @@ function mostrarParcelas() {
     if (
       [...filtroConta.options].some(
         (option) =>
-          option.value === valorAtual,
+          option.value ===
+          valorAtual,
       )
     ) {
-      filtroConta.value = valorAtual;
+      filtroConta.value =
+        valorAtual;
     }
   }
 
@@ -3895,53 +4399,71 @@ function mostrarParcelas() {
 
   if (filtroMes) {
     const valorAtual =
-      filtroMes.value || "";
+      filtroMes.value || "TODOS";
 
     const meses = new Set();
 
-    comprasNormalizadas.forEach((compra) => {
-      compra.parcelas.forEach((parcela) => {
-        const vencimento =
-          parcela.vencimento ||
-          parcela.dueDate;
+    comprasNormalizadas.forEach(
+      (compra) => {
+        compra.parcelas.forEach(
+          (parcela) => {
+            const vencimento =
+              parcela.vencimento ||
+              parcela.dueDate;
 
-        if (vencimento) {
-          const mes = String(vencimento).substring(
-            0,
-            7,
-          );
+            if (vencimento) {
+              const mes =
+                String(
+                  vencimento,
+                ).substring(0, 7);
 
-          if (/^\d{4}-\d{2}$/.test(mes)) {
-            meses.add(mes);
-          }
-        }
-      });
-    });
-
-    // Sempre incluir alguns meses ao redor do atual.
-    const hoje = new Date();
-
-    const inicio = new Date(
-      hoje.getFullYear(),
-      hoje.getMonth() - 12,
-      1,
+              if (
+                /^\d{4}-\d{2}$/.test(
+                  mes,
+                )
+              ) {
+                meses.add(mes);
+              }
+            }
+          },
+        );
+      },
     );
 
-    for (let i = 0; i < 37; i++) {
-      const ano = inicio.getFullYear();
+    const hoje =
+      new Date();
 
-      const mes = String(
-        inicio.getMonth() + 1,
-      ).padStart(2, "0");
+    const inicio =
+      new Date(
+        hoje.getFullYear(),
+        hoje.getMonth() - 12,
+        1,
+      );
 
-      meses.add(`${ano}-${mes}`);
+    for (
+      let i = 0;
+      i < 37;
+      i++
+    ) {
+      const ano =
+        inicio.getFullYear();
+
+      const mes =
+        String(
+          inicio.getMonth() + 1,
+        ).padStart(2, "0");
+
+      meses.add(
+        `${ano}-${mes}`,
+      );
 
       inicio.setMonth(
         inicio.getMonth() + 1,
       );
     }
 
-    const mesesOrdenados = [...meses].sort();
+    const mesesOrdenados =
+      [...meses].sort();
 
     filtroMes.innerHTML = `
       <option value="TODOS">
@@ -3953,22 +4475,25 @@ function mostrarParcelas() {
           const [ano, numeroMes] =
             mes.split("-");
 
-          const nomeMes = new Date(
-            Number(ano),
-            Number(numeroMes) - 1,
-            1,
-          ).toLocaleDateString(
-            "pt-BR",
-            {
-              month: "long",
-              year: "numeric",
-            },
-          );
+          const nomeMes =
+            new Date(
+              Number(ano),
+              Number(numeroMes) - 1,
+              1,
+            ).toLocaleDateString(
+              "pt-BR",
+              {
+                month: "long",
+                year: "numeric",
+              },
+            );
 
           return `
             <option value="${mes}">
               ${
-                nomeMes.charAt(0).toUpperCase() +
+                nomeMes
+                  .charAt(0)
+                  .toUpperCase() +
                 nomeMes.slice(1)
               }
             </option>
@@ -3978,29 +4503,17 @@ function mostrarParcelas() {
     `;
 
     if (
-      valorAtual &&
       [...filtroMes.options].some(
         (option) =>
-          option.value === valorAtual,
+          option.value ===
+          valorAtual,
       )
     ) {
-      filtroMes.value = valorAtual;
+      filtroMes.value =
+        valorAtual;
     } else {
-      const mesAtual =
-        `${hoje.getFullYear()}-${String(
-          hoje.getMonth() + 1,
-        ).padStart(2, "0")}`;
-
-      if (
-        [...filtroMes.options].some(
-          (option) =>
-            option.value === mesAtual,
-        )
-      ) {
-        filtroMes.value = mesAtual;
-      } else {
-        filtroMes.value = "TODOS";
-      }
+      filtroMes.value =
+        "TODOS";
     }
   }
 
@@ -4009,10 +4522,16 @@ function mostrarParcelas() {
   // ==========================================
 
   const contaSelecionada =
-    filtroConta?.value || "TODAS";
+    filtroConta?.value ||
+    "TODAS";
 
   const mesSelecionado =
-    filtroMes?.value || "TODOS";
+    filtroMes?.value ||
+    "TODOS";
+
+  // ==========================================
+  // APLICAÇÃO DOS FILTROS
+  // ==========================================
 
   let comprasFiltradas =
     comprasNormalizadas.filter(
@@ -4022,19 +4541,27 @@ function mostrarParcelas() {
         // --------------------------------------
 
         if (
-          contaSelecionada !== "TODAS" &&
-          String(compra.cartaoId) !==
-            String(contaSelecionada)
+          contaSelecionada !==
+            "TODAS" &&
+          String(
+            compra.cartaoId,
+          ) !==
+            String(
+              contaSelecionada,
+            )
         ) {
           return false;
         }
 
         // --------------------------------------
-        // MÊS DA PARCELA
+        // MÊS
         // --------------------------------------
 
-        if (mesSelecionado !== "TODOS") {
-          const possuiParcelaNoMes =
+        if (
+          mesSelecionado !==
+          "TODOS"
+        ) {
+          const possuiParcela =
             compra.parcelas.some(
               (parcela) => {
                 const vencimento =
@@ -4043,15 +4570,20 @@ function mostrarParcelas() {
 
                 return (
                   vencimento &&
-                  String(vencimento).substring(
+                  String(
+                    vencimento,
+                  ).substring(
                     0,
                     7,
-                  ) === mesSelecionado
+                  ) ===
+                    mesSelecionado
                 );
               },
             );
 
-          if (!possuiParcelaNoMes) {
+          if (
+            !possuiParcela
+          ) {
             return false;
           }
         }
@@ -4068,17 +4600,22 @@ function mostrarParcelas() {
     window.parcelasStatus ||
     "ANDAMENTO";
 
-  if (status === "FINALIZADAS") {
+  if (
+    status ===
+    "FINALIZADAS"
+  ) {
     comprasFiltradas =
       comprasFiltradas.filter(
         (compra) =>
-          compra.finalizada,
+          compra.finalizada ===
+          true,
       );
   } else {
     comprasFiltradas =
       comprasFiltradas.filter(
         (compra) =>
-          !compra.finalizada,
+          compra.finalizada !==
+          true,
       );
   }
 
@@ -4092,292 +4629,399 @@ function mostrarParcelas() {
   const valorTotal =
     comprasFiltradas.reduce(
       (total, compra) =>
-        total + compra.valorTotal,
+        total +
+        Number(
+          compra.valorTotal ||
+            0,
+        ),
       0,
     );
 
   const valorPago =
     comprasFiltradas.reduce(
       (total, compra) =>
-        total + compra.valorJaPago,
+        total +
+        Number(
+          compra.valorJaPago ||
+            0,
+        ),
       0,
     );
 
   const valorRestante =
     comprasFiltradas.reduce(
       (total, compra) =>
-        total + compra.valorRestante,
+        total +
+        Number(
+          compra.valorRestante ||
+            0,
+        ),
       0,
     );
 
   const percentual =
     valorTotal > 0
       ? Math.min(
-          (valorPago / valorTotal) * 100,
+          (
+            valorPago /
+            valorTotal
+          ) * 100,
           100,
         )
       : 0;
 
-  if (elementoAndamento) {
+  if (
+    elementoAndamento
+  ) {
     elementoAndamento.textContent =
       quantidade;
   }
 
-  if (elementoValorTotal) {
+  if (
+    elementoValorTotal
+  ) {
     elementoValorTotal.textContent =
-      dinheiro(valorTotal);
+      dinheiro(
+        valorTotal,
+      );
   }
 
-  if (elementoJaPago) {
+  if (
+    elementoJaPago
+  ) {
     elementoJaPago.textContent =
-      dinheiro(valorPago);
+      dinheiro(
+        valorPago,
+      );
   }
 
-  if (elementoRestante) {
+  if (
+    elementoRestante
+  ) {
     elementoRestante.textContent =
-      dinheiro(valorRestante);
+      dinheiro(
+        valorRestante,
+      );
   }
 
-  if (elementoProgresso) {
+  if (
+    elementoProgresso
+  ) {
     elementoProgresso.style.width =
       `${percentual}%`;
   }
 
-  if (elementoProgressoTexto) {
+  if (
+    elementoProgressoTexto
+  ) {
     elementoProgressoTexto.textContent =
-      `${Math.round(percentual)}% pago`;
+      `${Math.round(
+        percentual,
+      )}% pago`;
   }
 
   // ==========================================
   // ÚLTIMA DATA
   // ==========================================
 
-  const datas = comprasFiltradas
-    .flatMap((compra) =>
-      compra.parcelas.map(
-        (parcela) =>
-          parcela.vencimento ||
-          parcela.dueDate,
-      ),
-    )
-    .filter(Boolean)
-    .sort(
-      (a, b) =>
-        new Date(b) - new Date(a),
-    );
+  const datas =
+    comprasFiltradas
+      .flatMap(
+        (compra) =>
+          compra.parcelas.map(
+            (parcela) =>
+              parcela.vencimento ||
+              parcela.dueDate,
+          ),
+      )
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          new Date(b) -
+          new Date(a),
+      );
 
-  if (elementoUltimaData) {
+  if (
+    elementoUltimaData
+  ) {
     elementoUltimaData.textContent =
       datas.length
-        ? dataBR(datas[0])
+        ? dataBR(
+            datas[0],
+          )
         : "—";
   }
 
   // ==========================================
-  // LISTA
+  // LISTA VAZIA
   // ==========================================
 
-  if (!comprasFiltradas.length) {
+  if (
+    !comprasFiltradas.length
+  ) {
     lista.innerHTML = `
       <div class="empty">
-        Nenhuma compra parcelada encontrada
-        para os filtros selecionados.
+        ${
+          status ===
+          "FINALIZADAS"
+            ? "Nenhuma compra finalizada encontrada."
+            : "Nenhuma compra em andamento encontrada."
+        }
       </div>
     `;
 
     return;
   }
 
+  // ==========================================
+  // LISTA
+  // ==========================================
+
   lista.innerHTML =
     comprasFiltradas
-      .map((compra) => {
-        // --------------------------------------
-        // PARCELA DO MÊS SELECIONADO
-        // --------------------------------------
+      .map(
+        (compra) => {
+          let parcelaExibida =
+            null;
 
-        let parcelaExibida = null;
+          // ------------------------------------
+          // MÊS ESPECÍFICO
+          // ------------------------------------
 
-        if (mesSelecionado !== "TODOS") {
-          parcelaExibida =
-            compra.parcelas.find(
-              (parcela) => {
-                const vencimento =
-                  parcela.vencimento ||
-                  parcela.dueDate;
+          if (
+            mesSelecionado !==
+            "TODOS"
+          ) {
+            parcelaExibida =
+              compra.parcelas.find(
+                (parcela) => {
+                  const vencimento =
+                    parcela.vencimento ||
+                    parcela.dueDate;
 
-                return (
-                  vencimento &&
-                  String(vencimento).substring(
-                    0,
-                    7,
-                  ) === mesSelecionado
-                );
-              },
+                  return (
+                    vencimento &&
+                    String(
+                      vencimento,
+                    ).substring(
+                      0,
+                      7,
+                    ) ===
+                      mesSelecionado
+                  );
+                },
+              );
+          }
+
+          // ------------------------------------
+          // PRÓXIMA PARCELA
+          // ------------------------------------
+
+          if (
+            !parcelaExibida
+          ) {
+            parcelaExibida =
+              compra.parcelas.find(
+                (parcela) => {
+                  const statusParcela =
+                    String(
+                      parcela.status ||
+                        "",
+                    ).toUpperCase();
+
+                  return ![
+                    "POSTED",
+                    "PAID",
+                    "SETTLED",
+                  ].includes(
+                    statusParcela,
+                  );
+                },
+              );
+          }
+
+          // ------------------------------------
+          // ÚLTIMA PARCELA
+          // ------------------------------------
+
+          if (
+            !parcelaExibida
+          ) {
+            parcelaExibida =
+              compra.parcelas[
+                compra.parcelas.length -
+                  1
+              ];
+          }
+
+          const numeroParcela =
+            Number(
+              parcelaExibida
+                ?.parcelaAtual ||
+                0,
             );
-        }
 
-        // Se "todos", mostra a próxima pendente.
-        if (!parcelaExibida) {
-          parcelaExibida =
-            compra.parcelas.find(
-              (parcela) =>
-                String(
-                  parcela.status || "",
-                ).toUpperCase() !==
-                "POSTED",
+          const totalParcelas =
+            Number(
+              parcelaExibida
+                ?.totalParcelas ||
+                compra.totalParcelas ||
+                0,
             );
-        }
 
-        // Se não encontrou pendente,
-        // mostra a última parcela.
-        if (!parcelaExibida) {
-          parcelaExibida =
-            compra.parcelas[
-              compra.parcelas.length - 1
-            ];
-        }
+          const valorParcela =
+            Math.abs(
+              Number(
+                parcelaExibida
+                  ?.valor ||
+                  0,
+              ),
+            );
 
-        const numeroParcela = Number(
-          parcelaExibida?.parcelaAtual || 0,
-        );
+          const vencimento =
+            parcelaExibida?.vencimento ||
+            parcelaExibida?.dueDate;
 
-        const totalParcelas =
-          Number(
-            parcelaExibida?.totalParcelas ||
-              compra.totalParcelas ||
-              0,
-          );
-
-        const valorParcela = Number(
-          parcelaExibida?.valor || 0,
-        );
-
-        const vencimento =
-          parcelaExibida?.vencimento ||
-          parcelaExibida?.dueDate;
-
-        const progresso =
-          compra.valorTotal > 0
-            ? Math.min(
-                (compra.valorJaPago /
-                  compra.valorTotal) *
+          const progresso =
+            compra.valorTotal >
+            0
+              ? Math.min(
+                  (
+                    compra.valorJaPago /
+                    compra.valorTotal
+                  ) * 100,
                   100,
-                100,
-              )
-            : 0;
+                )
+              : 0;
 
-        const statusParcela =
-          String(
-            parcelaExibida?.status || "",
-          ).toUpperCase();
+          const statusParcela =
+            String(
+              parcelaExibida?.status ||
+                "",
+            ).toUpperCase();
 
-        const textoStatus =
-          statusParcela === "POSTED"
-            ? "🟢 Lançada"
-            : "🟡 Pendente";
+          const textoStatus =
+            [
+              "POSTED",
+              "PAID",
+              "SETTLED",
+            ].includes(
+              statusParcela,
+            )
+              ? "🟢 Paga"
+              : "🟡 Pendente";
 
-        return `
-          <div class="transaction">
+          return `
+            <div class="transaction">
 
-            <div style="flex:1;">
+              <div style="flex:1;">
 
-              <div class="desc">
-                ${escapar(compra.nome)}
-              </div>
+                <div class="desc">
+                  ${escapar(
+                    compra.nome,
+                  )}
+                </div>
 
-              <div class="meta">
-                💳
-                ${escapar(
-                  compra.cartaoNome,
-                )}
-              </div>
+                <div class="meta">
+                  💳
+                  ${escapar(
+                    compra.cartaoNome,
+                  )}
+                </div>
 
-              <div class="meta">
-                Parcela
-                ${numeroParcela}/${totalParcelas}
-                ·
-                ${textoStatus}
-              </div>
+                <div class="meta">
+                  Parcela
+                  ${numeroParcela}/${totalParcelas}
+                  ·
+                  ${textoStatus}
+                </div>
 
-              <div class="meta">
-                Valor desta parcela:
-                ${dinheiro(valorParcela)}
-              </div>
+                <div class="meta">
+                  Valor desta parcela:
+                  ${dinheiro(
+                    valorParcela,
+                  )}
+                </div>
 
-              <div class="meta">
-                Vencimento:
-                ${dataBR(vencimento)}
-              </div>
+                <div class="meta">
+                  Vencimento:
+                  ${dataBR(
+                    vencimento,
+                  )}
+                </div>
 
-              <div class="meta">
-                Total da compra:
-                ${dinheiro(
-                  compra.valorTotal,
-                )}
-              </div>
+                <div class="meta">
+                  Total da compra:
+                  ${dinheiro(
+                    compra.valorTotal,
+                  )}
+                </div>
 
-              <div class="meta">
-                Já pago:
-                ${dinheiro(
-                  compra.valorJaPago,
-                )}
-              </div>
+                <div class="meta">
+                  Já pago:
+                  ${dinheiro(
+                    compra.valorJaPago,
+                  )}
+                </div>
 
-              <div class="meta">
-                Restante:
-                ${dinheiro(
-                  compra.valorRestante,
-                )}
-              </div>
+                <div class="meta">
+                  Restante:
+                  ${dinheiro(
+                    compra.valorRestante,
+                  )}
+                </div>
 
-              <div
-                style="
-                  margin-top:10px;
-                  width:100%;
-                  height:7px;
-                  background:#e5e7eb;
-                  border-radius:999px;
-                  overflow:hidden;
-                "
-              >
                 <div
                   style="
-                    width:${progresso}%;
-                    height:100%;
-                    background:#16a34a;
+                    margin-top:10px;
+                    width:100%;
+                    height:7px;
+                    background:#e5e7eb;
                     border-radius:999px;
+                    overflow:hidden;
                   "
-                ></div>
+                >
+                  <div
+                    style="
+                      width:${progresso}%;
+                      height:100%;
+                      background:#16a34a;
+                      border-radius:999px;
+                    "
+                  ></div>
+                </div>
+
+                <div
+                  class="meta"
+                  style="margin-top:5px;"
+                >
+                  ${Math.round(
+                    progresso,
+                  )}% pago
+                </div>
+
               </div>
 
               <div
-                class="meta"
-                style="margin-top:5px;"
+                class="amount ${
+                  compra.finalizada
+                    ? "income"
+                    : "expense"
+                }"
               >
-                ${Math.round(progresso)}% pago
+                ${
+                  compra.finalizada
+                    ? "✓ Finalizada"
+                    : dinheiro(
+                        valorParcela,
+                      )
+                }
               </div>
 
             </div>
-
-            <div
-              class="amount ${
-                compra.finalizada
-                  ? "income"
-                  : "expense"
-              }"
-            >
-              ${
-                compra.finalizada
-                  ? "✓ Finalizada"
-                  : dinheiro(
-                      valorParcela,
-                    )
-              }
-            </div>
-
-          </div>
-        `;
-      })
+          `;
+        },
+      )
       .join("");
 }
 
