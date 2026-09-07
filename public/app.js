@@ -5148,3 +5148,340 @@ document.addEventListener(
     }
   },
 );
+
+// ==========================================
+// MENU RESPONSIVO PARA CELULAR
+// ==========================================
+
+function configurarMenuResponsivo() {
+  const sidebar = document.querySelector(".sidebar");
+  const main = document.querySelector(".main");
+
+  if (!sidebar || !main) {
+    return;
+  }
+
+  // Evita criar o menu duas vezes
+  if (document.querySelector("#mobileMenuButton")) {
+    return;
+  }
+
+  // ==========================================
+  // CRIAR BOTÃO HAMBÚRGUER
+  // ==========================================
+
+  const botaoMenu = document.createElement("button");
+
+  botaoMenu.id = "mobileMenuButton";
+  botaoMenu.type = "button";
+  botaoMenu.setAttribute("aria-label", "Abrir menu");
+  botaoMenu.innerHTML = "☰";
+
+  // ==========================================
+  // CRIAR FUNDO ESCURO
+  // ==========================================
+
+  const overlay = document.createElement("div");
+
+  overlay.id = "mobileMenuOverlay";
+
+  // ==========================================
+  // ADICIONAR NA PÁGINA
+  // ==========================================
+
+  document.body.appendChild(botaoMenu);
+  document.body.appendChild(overlay);
+
+  // ==========================================
+  // CSS DO MENU
+  // ==========================================
+
+  const estilo = document.createElement("style");
+
+  estilo.id = "mobileMenuStyle";
+
+  estilo.textContent = `
+    
+    /* ========================================
+       BOTÃO HAMBÚRGUER
+    ======================================== */
+
+    #mobileMenuButton {
+      display: none;
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 10001;
+
+      width: 48px;
+      height: 48px;
+
+      border: none;
+      border-radius: 12px;
+
+      background: #4054c6;
+      color: white;
+
+      font-size: 25px;
+      line-height: 1;
+
+      cursor: pointer;
+
+      box-shadow: 0 8px 25px rgba(0,0,0,.20);
+    }
+
+    /* ========================================
+       FUNDO ESCURO
+    ======================================== */
+
+    #mobileMenuOverlay {
+      display: none;
+
+      position: fixed;
+      inset: 0;
+
+      background: rgba(0, 0, 0, .55);
+
+      z-index: 9998;
+    }
+
+    /* ========================================
+       CELULAR
+    ======================================== */
+
+    @media (max-width: 768px) {
+
+      #mobileMenuButton {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .sidebar {
+        position: fixed !important;
+
+        top: 0;
+        left: 0;
+        bottom: 0;
+
+        width: 280px !important;
+        max-width: 85vw;
+
+        z-index: 10000;
+
+        transform: translateX(-100%);
+
+        transition: transform .3s ease;
+
+        overflow-y: auto;
+
+        box-shadow: 10px 0 30px rgba(0,0,0,.20);
+      }
+
+      .sidebar.mobile-open {
+        transform: translateX(0);
+      }
+
+      #mobileMenuOverlay.mobile-open {
+        display: block;
+      }
+
+      .main {
+        width: 100% !important;
+        min-width: 0 !important;
+
+        margin-left: 0 !important;
+
+        padding-top: 75px !important;
+      }
+
+      .topbar {
+        padding-top: 10px;
+      }
+
+      /* ======================================
+         AJUSTE DO CONTEÚDO
+      ====================================== */
+
+      .cards {
+        grid-template-columns: 1fr !important;
+      }
+
+      .grid-2 {
+        grid-template-columns: 1fr !important;
+      }
+
+      .fixed-layout {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* ======================================
+         TABELAS
+      ====================================== */
+
+      .table-wrap {
+        overflow-x: auto;
+        width: 100%;
+      }
+
+      table {
+        min-width: 700px;
+      }
+
+      /* ======================================
+         FORMULÁRIOS
+      ====================================== */
+
+      input,
+      select,
+      textarea,
+      button {
+        max-width: 100%;
+      }
+
+      /* ======================================
+         BOTÕES DAS CAIXINHAS
+      ====================================== */
+
+      .fixed-item {
+        flex-direction: column;
+        align-items: stretch !important;
+      }
+
+      .fixed-item > div:last-child {
+        width: 100%;
+      }
+
+      .fixed-item button {
+        width: 100%;
+        margin-top: 6px;
+      }
+
+      /* ======================================
+         TÍTULOS
+      ====================================== */
+
+      .section-title {
+        flex-direction: column;
+        align-items: stretch !important;
+      }
+
+      .filters {
+        width: 100%;
+        flex-direction: column;
+      }
+
+      .filters label,
+      .filters input,
+      .filters select,
+      .filters button {
+        width: 100%;
+      }
+
+      /* ======================================
+         MODAIS
+      ====================================== */
+
+      #modalDashboardCaixinha {
+        padding: 10px !important;
+      }
+
+      #modalDashboardCaixinha > div {
+        padding: 18px !important;
+        border-radius: 18px !important;
+      }
+
+    }
+
+  `;
+
+  document.head.appendChild(estilo);
+
+  // ==========================================
+  // ABRIR MENU
+  // ==========================================
+
+  function abrirMenu() {
+    sidebar.classList.add("mobile-open");
+    overlay.classList.add("mobile-open");
+
+    botaoMenu.innerHTML = "✕";
+    botaoMenu.setAttribute("aria-label", "Fechar menu");
+
+    document.body.style.overflow = "hidden";
+  }
+
+  // ==========================================
+  // FECHAR MENU
+  // ==========================================
+
+  function fecharMenu() {
+    sidebar.classList.remove("mobile-open");
+    overlay.classList.remove("mobile-open");
+
+    botaoMenu.innerHTML = "☰";
+    botaoMenu.setAttribute("aria-label", "Abrir menu");
+
+    document.body.style.overflow = "";
+  }
+
+  // ==========================================
+  // ABRIR / FECHAR
+  // ==========================================
+
+  botaoMenu.addEventListener("click", () => {
+    const aberto = sidebar.classList.contains("mobile-open");
+
+    if (aberto) {
+      fecharMenu();
+    } else {
+      abrirMenu();
+    }
+  });
+
+  // ==========================================
+  // CLICAR NO FUNDO
+  // ==========================================
+
+  overlay.addEventListener("click", () => {
+    fecharMenu();
+  });
+
+  // ==========================================
+  // CLICAR EM UMA OPÇÃO DO MENU
+  // ==========================================
+
+  sidebar.querySelectorAll(".nav-item").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      fecharMenu();
+    });
+  });
+
+  // ==========================================
+  // ESC FECHA O MENU
+  // ==========================================
+
+  document.addEventListener("keydown", (evento) => {
+    if (evento.key === "Escape") {
+      fecharMenu();
+    }
+  });
+
+  // ==========================================
+  // SE VOLTAR PARA DESKTOP
+  // ==========================================
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 768) {
+      fecharMenu();
+    }
+  });
+}
+
+// ==========================================
+// INICIAR MENU RESPONSIVO
+// ==========================================
+
+document.addEventListener("DOMContentLoaded", () => {
+  configurarMenuResponsivo();
+});

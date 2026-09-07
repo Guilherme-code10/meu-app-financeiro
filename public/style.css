@@ -1348,3 +1348,409 @@ th {
 #creditCardDetails {
   margin-top: 10px;
 }
+
+/* =========================================================
+   RESPONSIVIDADE FINAL - MEU FINANCEIRO
+   ========================================================= */
+
+/* ---------------- TABLET ---------------- */
+
+@media (max-width: 1050px) {
+
+  .main {
+    margin-left: 245px;
+    padding: 28px 24px;
+  }
+
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .accounts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .fixed-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ---------------- CELULAR ---------------- */
+
+@media (max-width: 720px) {
+
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    min-width: 0;
+  }
+
+  /* Estrutura */
+
+  .app-shell {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Menu */
+
+  .sidebar {
+    position: relative;
+    inset: auto;
+
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+
+    height: auto;
+    min-height: auto;
+
+    padding: 16px 14px;
+
+    overflow: visible;
+  }
+
+  .brand {
+    margin: 0 8px 18px;
+  }
+
+  .logged-user {
+    width: 100%;
+    margin-bottom: 16px;
+  }
+
+  /* Menu em duas colunas */
+
+  .sidebar nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .nav-item {
+    width: 100%;
+    min-width: 0;
+
+    justify-content: center;
+
+    padding: 11px 6px;
+
+    text-align: center;
+
+    font-size: 13px;
+  }
+
+  .nav-item span {
+    display: inline;
+  }
+
+  .connection {
+    display: flex;
+    margin-top: 16px;
+  }
+
+
+  /* Conteúdo principal */
+
+  .main {
+    width: 100%;
+    max-width: 100%;
+
+    margin-left: 0;
+
+    padding: 20px 14px 30px;
+
+    min-width: 0;
+  }
+
+
+  /* Cabeçalhos */
+
+  .topbar,
+  .section-title,
+  .panel-head {
+    width: 100%;
+
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    gap: 12px;
+  }
+
+  h1 {
+    font-size: 25px;
+    line-height: 1.2;
+  }
+
+  h2 {
+    font-size: 19px;
+  }
+
+
+  /* Cards */
+
+  .cards {
+    width: 100%;
+
+    grid-template-columns: 1fr;
+
+    gap: 12px;
+  }
+
+  .card {
+    width: 100%;
+    min-width: 0;
+
+    padding: 18px;
+  }
+
+  .card strong {
+    font-size: 23px;
+  }
+
+
+  /* Dashboard */
+
+  .grid-2 {
+    width: 100%;
+
+    grid-template-columns: 1fr;
+
+    gap: 12px;
+
+    margin-top: 12px;
+  }
+
+  .panel {
+    width: 100%;
+    min-width: 0;
+
+    padding: 18px;
+  }
+
+
+  /* Contas */
+
+  .accounts-grid {
+    width: 100%;
+
+    grid-template-columns: 1fr;
+
+    gap: 12px;
+  }
+
+  .account-card {
+    width: 100%;
+    min-width: 0;
+  }
+
+
+  /* Contas fixas */
+
+  .fixed-layout {
+    width: 100%;
+
+    grid-template-columns: 1fr;
+
+    gap: 12px;
+  }
+
+  .form-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .fixed-list {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .fixed-item {
+    width: 100%;
+    min-width: 0;
+
+    display: flex;
+
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    gap: 10px;
+  }
+
+  .fixed-item > div {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .delete-btn {
+    align-self: flex-start;
+  }
+
+
+  /* Formulários */
+
+  .form-panel label {
+    width: 100%;
+  }
+
+  input,
+  select {
+    width: 100%;
+    max-width: 100%;
+
+    min-width: 0;
+
+    font-size: 16px;
+  }
+
+  .form-panel .primary {
+    width: 100%;
+  }
+
+
+  /* Filtros */
+
+  .filters {
+    width: 100%;
+
+    display: grid;
+
+    grid-template-columns: 1fr;
+
+    gap: 10px;
+  }
+
+  .filters label {
+    width: 100%;
+  }
+
+
+  /* Transações */
+
+  .transaction {
+    grid-template-columns: 1fr;
+
+    gap: 6px;
+  }
+
+  .amount {
+    justify-self: start;
+  }
+
+
+  /* Tabelas */
+
+  .table-wrap {
+    width: 100%;
+    max-width: 100%;
+
+    overflow-x: auto;
+
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    min-width: 600px;
+  }
+
+
+  /* Gráficos */
+
+  canvas {
+    max-width: 100% !important;
+  }
+
+
+  /* Imagens */
+
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+
+  /* Botões */
+
+  button {
+    max-width: 100%;
+  }
+
+
+  /* Evita estouro */
+
+  .section,
+  .panel,
+  .card,
+  .account-card,
+  .fixed-item,
+  .form-panel {
+    box-sizing: border-box;
+  }
+
+  p,
+  span,
+  strong,
+  small {
+    overflow-wrap: break-word;
+  }
+}
+
+
+/* ---------------- CELULAR PEQUENO ---------------- */
+
+@media (max-width: 420px) {
+
+  .sidebar {
+    padding: 12px 10px;
+  }
+
+  .brand {
+    margin-left: 4px;
+    margin-right: 4px;
+  }
+
+  .nav-item {
+    font-size: 12px;
+    padding: 10px 4px;
+    gap: 6px;
+  }
+
+  .main {
+    padding: 16px 10px 25px;
+  }
+
+  .card,
+  .panel {
+    padding: 15px;
+  }
+
+  h1 {
+    font-size: 23px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  .logged-user {
+    padding: 9px;
+  }
+
+  .logout-button {
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+}
