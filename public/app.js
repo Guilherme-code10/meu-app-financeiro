@@ -47,6 +47,11 @@ function mostrarLogin() {
   if (app) {
     app.style.display = "none";
   }
+  const botaoMenu = document.querySelector("#mobileMenuButton");
+
+  if (botaoMenu) {
+    botaoMenu.style.display = "none";
+  }
 }
 
 function mostrarAplicacao() {
@@ -61,8 +66,15 @@ function mostrarAplicacao() {
   if (app) {
     app.style.display = "flex";
   }
-}
 
+  // Mostrar novamente o botão do menu
+  // depois que o usuário fizer login
+  const botaoMenu = document.querySelector("#mobileMenuButton");
+
+  if (botaoMenu) {
+    botaoMenu.style.display = "";
+  }
+}
 function mostrarErroLogin(mensagem) {
   const elemento = document.querySelector("#loginError");
 
@@ -503,10 +515,10 @@ async function buscarDados(url, opcoes = {}) {
   }
 
   const resposta = await fetch(url, {
-  ...opcoes,
-  cache: "no-store",
-  headers,
-});
+    ...opcoes,
+    cache: "no-store",
+    headers,
+  });
 
   let dados;
 
@@ -772,7 +784,6 @@ function atualizarDashboard() {
       return total + analise.valor;
     }, 0);
 
-
   // ==========================================
   // CONTAS FIXAS DO MÊS
   // ==========================================
@@ -832,8 +843,7 @@ function atualizarTotalCaixinhas() {
   }
 
   const total = state.caixinhas.reduce(
-    (soma, caixinha) =>
-      soma + Number(caixinha.saldo || 0),
+    (soma, caixinha) => soma + Number(caixinha.saldo || 0),
     0,
   );
 
@@ -855,10 +865,6 @@ function configurarCardTotalCaixinhas() {
     navegar("caixinhas");
   });
 }
-
-// ==========================================
-// CATEGORIAS
-// ==========================================
 
 function mostrarCategorias() {
   const container = document.querySelector("#categoryChart");
@@ -898,35 +904,37 @@ function mostrarCategorias() {
   const maior = lista[0][1] || 1;
 
   container.innerHTML = lista
-    .map(([categoria, valor]) => {
+    .map(([categoria, valor], indice) => {
       const porcentagem = Math.max(5, (valor / maior) * 100);
 
+      const classeCor = `grafico-cor-${(indice % 7) + 1}`;
+
       return `
-            <div class="bar-row">
+        <div class="bar-row">
 
-              <div class="bar-label">
+          <div class="bar-label">
 
-                <span>
-                  ${escapar(categoria)}
-                </span>
+            <span>
+              ${escapar(categoria)}
+            </span>
 
-                <strong>
-                  ${dinheiro(valor)}
-                </strong>
+            <strong>
+              ${dinheiro(valor)}
+            </strong>
 
-              </div>
+          </div>
 
-              <div class="bar-track">
+          <div class="bar-track">
 
-                <div
-                  class="bar"
-                  style="width:${porcentagem}%"
-                ></div>
+            <div
+              class="bar ${classeCor}"
+              style="width:${porcentagem}%"
+            ></div>
 
-              </div>
+          </div>
 
-            </div>
-          `;
+        </div>
+      `;
     })
     .join("");
 }
@@ -1025,8 +1033,6 @@ function mostrarTabela() {
 // CONTAS FIXAS
 // ==========================================
 
-
-
 function obterMesAtual() {
   const agora = new Date();
 
@@ -1049,9 +1055,7 @@ async function marcarContaComoPaga(id) {
   try {
     const contas = pegarContasFixas();
 
-    const conta = contas.find(
-      (item) => String(item.id) === String(id),
-    );
+    const conta = contas.find((item) => String(item.id) === String(id));
 
     if (!conta) {
       return;
@@ -1095,10 +1099,7 @@ async function marcarContaComoPaga(id) {
 
     await carregarContasFixas();
   } catch (erro) {
-    console.error(
-      "Erro ao atualizar pagamento da conta fixa:",
-      erro,
-    );
+    console.error("Erro ao atualizar pagamento da conta fixa:", erro);
 
     alert(
       "Não foi possível atualizar o pagamento da conta fixa:\n\n" +
@@ -1499,49 +1500,41 @@ function mostrarContasFixas() {
     });
   });
 
- // ==========================================
-// BOTÃO EXCLUIR
-// ==========================================
+  // ==========================================
+  // BOTÃO EXCLUIR
+  // ==========================================
 
-lista.querySelectorAll("[data-delete-fixed]").forEach((botao) => {
-  botao.addEventListener("click", async () => {
-    const id = botao.dataset.deleteFixed;
+  lista.querySelectorAll("[data-delete-fixed]").forEach((botao) => {
+    botao.addEventListener("click", async () => {
+      const id = botao.dataset.deleteFixed;
 
-    const confirmou = confirm(
-      "Deseja realmente excluir esta conta fixa?",
-    );
+      const confirmou = confirm("Deseja realmente excluir esta conta fixa?");
 
-    if (!confirmou) {
-      return;
-    }
+      if (!confirmou) {
+        return;
+      }
 
-    try {
-      botao.disabled = true;
-      botao.textContent = "Excluindo...";
+      try {
+        botao.disabled = true;
+        botao.textContent = "Excluindo...";
 
-      await buscarDados(`/api/contas-fixas/${id}`, {
-        method: "DELETE",
-      });
+        await buscarDados(`/api/contas-fixas/${id}`, {
+          method: "DELETE",
+        });
 
-      await carregarContasFixas();
+        await carregarContasFixas();
 
-      alert("Conta fixa excluída com sucesso!");
-    } catch (erro) {
-      console.error(
-        "Erro ao excluir conta fixa:",
-        erro,
-      );
+        alert("Conta fixa excluída com sucesso!");
+      } catch (erro) {
+        console.error("Erro ao excluir conta fixa:", erro);
 
-      alert(
-        "Não foi possível excluir a conta fixa:\n\n" +
-          erro.message,
-      );
+        alert("Não foi possível excluir a conta fixa:\n\n" + erro.message);
 
-      botao.disabled = false;
-      botao.textContent = "Excluir";
-    }
+        botao.disabled = false;
+        botao.textContent = "Excluir";
+      }
+    });
   });
-});
 }
 
 // ==========================================
@@ -1588,8 +1581,7 @@ function mostrarCaixinhas() {
       const meta = Number(caixinha.meta || 0);
       const saldo = Number(caixinha.saldo || 0);
 
-      const progresso =
-        meta > 0 ? Math.min((saldo / meta) * 100, 100) : 0;
+      const progresso = meta > 0 ? Math.min((saldo / meta) * 100, 100) : 0;
 
       return `
         <div class="fixed-item">
@@ -1641,14 +1633,7 @@ function mostrarCaixinhas() {
 
         </div>
 
-        <div
-          style="
-            display:flex;
-            gap:8px;
-            margin-bottom:20px;
-            flex-wrap:wrap;
-          "
-        >
+        <div class="caixinha-acoes">
         
         <button
   type="button"
@@ -1674,119 +1659,94 @@ function mostrarCaixinhas() {
             ➖ Retirar
           </button>
 
-          <button
-            type="button"
-            class="primary"
-            data-rendimento-caixinha="${caixinha.id}"
-          >
-            📈 Rendimento
-          </button>
+         <button
+  type="button"
+  class="caixinha-btn caixinha-btn-rendimento"
+  data-rendimento-caixinha="${caixinha.id}"
+>
+  Rendimento
+</button>
 
-          <button
-            type="button"
-            class="primary"
-            data-editar-caixinha="${caixinha.id}"
-          >
-            ✏️ Editar
-          </button>
+<button
+  type="button"
+  class="caixinha-btn caixinha-btn-editar"
+  data-editar-caixinha="${caixinha.id}"
+>
+  Editar
+</button>
 
-          <button
-            type="button"
-            class="delete-btn"
-            data-excluir-caixinha="${caixinha.id}"
-          >
-            🗑️ Excluir
-          </button>
+<button
+  type="button"
+  class="caixinha-btn caixinha-btn-excluir"
+  data-excluir-caixinha="${caixinha.id}"
+>
+  Excluir
+</button>
 
         </div>
       `;
     })
     .join("");
 
-    // ------------------------------------------
-// BOTÃO DASHBOARD
-// ------------------------------------------
+  // ------------------------------------------
+  // BOTÃO DASHBOARD
+  // ------------------------------------------
 
-lista
-  .querySelectorAll("[data-dashboard-caixinha]")
-  .forEach((botao) => {
+  lista.querySelectorAll("[data-dashboard-caixinha]").forEach((botao) => {
     botao.addEventListener("click", () => {
-      abrirDashboardCaixinha(
-        botao.dataset.dashboardCaixinha,
-      );
+      abrirDashboardCaixinha(botao.dataset.dashboardCaixinha);
     });
   });
-
 
   // ------------------------------------------
   // BOTÃO ADICIONAR
   // ------------------------------------------
 
-  lista
-    .querySelectorAll("[data-adicionar-caixinha]")
-    .forEach((botao) => {
-      botao.addEventListener("click", () => {
-        adicionarDinheiroCaixinha(
-          botao.dataset.adicionarCaixinha,
-        );
-      });
+  lista.querySelectorAll("[data-adicionar-caixinha]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      adicionarDinheiroCaixinha(botao.dataset.adicionarCaixinha);
     });
+  });
 
   // ------------------------------------------
   // BOTÃO RETIRAR
   // ------------------------------------------
 
-  lista
-    .querySelectorAll("[data-retirar-caixinha]")
-    .forEach((botao) => {
-      botao.addEventListener("click", () => {
-        retirarDinheiroCaixinha(
-          botao.dataset.retirarCaixinha,
-        );
-      });
+  lista.querySelectorAll("[data-retirar-caixinha]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      retirarDinheiroCaixinha(botao.dataset.retirarCaixinha);
     });
+  });
 
   // ------------------------------------------
   // BOTÃO RENDIMENTO
   // ------------------------------------------
 
-  lista
-    .querySelectorAll("[data-rendimento-caixinha]")
-    .forEach((botao) => {
-      botao.addEventListener("click", () => {
-        adicionarRendimento(
-          botao.dataset.rendimentoCaixinha,
-        );
-      });
+  lista.querySelectorAll("[data-rendimento-caixinha]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      adicionarRendimento(botao.dataset.rendimentoCaixinha);
     });
+  });
 
   // ------------------------------------------
   // BOTÃO EDITAR
   // ------------------------------------------
 
-  lista
-    .querySelectorAll("[data-editar-caixinha]")
-    .forEach((botao) => {
-      botao.addEventListener("click", () => {
-        editarCaixinha(
-          botao.dataset.editarCaixinha,
-        );
-      });
+  lista.querySelectorAll("[data-editar-caixinha]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      editarCaixinha(botao.dataset.editarCaixinha);
     });
+  });
 
   // ------------------------------------------
   // BOTÃO EXCLUIR
   // ------------------------------------------
 
-  lista
-    .querySelectorAll("[data-excluir-caixinha]")
-    .forEach((botao) => {
-      botao.addEventListener("click", () => {
-        excluirCaixinha(
-          botao.dataset.excluirCaixinha,
-        );
-      });
+  lista.querySelectorAll("[data-excluir-caixinha]").forEach((botao) => {
+    botao.addEventListener("click", () => {
+      excluirCaixinha(botao.dataset.excluirCaixinha);
     });
+  });
 }
 // ==========================================
 // DASHBOARD DA CAIXINHA
@@ -1794,15 +1754,10 @@ lista
 
 async function abrirDashboardCaixinha(id) {
   try {
-    const dados = await buscarDados(
-      `/api/caixinhas/${id}/dashboard`,
-    );
+    const dados = await buscarDados(`/api/caixinhas/${id}/dashboard`);
 
     if (!dados || !dados.sucesso) {
-      throw new Error(
-        dados?.erro ||
-          "Não foi possível carregar o dashboard.",
-      );
+      throw new Error(dados?.erro || "Não foi possível carregar o dashboard.");
     }
 
     const caixinha = dados.caixinha;
@@ -1813,10 +1768,7 @@ async function abrirDashboardCaixinha(id) {
     // REMOVER DASHBOARD ANTERIOR
     // ------------------------------------------
 
-    const dashboardAnterior =
-      document.querySelector(
-        "#modalDashboardCaixinha",
-      );
+    const dashboardAnterior = document.querySelector("#modalDashboardCaixinha");
 
     if (dashboardAnterior) {
       dashboardAnterior.remove();
@@ -1826,12 +1778,8 @@ async function abrirDashboardCaixinha(id) {
     // FORMATAR HISTÓRICO
     // ------------------------------------------
 
-    const historicoOrdenado = [
-      ...historico,
-    ].sort(
-      (a, b) =>
-        new Date(a.data) -
-        new Date(b.data),
+    const historicoOrdenado = [...historico].sort(
+      (a, b) => new Date(a.data) - new Date(b.data),
     );
 
     // ------------------------------------------
@@ -1840,28 +1788,22 @@ async function abrirDashboardCaixinha(id) {
 
     let saldoGrafico = 0;
 
-    const pontosGrafico =
-      historicoOrdenado.map((item) => {
-        const valor = Number(
-          item.valor || 0,
-        );
+    const pontosGrafico = historicoOrdenado.map((item) => {
+      const valor = Number(item.valor || 0);
 
-        if (
-          item.tipo === "ENTRADA" ||
-          item.tipo === "RENDIMENTO"
-        ) {
-          saldoGrafico += valor;
-        }
+      if (item.tipo === "ENTRADA" || item.tipo === "RENDIMENTO") {
+        saldoGrafico += valor;
+      }
 
-        if (item.tipo === "SAIDA") {
-          saldoGrafico -= valor;
-        }
+      if (item.tipo === "SAIDA") {
+        saldoGrafico -= valor;
+      }
 
-        return {
-          data: item.data,
-          saldo: saldoGrafico,
-        };
-      });
+      return {
+        data: item.data,
+        saldo: saldoGrafico,
+      };
+    });
 
     // ------------------------------------------
     // GERAR GRÁFICO
@@ -1889,40 +1831,25 @@ async function abrirDashboardCaixinha(id) {
       const altura = 220;
       const margem = 35;
 
-      const valores = pontosGrafico.map(
-        (ponto) => ponto.saldo,
-      );
+      const valores = pontosGrafico.map((ponto) => ponto.saldo);
 
-      const maiorValor = Math.max(
-        ...valores,
-        1,
-      );
+      const maiorValor = Math.max(...valores, 1);
 
-      const menorValor = Math.min(
-        ...valores,
-        0,
-      );
+      const menorValor = Math.min(...valores, 0);
 
-      const diferenca =
-        maiorValor - menorValor || 1;
+      const diferenca = maiorValor - menorValor || 1;
 
       const pontos = pontosGrafico
         .map((ponto, indice) => {
           const x =
             margem +
-            (indice /
-              Math.max(
-                pontosGrafico.length - 1,
-                1,
-              )) *
+            (indice / Math.max(pontosGrafico.length - 1, 1)) *
               (largura - margem * 2);
 
           const y =
             altura -
             margem -
-            ((ponto.saldo - menorValor) /
-              diferenca) *
-              (altura - margem * 2);
+            ((ponto.saldo - menorValor) / diferenca) * (altura - margem * 2);
 
           return `${x},${y}`;
         })
@@ -1963,28 +1890,20 @@ async function abrirDashboardCaixinha(id) {
               stroke-linejoin="round"
             />
 
-            ${
-              pontosGrafico
-                .map((ponto, indice) => {
-                  const x =
-                    margem +
-                    (indice /
-                      Math.max(
-                        pontosGrafico.length - 1,
-                        1,
-                      )) *
-                      (largura - margem * 2);
+            ${pontosGrafico
+              .map((ponto, indice) => {
+                const x =
+                  margem +
+                  (indice / Math.max(pontosGrafico.length - 1, 1)) *
+                    (largura - margem * 2);
 
-                  const y =
-                    altura -
-                    margem -
-                    ((ponto.saldo -
-                      menorValor) /
-                      diferenca) *
-                      (altura -
-                        margem * 2);
+                const y =
+                  altura -
+                  margem -
+                  ((ponto.saldo - menorValor) / diferenca) *
+                    (altura - margem * 2);
 
-                  return `
+                return `
                     <circle
                       cx="${x}"
                       cy="${y}"
@@ -1992,9 +1911,8 @@ async function abrirDashboardCaixinha(id) {
                       fill="#4054c6"
                     />
                   `;
-                })
-                .join("")
-            }
+              })
+              .join("")}
 
           </svg>
         </div>
@@ -2005,43 +1923,41 @@ async function abrirDashboardCaixinha(id) {
     // HISTÓRICO
     // ------------------------------------------
 
-    const historicoHTML =
-      historico.length
-        ? historico
-            .map((item) => {
-              const tipo =
-                item.tipo || "";
+    const historicoHTML = historico.length
+      ? historico
+          .map((item) => {
+            const tipo = item.tipo || "";
 
-              let icone = "↔️";
-              let classe = "#64748b";
-              let sinal = "";
+            let icone = "↔️";
+            let classe = "#64748b";
+            let sinal = "";
 
-              if (tipo === "ENTRADA") {
-                icone = "🟢";
-                classe = "#16a34a";
-                sinal = "+";
-              }
+            if (tipo === "ENTRADA") {
+              icone = "🟢";
+              classe = "#16a34a";
+              sinal = "+";
+            }
 
-              if (tipo === "SAIDA") {
-                icone = "🔴";
-                classe = "#dc2626";
-                sinal = "-";
-              }
+            if (tipo === "SAIDA") {
+              icone = "🔴";
+              classe = "#dc2626";
+              sinal = "-";
+            }
 
-              if (tipo === "RENDIMENTO") {
-                icone = "📈";
-                classe = "#2563eb";
-                sinal = "+";
-              }
+            if (tipo === "RENDIMENTO") {
+              icone = "📈";
+              classe = "#2563eb";
+              sinal = "+";
+            }
 
-              const origem =
-                item.tipo === "RENDIMENTO"
-                  ? "Rendimento manual"
-                  : item.origem === "AUTOMATICO"
-                    ? "Automático • Pierre"
-                    : "Movimentação manual";
+            const origem =
+              item.tipo === "RENDIMENTO"
+                ? "Rendimento manual"
+                : item.origem === "AUTOMATICO"
+                  ? "Automático • Pierre"
+                  : "Movimentação manual";
 
-              return `
+            return `
                 <div
                   style="
                     display:flex;
@@ -2077,10 +1993,7 @@ async function abrirDashboardCaixinha(id) {
                     >
 
                       <strong>
-                        ${escapar(
-                          item.descricao ||
-                            "Movimentação",
-                        )}
+                        ${escapar(item.descricao || "Movimentação")}
                       </strong>
 
                       <small
@@ -2106,20 +2019,14 @@ async function abrirDashboardCaixinha(id) {
                     "
                   >
                     ${sinal}
-                    ${dinheiro(
-                      Math.abs(
-                        Number(
-                          item.valor || 0,
-                        ),
-                      ),
-                    )}
+                    ${dinheiro(Math.abs(Number(item.valor || 0)))}
                   </strong>
 
                 </div>
               `;
-            })
-            .join("")
-        : `
+          })
+          .join("")
+      : `
           <div class="empty">
             Nenhuma movimentação encontrada.
           </div>
@@ -2129,11 +2036,9 @@ async function abrirDashboardCaixinha(id) {
     // CRIAR MODAL
     // ------------------------------------------
 
-    const modal =
-      document.createElement("div");
+    const modal = document.createElement("div");
 
-    modal.id =
-      "modalDashboardCaixinha";
+    modal.id = "modalDashboardCaixinha";
 
     modal.style.cssText = `
       position:fixed;
@@ -2200,9 +2105,7 @@ async function abrirDashboardCaixinha(id) {
                 color:#64748b;
               "
             >
-              ${escapar(
-                caixinha.descricao || "",
-              )}
+              ${escapar(caixinha.descricao || "")}
             </p>
 
           </div>
@@ -2297,9 +2200,7 @@ async function abrirDashboardCaixinha(id) {
                 color:#16a34a;
               "
             >
-              ${dinheiro(
-                resumo.totalEntradas,
-              )}
+              ${dinheiro(resumo.totalEntradas)}
             </strong>
           </div>
 
@@ -2320,9 +2221,7 @@ async function abrirDashboardCaixinha(id) {
                 color:#dc2626;
               "
             >
-              ${dinheiro(
-                resumo.totalSaidas,
-              )}
+              ${dinheiro(resumo.totalSaidas)}
             </strong>
           </div>
 
@@ -2343,9 +2242,7 @@ async function abrirDashboardCaixinha(id) {
                 color:#2563eb;
               "
             >
-              ${dinheiro(
-                resumo.totalRendimentos,
-              )}
+              ${dinheiro(resumo.totalRendimentos)}
             </strong>
           </div>
 
@@ -2375,9 +2272,7 @@ async function abrirDashboardCaixinha(id) {
             </strong>
 
             <strong>
-              ${Number(
-                caixinha.progresso || 0,
-              ).toFixed(1)}%
+              ${Number(caixinha.progresso || 0).toFixed(1)}%
             </strong>
 
           </div>
@@ -2393,12 +2288,7 @@ async function abrirDashboardCaixinha(id) {
 
             <div
               style="
-                width:${Math.min(
-                  Number(
-                    caixinha.progresso || 0,
-                  ),
-                  100,
-                )}%;
+                width:${Math.min(Number(caixinha.progresso || 0), 100)}%;
                 height:100%;
                 background:#4054c6;
                 border-radius:20px;
@@ -2448,43 +2338,27 @@ async function abrirDashboardCaixinha(id) {
     // FECHAR
     // ------------------------------------------
 
-    const botaoFechar =
-      document.querySelector(
-        "#fecharDashboardCaixinha",
-      );
+    const botaoFechar = document.querySelector("#fecharDashboardCaixinha");
 
     if (botaoFechar) {
-      botaoFechar.addEventListener(
-        "click",
-        () => {
-          modal.remove();
-        },
-      );
+      botaoFechar.addEventListener("click", () => {
+        modal.remove();
+      });
     }
 
     // ------------------------------------------
     // FECHAR CLICANDO FORA
     // ------------------------------------------
 
-    modal.addEventListener(
-      "click",
-      (evento) => {
-        if (evento.target === modal) {
-          modal.remove();
-        }
-      },
-    );
-
+    modal.addEventListener("click", (evento) => {
+      if (evento.target === modal) {
+        modal.remove();
+      }
+    });
   } catch (erro) {
-    console.error(
-      "Erro ao abrir dashboard da caixinha:",
-      erro,
-    );
+    console.error("Erro ao abrir dashboard da caixinha:", erro);
 
-    alert(
-      "Erro ao carregar dashboard: " +
-        erro.message,
-    );
+    alert("Erro ao carregar dashboard: " + erro.message);
   }
 }
 
@@ -2513,9 +2387,7 @@ async function adicionarDinheiroCaixinha(id) {
     return;
   }
 
-  const valor = Number(
-    String(valorInformado).replace(",", "."),
-  );
+  const valor = Number(String(valorInformado).replace(",", "."));
 
   if (!Number.isFinite(valor) || valor <= 0) {
     alert("Digite um valor válido maior que zero.");
@@ -2523,33 +2395,26 @@ async function adicionarDinheiroCaixinha(id) {
     return;
   }
 
-  const descricaoInformada = prompt(
-    "Descrição da entrada:",
-    "Adição manual",
-  );
+  const descricaoInformada = prompt("Descrição da entrada:", "Adição manual");
 
   if (descricaoInformada === null) {
     return;
   }
 
   try {
-    const dados = await buscarDados(
-      `/api/caixinhas/${id}/movimentacoes`,
-      {
-        method: "POST",
+    const dados = await buscarDados(`/api/caixinhas/${id}/movimentacoes`, {
+      method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-        },
-
-        body: JSON.stringify({
-          tipo: "ENTRADA",
-          valor,
-          descricao:
-            descricaoInformada.trim() || "Adição manual",
-        }),
+      headers: {
+        "Content-Type": "application/json",
       },
-    );
+
+      body: JSON.stringify({
+        tipo: "ENTRADA",
+        valor,
+        descricao: descricaoInformada.trim() || "Adição manual",
+      }),
+    });
 
     alert(
       `Dinheiro adicionado com sucesso!\n\n` +
@@ -2558,15 +2423,9 @@ async function adicionarDinheiroCaixinha(id) {
 
     await carregarCaixinhas();
   } catch (erro) {
-    console.error(
-      "Erro ao adicionar dinheiro:",
-      erro,
-    );
+    console.error("Erro ao adicionar dinheiro:", erro);
 
-    alert(
-      "Erro ao adicionar dinheiro: " +
-        erro.message,
-    );
+    alert("Erro ao adicionar dinheiro: " + erro.message);
   }
 }
 
@@ -2597,9 +2456,7 @@ async function retirarDinheiroCaixinha(id) {
     return;
   }
 
-  const valor = Number(
-    String(valorInformado).replace(",", "."),
-  );
+  const valor = Number(String(valorInformado).replace(",", "."));
 
   if (!Number.isFinite(valor) || valor <= 0) {
     alert("Digite um valor válido maior que zero.");
@@ -2608,9 +2465,7 @@ async function retirarDinheiroCaixinha(id) {
   }
 
   if (valor > saldoAtual) {
-    alert(
-      "Não é possível retirar um valor maior que o saldo da caixinha.",
-    );
+    alert("Não é possível retirar um valor maior que o saldo da caixinha.");
 
     return;
   }
@@ -2625,23 +2480,19 @@ async function retirarDinheiroCaixinha(id) {
   }
 
   try {
-    const dados = await buscarDados(
-      `/api/caixinhas/${id}/movimentacoes`,
-      {
-        method: "POST",
+    const dados = await buscarDados(`/api/caixinhas/${id}/movimentacoes`, {
+      method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-        },
-
-        body: JSON.stringify({
-          tipo: "SAIDA",
-          valor,
-          descricao:
-            descricaoInformada.trim() || "Retirada manual",
-        }),
+      headers: {
+        "Content-Type": "application/json",
       },
-    );
+
+      body: JSON.stringify({
+        tipo: "SAIDA",
+        valor,
+        descricao: descricaoInformada.trim() || "Retirada manual",
+      }),
+    });
 
     alert(
       `Retirada realizada com sucesso!\n\n` +
@@ -2650,15 +2501,209 @@ async function retirarDinheiroCaixinha(id) {
 
     await carregarCaixinhas();
   } catch (erro) {
-    console.error(
-      "Erro ao retirar dinheiro:",
-      erro,
-    );
+    console.error("Erro ao retirar dinheiro:", erro);
+
+    alert("Erro ao retirar dinheiro: " + erro.message);
+  }
+}
+
+// ==========================================
+// CONVERTER VALOR DIGITADO EM PT-BR
+// ==========================================
+
+function converterNumeroBR(valor) {
+  const texto = String(valor ?? "").trim();
+
+  if (!texto) {
+    return NaN;
+  }
+
+  if (texto.includes(",")) {
+    return Number(texto.replace(/\./g, "").replace(",", "."));
+  }
+
+  return Number(texto);
+}
+
+// ==========================================
+// ADICIONAR RENDIMENTO
+// ==========================================
+
+async function adicionarRendimento(id) {
+  const caixinha = state.caixinhas.find(
+    (item) => String(item.id) === String(id),
+  );
+
+  if (!caixinha) {
+    alert("Caixinha não encontrada.");
+    return;
+  }
+
+  const valorInformado = prompt(
+    `Adicionar rendimento para "${caixinha.nome}"\n\n` +
+      `Saldo atual: ${dinheiro(caixinha.saldo)}\n\n` +
+      "Digite o valor do rendimento:",
+  );
+
+  if (valorInformado === null) {
+    return;
+  }
+
+  const valor = converterNumeroBR(valorInformado);
+
+  if (!Number.isFinite(valor) || valor <= 0) {
+    alert("Digite um valor de rendimento válido.");
+    return;
+  }
+
+  const descricaoInformada = prompt("Descrição do rendimento:", "Rendimento");
+
+  if (descricaoInformada === null) {
+    return;
+  }
+
+  try {
+    const dados = await buscarDados(`/api/caixinhas/${id}/rendimento`, {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      body: JSON.stringify({
+        valor,
+        descricao: descricaoInformada.trim() || "Rendimento",
+      }),
+    });
+
+    await carregarCaixinhas();
 
     alert(
-      "Erro ao retirar dinheiro: " +
-        erro.message,
+      `Rendimento adicionado com sucesso!\n\n` +
+        `Novo saldo: ${dinheiro(dados.caixinha.saldo)}`,
     );
+  } catch (erro) {
+    console.error("Erro ao adicionar rendimento:", erro);
+
+    alert("Erro ao adicionar rendimento: " + erro.message);
+  }
+}
+
+// ==========================================
+// EDITAR CAIXINHA
+// ==========================================
+
+async function editarCaixinha(id) {
+  const caixinha = state.caixinhas.find(
+    (item) => String(item.id) === String(id),
+  );
+
+  if (!caixinha) {
+    alert("Caixinha não encontrada.");
+    return;
+  }
+
+  const novoNome = prompt("Nome da caixinha:", caixinha.nome || "");
+
+  if (novoNome === null) {
+    return;
+  }
+
+  const nome = novoNome.trim();
+
+  if (!nome) {
+    alert("O nome da caixinha não pode ficar vazio.");
+    return;
+  }
+
+  const novaMeta = prompt(
+    "Meta da caixinha:",
+    Number(caixinha.meta || 0).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }),
+  );
+
+  if (novaMeta === null) {
+    return;
+  }
+
+  const meta = converterNumeroBR(novaMeta);
+
+  if (!Number.isFinite(meta) || meta <= 0) {
+    alert("Digite uma meta válida maior que zero.");
+    return;
+  }
+
+  const novaDescricao = prompt(
+    "Descrição da caixinha:",
+    caixinha.descricao || "",
+  );
+
+  if (novaDescricao === null) {
+    return;
+  }
+
+  try {
+    await buscarDados(`/api/caixinhas/${id}`, {
+      method: "PUT",
+
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      body: JSON.stringify({
+        nome,
+        meta,
+        descricao: novaDescricao.trim(),
+      }),
+    });
+
+    await carregarCaixinhas();
+
+    alert("Caixinha atualizada com sucesso!");
+  } catch (erro) {
+    console.error("Erro ao editar caixinha:", erro);
+
+    alert("Erro ao editar caixinha: " + erro.message);
+  }
+}
+
+// ==========================================
+// EXCLUIR CAIXINHA
+// ==========================================
+
+async function excluirCaixinha(id) {
+  const caixinha = state.caixinhas.find(
+    (item) => String(item.id) === String(id),
+  );
+
+  if (!caixinha) {
+    alert("Caixinha não encontrada.");
+    return;
+  }
+
+  const confirmou = confirm(
+    `Tem certeza que deseja excluir a caixinha "${caixinha.nome}"?\n\n` +
+      "As movimentações relacionadas a ela também serão excluídas.",
+  );
+
+  if (!confirmou) {
+    return;
+  }
+
+  try {
+    await buscarDados(`/api/caixinhas/${id}`, {
+      method: "DELETE",
+    });
+
+    await carregarCaixinhas();
+
+    alert("Caixinha excluída com sucesso!");
+  } catch (erro) {
+    console.error("Erro ao excluir caixinha:", erro);
+
+    alert("Erro ao excluir caixinha: " + erro.message);
   }
 }
 
@@ -3164,66 +3209,41 @@ async function carregarDados() {
     }
 
     if (fim) {
-  const fimBusca = new Date(`${fim}T00:00:00`);
+      const fimBusca = new Date(`${fim}T00:00:00`);
 
-  fimBusca.setDate(
-    fimBusca.getDate() + 1
-  );
+      fimBusca.setDate(fimBusca.getDate() + 1);
 
-  parametros.set(
-    "endDate",
-    fimBusca.toISOString().slice(0, 10)
-  );
-}
+      parametros.set("endDate", fimBusca.toISOString().slice(0, 10));
+    }
 
     const hoje = new Date();
 
-const inicioParcelamentos = new Date(hoje);
+    const inicioParcelamentos = new Date(hoje);
 
-inicioParcelamentos.setFullYear(
-  inicioParcelamentos.getFullYear() - 5
-);
+    inicioParcelamentos.setFullYear(inicioParcelamentos.getFullYear() - 5);
 
-const fimParcelamentos = new Date(hoje);
+    const fimParcelamentos = new Date(hoje);
 
-fimParcelamentos.setMonth(
-  fimParcelamentos.getMonth() + 24
-);
+    fimParcelamentos.setMonth(fimParcelamentos.getMonth() + 24);
 
-const formatarData = (data) =>
-  data.toISOString().slice(0, 10);
+    const formatarData = (data) => data.toISOString().slice(0, 10);
 
-const parametrosParcelamentos =
-  new URLSearchParams();
+    const parametrosParcelamentos = new URLSearchParams();
 
-parametrosParcelamentos.set(
-  "startDate",
-  formatarData(inicioParcelamentos)
-);
+    parametrosParcelamentos.set("startDate", formatarData(inicioParcelamentos));
 
-parametrosParcelamentos.set(
-  "endDate",
-  formatarData(fimParcelamentos)
-);
+    parametrosParcelamentos.set("endDate", formatarData(fimParcelamentos));
 
-const [
-  dadosContas,
-  dadosTransacoes,
-  dadosParcelamentos,
-  dadosFaturas,
-] = await Promise.all([
-  buscarDados("/api/accounts"),
+    const [dadosContas, dadosTransacoes, dadosParcelamentos, dadosFaturas] =
+      await Promise.all([
+        buscarDados("/api/accounts"),
 
-  buscarDados(
-    `/api/transactions?${parametros.toString()}`
-  ),
+        buscarDados(`/api/transactions?${parametros.toString()}`),
 
-  buscarDados(
-    `/api/installments?${parametrosParcelamentos.toString()}`
-  ),
+        buscarDados(`/api/installments?${parametrosParcelamentos.toString()}`),
 
-  buscarDados("/api/bills"),
-]);
+        buscarDados("/api/bills"),
+      ]);
 
     state.contas = dadosContas.contas || [];
 
@@ -3233,13 +3253,11 @@ const [
 
     state.investimentos = dadosContas.investimentos || [];
 
-   state.transacoes = dadosTransacoes.transacoes || [];
+    state.transacoes = dadosTransacoes.transacoes || [];
 
-state.parcelamentos =
-  dadosParcelamentos.compras || [];
-  
-  state.faturas =
-  dadosFaturas.faturas || [];
+    state.parcelamentos = dadosParcelamentos.compras || [];
+
+    state.faturas = dadosFaturas.faturas || [];
 
     state.resumos = dadosFaturas.resumos || [];
 
@@ -3430,10 +3448,7 @@ async function carregarContasFixas() {
 
     atualizarDashboard();
   } catch (erro) {
-    console.error(
-      "Erro ao carregar contas fixas:",
-      erro,
-    );
+    console.error("Erro ao carregar contas fixas:", erro);
   }
 }
 
@@ -3443,118 +3458,78 @@ async function carregarContasFixas() {
 
 async function migrarContasFixas() {
   const contasLocais = JSON.parse(
-  localStorage.getItem("fixedAccounts") || "[]"
-);
+    localStorage.getItem("fixedAccounts") || "[]",
+  );
 
   if (!contasLocais.length) {
     return;
   }
 
   try {
-    const dadosBanco = await buscarDados(
-      "/api/contas-fixas",
-    );
+    const dadosBanco = await buscarDados("/api/contas-fixas");
 
     const contasBanco = dadosBanco.contas || [];
 
-    const idsBanco = new Set(
-      contasBanco.map((conta) =>
-        String(conta.id),
-      ),
-    );
+    const idsBanco = new Set(contasBanco.map((conta) => String(conta.id)));
 
-    const contasParaMigrar =
-      contasLocais.filter(
-        (conta) =>
-          !idsBanco.has(String(conta.id)),
-      );
+    const contasParaMigrar = contasLocais.filter(
+      (conta) => !idsBanco.has(String(conta.id)),
+    );
 
     if (!contasParaMigrar.length) {
       return;
     }
 
-    console.log(
-      `Migrando ${contasParaMigrar.length} conta(s) fixa(s)...`,
-    );
+    console.log(`Migrando ${contasParaMigrar.length} conta(s) fixa(s)...`);
 
     for (const conta of contasParaMigrar) {
-      await buscarDados(
-        "/api/contas-fixas",
-        {
-          method: "POST",
+      await buscarDados("/api/contas-fixas", {
+        method: "POST",
 
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            id: conta.id,
-
-            name: conta.name,
-
-            amount: Number(conta.amount || 0),
-
-            day: Number(conta.day || 1),
-
-            category:
-              conta.category || "Outros",
-
-            tipo:
-              conta.tipo || "fixa",
-
-            totalParcelas:
-              conta.totalParcelas ??
-              null,
-
-            parcelaAtual:
-              conta.parcelaAtual ??
-              null,
-
-            anoInicioParcela:
-              conta.anoInicioParcela ??
-              null,
-
-            mesInicioParcela:
-              conta.mesInicioParcela ??
-              null,
-
-            pagamentos:
-              Array.isArray(
-                conta.pagamentos,
-              )
-                ? conta.pagamentos
-                : [],
-
-            finalizada:
-              conta.finalizada === true,
-          }),
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+
+        body: JSON.stringify({
+          id: conta.id,
+
+          name: conta.name,
+
+          amount: Number(conta.amount || 0),
+
+          day: Number(conta.day || 1),
+
+          category: conta.category || "Outros",
+
+          tipo: conta.tipo || "fixa",
+
+          totalParcelas: conta.totalParcelas ?? null,
+
+          parcelaAtual: conta.parcelaAtual ?? null,
+
+          anoInicioParcela: conta.anoInicioParcela ?? null,
+
+          mesInicioParcela: conta.mesInicioParcela ?? null,
+
+          pagamentos: Array.isArray(conta.pagamentos) ? conta.pagamentos : [],
+
+          finalizada: conta.finalizada === true,
+        }),
+      });
     }
 
-    console.log(
-      "Migração das contas fixas concluída.",
-    );
+    console.log("Migração das contas fixas concluída.");
 
     await carregarContasFixas();
-
   } catch (erro) {
-    console.error(
-      "Erro ao migrar contas fixas:",
-      erro,
-    );
+    console.error("Erro ao migrar contas fixas:", erro);
 
-    alert(
-      "Não foi possível migrar as contas fixas: " +
-        erro.message,
-    );
+    alert("Não foi possível migrar as contas fixas: " + erro.message);
   }
 }
 
 function pegarContasFixas() {
-  return Array.isArray(state.contasFixas)
-    ? state.contasFixas
-    : [];
+  return Array.isArray(state.contasFixas) ? state.contasFixas : [];
 }
 
 // ==========================================
@@ -3712,37 +3687,30 @@ function configurarFormularioContaFixa() {
     };
 
     // ==========================================
-// SALVAR NO BANCO
-// ==========================================
+    // SALVAR NO BANCO
+    // ==========================================
 
-try {
-  const resposta = await buscarDados(
-    "/api/contas-fixas",
-    {
-      method: "POST",
+    try {
+      const resposta = await buscarDados("/api/contas-fixas", {
+        method: "POST",
 
-      headers: {
-        "Content-Type": "application/json",
-      },
+        headers: {
+          "Content-Type": "application/json",
+        },
 
-      body: JSON.stringify(conta),
-    },
-  );
+        body: JSON.stringify(conta),
+      });
 
- // Recarregar as contas do banco
-// para receber os dados já normalizados
-await carregarContasFixas();
+      // Recarregar as contas do banco
+      // para receber os dados já normalizados
+      await carregarContasFixas();
+    } catch (erro) {
+      console.error("Erro ao salvar conta fixa:", erro);
 
-} catch (erro) {
-  console.error("Erro ao salvar conta fixa:", erro);
+      alert("Não foi possível adicionar a conta:\n\n" + erro.message);
 
-  alert(
-    "Não foi possível adicionar a conta:\n\n" +
-      erro.message,
-  );
-
-  return;
-}
+      return;
+    }
 
     // ==========================================
     // LIMPAR FORMULÁRIO
@@ -3897,24 +3865,20 @@ function mostrarParcelas() {
   const elementoJaPago = document.querySelector("#parcelasJaPago");
   const elementoRestante = document.querySelector("#parcelasRestante");
   const elementoProgresso = document.querySelector("#parcelasProgresso");
-  const elementoProgressoTexto = document.querySelector("#parcelasProgressoTexto");
+  const elementoProgressoTexto = document.querySelector(
+    "#parcelasProgressoTexto",
+  );
   const elementoUltimaData = document.querySelector("#parcelasUltimaData");
 
   if (!lista) {
     return;
   }
 
-  const compras = Array.isArray(state.parcelamentos)
-    ? state.parcelamentos
-    : [];
+  const compras = Array.isArray(state.parcelamentos) ? state.parcelamentos : [];
 
-  const cartoes = Array.isArray(state.cartoes)
-    ? state.cartoes
-    : [];
+  const cartoes = Array.isArray(state.cartoes) ? state.cartoes : [];
 
-  const transacoes = Array.isArray(state.transacoes)
-    ? state.transacoes
-    : [];
+  const transacoes = Array.isArray(state.transacoes) ? state.transacoes : [];
 
   // ==========================================
   // NORMALIZAR TEXTO
@@ -3935,506 +3899,308 @@ function mostrarParcelas() {
   // PARA PARCELAMENTOS MAL FORMADOS
   // ==========================================
 
- function encontrarTransacaoParcelada(compra, parcela) {
-  const nome = normalizarTexto(
-    compra.nome ||
-      compra.descricao ||
-      parcela?.descricao ||
-      "",
-  );
+  function encontrarTransacaoParcelada(compra, parcela) {
+    const nome = normalizarTexto(
+      compra.nome || compra.descricao || parcela?.descricao || "",
+    );
 
-  if (!nome) {
-    return null;
-  }
+    if (!nome) {
+      return null;
+    }
 
-  const candidatos = transacoes
-    .filter((transacao) => {
-      const descricao = normalizarTexto(
-        transacao.descricao,
-      );
+    const candidatos = transacoes
+      .filter((transacao) => {
+        const descricao = normalizarTexto(transacao.descricao);
 
-      if (!descricao) {
-        return false;
-      }
-
-      const corresponde =
-        descricao.includes(nome) ||
-        nome.includes(descricao);
-
-      if (!corresponde) {
-        return false;
-      }
-
-      if (
-        compra.dataCompra &&
-        transacao.data
-      ) {
-        const dataCompra = new Date(
-          compra.dataCompra,
-        );
-
-        const dataTransacao = new Date(
-          transacao.data,
-        );
-
-        const diferenca =
-          Math.abs(
-            dataCompra - dataTransacao,
-          ) /
-          (1000 * 60 * 60 * 24);
-
-        if (diferenca > 10) {
+        if (!descricao) {
           return false;
         }
-      }
 
-      return true;
-    })
-    .sort((a, b) => {
-      const aDescricao =
-        String(a.descricao || "");
+        const corresponde =
+          descricao.includes(nome) || nome.includes(descricao);
 
-      const bDescricao =
-        String(b.descricao || "");
+        if (!corresponde) {
+          return false;
+        }
 
-      const aTemParcela =
-        /\b\d+\s*\/\s*\d+\b/.test(
-          aDescricao,
-        );
+        if (compra.dataCompra && transacao.data) {
+          const dataCompra = new Date(compra.dataCompra);
 
-      const bTemParcela =
-        /\b\d+\s*\/\s*\d+\b/.test(
-          bDescricao,
-        );
+          const dataTransacao = new Date(transacao.data);
 
-      if (
-        aTemParcela !==
-        bTemParcela
-      ) {
-        return aTemParcela
-          ? -1
-          : 1;
-      }
+          const diferenca =
+            Math.abs(dataCompra - dataTransacao) / (1000 * 60 * 60 * 24);
 
-      if (
-        compra.dataCompra &&
-        a.data &&
-        b.data
-      ) {
-        const dataCompra =
-          new Date(
-            compra.dataCompra,
-          );
+          if (diferenca > 10) {
+            return false;
+          }
+        }
 
-        const distanciaA =
-          Math.abs(
-            dataCompra -
-              new Date(a.data),
-          );
+        return true;
+      })
+      .sort((a, b) => {
+        const aDescricao = String(a.descricao || "");
 
-        const distanciaB =
-          Math.abs(
-            dataCompra -
-              new Date(b.data),
-          );
+        const bDescricao = String(b.descricao || "");
 
-        return (
-          distanciaA -
-          distanciaB
-        );
-      }
+        const aTemParcela = /\b\d+\s*\/\s*\d+\b/.test(aDescricao);
 
-      return 0;
-    });
+        const bTemParcela = /\b\d+\s*\/\s*\d+\b/.test(bDescricao);
 
-  return candidatos[0] || null;
-}
+        if (aTemParcela !== bTemParcela) {
+          return aTemParcela ? -1 : 1;
+        }
+
+        if (compra.dataCompra && a.data && b.data) {
+          const dataCompra = new Date(compra.dataCompra);
+
+          const distanciaA = Math.abs(dataCompra - new Date(a.data));
+
+          const distanciaB = Math.abs(dataCompra - new Date(b.data));
+
+          return distanciaA - distanciaB;
+        }
+
+        return 0;
+      });
+
+    return candidatos[0] || null;
+  }
 
   // ==========================================
   // NORMALIZAR COMPRAS
   // ==========================================
 
-  const comprasNormalizadas = compras.map(
-    (compra, index) => {
-      let parcelas = Array.isArray(compra.parcelas)
-        ? [...compra.parcelas]
-        : [];
+  const comprasNormalizadas = compras.map((compra, index) => {
+    let parcelas = Array.isArray(compra.parcelas) ? [...compra.parcelas] : [];
 
-      parcelas = parcelas
-        .map((parcela) => ({
-          ...parcela,
+    parcelas = parcelas
+      .map((parcela) => ({
+        ...parcela,
 
-          valor: Number(parcela.valor || 0),
+        valor: Number(parcela.valor || 0),
 
-          parcelaAtual: Number(
-            parcela.parcelaAtual ||
-              parcela.installmentNumber ||
-              0,
-          ),
+        parcelaAtual: Number(
+          parcela.parcelaAtual || parcela.installmentNumber || 0,
+        ),
 
-          totalParcelas: Number(
-            parcela.totalParcelas ||
-              parcela.totalInstallments ||
-              0,
-          ),
+        totalParcelas: Number(
+          parcela.totalParcelas || parcela.totalInstallments || 0,
+        ),
 
-          status: String(
-            parcela.status || "PENDING",
-          ).toUpperCase(),
+        status: String(parcela.status || "PENDING").toUpperCase(),
 
-          vencimento:
-            parcela.vencimento ||
-            parcela.dueDate ||
-            null,
-        }))
-        .sort(
-          (a, b) =>
-            a.parcelaAtual -
-            b.parcelaAtual,
-        );
+        vencimento: parcela.vencimento || parcela.dueDate || null,
+      }))
+      .sort((a, b) => a.parcelaAtual - b.parcelaAtual);
 
-      // ========================================
-      // CORREÇÃO DE PARCELAMENTO MAL FORMADO
-      // ========================================
+    // ========================================
+    // CORREÇÃO DE PARCELAMENTO MAL FORMADO
+    // ========================================
 
-      const primeiraParcela =
-        parcelas[0];
+    const primeiraParcela = parcelas[0];
 
-      const parcelamentoInvalido =
-        parcelas.length === 0 ||
-        (
-          parcelas.length === 1 &&
-          (
-            primeiraParcela?.totalParcelas <= 1 ||
-            primeiraParcela?.parcelaAtual <= 0 ||
-            primeiraParcela?.valor === 0
-          )
-        );
+    const parcelamentoInvalido =
+      parcelas.length === 0 ||
+      (parcelas.length === 1 &&
+        (primeiraParcela?.totalParcelas <= 1 ||
+          primeiraParcela?.parcelaAtual <= 0 ||
+          primeiraParcela?.valor === 0));
 
-      if (parcelamentoInvalido) {
-        const transacao =
-          encontrarTransacaoParcelada(
-            compra,
-            primeiraParcela,
-          );
+    if (parcelamentoInvalido) {
+      const transacao = encontrarTransacaoParcelada(compra, primeiraParcela);
 
-        if (transacao) {
-          const descricao =
-            String(
-              transacao.descricao || "",
-            );
+      if (transacao) {
+        const descricao = String(transacao.descricao || "");
 
-          const match =
-            descricao.match(
-              /(\d+)\s*\/\s*(\d+)/,
-            );
+        const match = descricao.match(/(\d+)\s*\/\s*(\d+)/);
 
-          if (match) {
-            const numeroAtual =
-              Number(match[1]);
+        if (match) {
+          const numeroAtual = Number(match[1]);
 
-            const total =
-              Number(match[2]);
+          const total = Number(match[2]);
 
-            parcelas = [
-              {
-                descricao,
+          parcelas = [
+            {
+              descricao,
 
-                valor: Math.abs(
-                  Number(
-                    transacao.valor || 0,
-                  ),
-                ),
+              valor: Math.abs(Number(transacao.valor || 0)),
 
-                parcelaAtual:
-                  numeroAtual,
+              parcelaAtual: numeroAtual,
 
-                totalParcelas:
-                  total,
+              totalParcelas: total,
 
-                vencimento:
-                  transacao.data || null,
+              vencimento: transacao.data || null,
 
-                status:
-                  String(
-                    transacao.status ||
-                      "PENDING",
-                  ).toUpperCase(),
+              status: String(transacao.status || "PENDING").toUpperCase(),
 
-                categoria:
-                  transacao.categoria ||
-                  null,
-              },
-            ];
-          }
+              categoria: transacao.categoria || null,
+            },
+          ];
         }
       }
+    }
 
-      // ========================================
-      // TOTAL DE PARCELAS
-      // ========================================
+    // ========================================
+    // TOTAL DE PARCELAS
+    // ========================================
 
-      const totalParcelas = Math.max(
-        Number(
-          compra.totalParcelas || 0,
-        ),
+    const totalParcelas = Math.max(
+      Number(compra.totalParcelas || 0),
 
-        ...parcelas.map(
-          (parcela) =>
-            Number(
-              parcela.totalParcelas ||
-                0,
-            ),
-        ),
-      );
-
-      // ========================================
-      // VALOR TOTAL
-      // ========================================
-
-      const somaParcelas =
-        parcelas.reduce(
-          (total, parcela) =>
-            total +
-            Math.abs(
-              Number(
-                parcela.valor || 0,
-              ),
-            ),
-          0,
-        );
-
-      const valorInformado =
-        Number(
-          compra.valorTotal || 0,
-        );
-
-      /*
-       * Se temos valores reais das parcelas,
-       * damos prioridade a eles.
-       *
-       * Isso preserva:
-       * 1ª parcela = R$ 803,03
-       * próximas = R$ 300 e pouco
-       */
-      const valorTotal =
-        somaParcelas > 0
-          ? somaParcelas
-          : valorInformado;
-
-      // ========================================
-      // PARCELAS PAGAS
-      // ========================================
-
-      const valorJaPago =
-        parcelas.reduce(
-          (total, parcela) => {
-            const status =
-              String(
-                parcela.status || "",
-              ).toUpperCase();
-
-            if (
-              status === "POSTED" ||
-              status === "PAID" ||
-              status === "SETTLED"
-            ) {
-              return (
-                total +
-                Math.abs(
-                  Number(
-                    parcela.valor || 0,
-                  ),
-                )
-              );
-            }
-
-            return total;
-          },
-          0,
-        );
-
-      // ========================================
-      // PARCELA ATUAL
-      // ========================================
-
-      const parcelaAtual =
-        parcelas.length
-          ? Math.max(
-              ...parcelas.map(
-                (parcela) =>
-                  Number(
-                    parcela.parcelaAtual ||
-                      0,
-                  ),
-              ),
-            )
-          : 0;
-
-      // ========================================
-      // FINALIZADA
-      // ========================================
-
-      const ultimaParcela =
-        parcelas.length
-          ? parcelas[
-              parcelas.length - 1
-            ]
-          : null;
-
-      const finalizada =
-        totalParcelas > 0 &&
-        parcelaAtual >= totalParcelas &&
-        !!ultimaParcela &&
-        [
-          "POSTED",
-          "PAID",
-          "SETTLED",
-        ].includes(
-          String(
-            ultimaParcela.status || "",
-          ).toUpperCase(),
-        );
-
-      // ========================================
-      // CARTÃO
-      // ========================================
-
-      let cartaoId =
-        compra.cartaoId ||
-        compra.accountId ||
-        compra.account_id ||
-        "";
-
-      let cartaoNome =
-        compra.cartaoNome ||
-        compra.cartao ||
-        "";
-
-      let banco =
-        compra.banco || "";
-
-      // Se o backend encontrou o cartão,
-      // usamos ele.
-      const cartaoEncontrado =
-        cartoes.find(
-          (cartao) =>
-            String(cartao.id) ===
-            String(cartaoId),
-        );
-
-      if (cartaoEncontrado) {
-        cartaoNome =
-          cartaoEncontrado.nome ||
-          cartaoEncontrado.banco ||
-          cartaoNome;
-
-        banco =
-          cartaoEncontrado.banco ||
-          banco;
-      }
-
-      // ========================================
-      // TENTAR DESCOBRIR CARTÃO PELA TRANSAÇÃO
-      // ========================================
-
-      if (!cartaoId || !cartaoNome) {
-        const transacao =
-          encontrarTransacaoParcelada(
-            compra,
-            parcelas[0],
-          );
-
-        if (transacao) {
-          const nomeConta =
-            normalizarTexto(
-              transacao.conta,
-            );
-
-          const cartaoDaTransacao =
-  cartoes.find((cartao) => {
-    const nomeCartao =
-      normalizarTexto(
-        cartao.nome,
-      );
-
-    const bancoCartao =
-      normalizarTexto(
-        cartao.banco,
-      );
-
-    return (
-      nomeConta === nomeCartao ||
-      nomeConta === bancoCartao
+      ...parcelas.map((parcela) => Number(parcela.totalParcelas || 0)),
     );
-  });
 
-          if (cartaoDaTransacao) {
-            cartaoId =
-              cartaoDaTransacao.id;
+    // ========================================
+    // VALOR TOTAL
+    // ========================================
 
-            cartaoNome =
-              cartaoDaTransacao.nome ||
-              cartaoDaTransacao.banco;
+    const somaParcelas = parcelas.reduce(
+      (total, parcela) => total + Math.abs(Number(parcela.valor || 0)),
+      0,
+    );
 
-            banco =
-              cartaoDaTransacao.banco;
-          }
-        }
+    const valorInformado = Number(compra.valorTotal || 0);
+
+    /*
+     * Se temos valores reais das parcelas,
+     * damos prioridade a eles.
+     *
+     * Isso preserva:
+     * 1ª parcela = R$ 803,03
+     * próximas = R$ 300 e pouco
+     */
+    const valorTotal = somaParcelas > 0 ? somaParcelas : valorInformado;
+
+    // ========================================
+    // PARCELAS PAGAS
+    // ========================================
+
+    const valorJaPago = parcelas.reduce((total, parcela) => {
+      const status = String(parcela.status || "").toUpperCase();
+
+      if (status === "POSTED" || status === "PAID" || status === "SETTLED") {
+        return total + Math.abs(Number(parcela.valor || 0));
       }
 
-      const valorRestante =
-        Math.max(
-          valorTotal -
-            valorJaPago,
-          0,
-        );
+      return total;
+    }, 0);
 
-      return {
-        ...compra,
+    // ========================================
+    // PARCELA ATUAL
+    // ========================================
 
-        _id:
-          compra.id ||
-          `${index}`,
+    const parcelaAtual = parcelas.length
+      ? Math.max(
+          ...parcelas.map((parcela) => Number(parcela.parcelaAtual || 0)),
+        )
+      : 0;
 
-        nome:
-          compra.nome ||
-          compra.descricao ||
-          "Compra parcelada",
+    // ========================================
+    // FINALIZADA
+    // ========================================
 
-        cartaoId,
+    const ultimaParcela = parcelas.length
+      ? parcelas[parcelas.length - 1]
+      : null;
 
-        cartaoNome:
-          cartaoNome ||
-          "Cartão",
+    const finalizada =
+      totalParcelas > 0 &&
+      parcelaAtual >= totalParcelas &&
+      !!ultimaParcela &&
+      ["POSTED", "PAID", "SETTLED"].includes(
+        String(ultimaParcela.status || "").toUpperCase(),
+      );
 
-        banco,
+    // ========================================
+    // CARTÃO
+    // ========================================
 
-        parcelas,
+    let cartaoId =
+      compra.cartaoId || compra.accountId || compra.account_id || "";
 
-        totalParcelas,
+    let cartaoNome = compra.cartaoNome || compra.cartao || "";
 
-        valorTotal,
+    let banco = compra.banco || "";
 
-        valorJaPago,
+    // Se o backend encontrou o cartão,
+    // usamos ele.
+    const cartaoEncontrado = cartoes.find(
+      (cartao) => String(cartao.id) === String(cartaoId),
+    );
 
-        valorRestante,
+    if (cartaoEncontrado) {
+      cartaoNome =
+        cartaoEncontrado.nome || cartaoEncontrado.banco || cartaoNome;
 
-        parcelaAtual,
+      banco = cartaoEncontrado.banco || banco;
+    }
 
-        finalizada,
-      };
-    },
-  );
+    // ========================================
+    // TENTAR DESCOBRIR CARTÃO PELA TRANSAÇÃO
+    // ========================================
+
+    if (!cartaoId || !cartaoNome) {
+      const transacao = encontrarTransacaoParcelada(compra, parcelas[0]);
+
+      if (transacao) {
+        const nomeConta = normalizarTexto(transacao.conta);
+
+        const cartaoDaTransacao = cartoes.find((cartao) => {
+          const nomeCartao = normalizarTexto(cartao.nome);
+
+          const bancoCartao = normalizarTexto(cartao.banco);
+
+          return nomeConta === nomeCartao || nomeConta === bancoCartao;
+        });
+
+        if (cartaoDaTransacao) {
+          cartaoId = cartaoDaTransacao.id;
+
+          cartaoNome = cartaoDaTransacao.nome || cartaoDaTransacao.banco;
+
+          banco = cartaoDaTransacao.banco;
+        }
+      }
+    }
+
+    const valorRestante = Math.max(valorTotal - valorJaPago, 0);
+
+    return {
+      ...compra,
+
+      _id: compra.id || `${index}`,
+
+      nome: compra.nome || compra.descricao || "Compra parcelada",
+
+      cartaoId,
+
+      cartaoNome: cartaoNome || "Cartão",
+
+      banco,
+
+      parcelas,
+
+      totalParcelas,
+
+      valorTotal,
+
+      valorJaPago,
+
+      valorRestante,
+
+      parcelaAtual,
+
+      finalizada,
+    };
+  });
 
   // ==========================================
   // FILTRO DE CARTÕES
   // ==========================================
 
   if (filtroConta) {
-    const valorAtual =
-      filtroConta.value ||
-      "TODAS";
+    const valorAtual = filtroConta.value || "TODAS";
 
     filtroConta.innerHTML = `
       <option value="TODAS">
@@ -4444,14 +4210,8 @@ function mostrarParcelas() {
       ${cartoes
         .map(
           (cartao) => `
-            <option value="${escapar(
-              cartao.id,
-            )}">
-              ${escapar(
-                cartao.nome ||
-                  cartao.banco ||
-                  "Cartão",
-              )}
+            <option value="${escapar(cartao.id)}">
+              ${escapar(cartao.nome || cartao.banco || "Cartão")}
             </option>
           `,
         )
@@ -4459,14 +4219,9 @@ function mostrarParcelas() {
     `;
 
     if (
-      [...filtroConta.options].some(
-        (option) =>
-          option.value ===
-          valorAtual,
-      )
+      [...filtroConta.options].some((option) => option.value === valorAtual)
     ) {
-      filtroConta.value =
-        valorAtual;
+      filtroConta.value = valorAtual;
     }
   }
 
@@ -4475,72 +4230,39 @@ function mostrarParcelas() {
   // ==========================================
 
   if (filtroMes) {
-    const valorAtual =
-      filtroMes.value || "TODOS";
+    const valorAtual = filtroMes.value || "TODOS";
 
     const meses = new Set();
 
-    comprasNormalizadas.forEach(
-      (compra) => {
-        compra.parcelas.forEach(
-          (parcela) => {
-            const vencimento =
-              parcela.vencimento ||
-              parcela.dueDate;
+    comprasNormalizadas.forEach((compra) => {
+      compra.parcelas.forEach((parcela) => {
+        const vencimento = parcela.vencimento || parcela.dueDate;
 
-            if (vencimento) {
-              const mes =
-                String(
-                  vencimento,
-                ).substring(0, 7);
+        if (vencimento) {
+          const mes = String(vencimento).substring(0, 7);
 
-              if (
-                /^\d{4}-\d{2}$/.test(
-                  mes,
-                )
-              ) {
-                meses.add(mes);
-              }
-            }
-          },
-        );
-      },
-    );
+          if (/^\d{4}-\d{2}$/.test(mes)) {
+            meses.add(mes);
+          }
+        }
+      });
+    });
 
-    const hoje =
-      new Date();
+    const hoje = new Date();
 
-    const inicio =
-      new Date(
-        hoje.getFullYear(),
-        hoje.getMonth() - 12,
-        1,
-      );
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 12, 1);
 
-    for (
-      let i = 0;
-      i < 37;
-      i++
-    ) {
-      const ano =
-        inicio.getFullYear();
+    for (let i = 0; i < 37; i++) {
+      const ano = inicio.getFullYear();
 
-      const mes =
-        String(
-          inicio.getMonth() + 1,
-        ).padStart(2, "0");
+      const mes = String(inicio.getMonth() + 1).padStart(2, "0");
 
-      meses.add(
-        `${ano}-${mes}`,
-      );
+      meses.add(`${ano}-${mes}`);
 
-      inicio.setMonth(
-        inicio.getMonth() + 1,
-      );
+      inicio.setMonth(inicio.getMonth() + 1);
     }
 
-    const mesesOrdenados =
-      [...meses].sort();
+    const mesesOrdenados = [...meses].sort();
 
     filtroMes.innerHTML = `
       <option value="TODOS">
@@ -4549,48 +4271,30 @@ function mostrarParcelas() {
 
       ${mesesOrdenados
         .map((mes) => {
-          const [ano, numeroMes] =
-            mes.split("-");
+          const [ano, numeroMes] = mes.split("-");
 
-          const nomeMes =
-            new Date(
-              Number(ano),
-              Number(numeroMes) - 1,
-              1,
-            ).toLocaleDateString(
-              "pt-BR",
-              {
-                month: "long",
-                year: "numeric",
-              },
-            );
+          const nomeMes = new Date(
+            Number(ano),
+            Number(numeroMes) - 1,
+            1,
+          ).toLocaleDateString("pt-BR", {
+            month: "long",
+            year: "numeric",
+          });
 
           return `
             <option value="${mes}">
-              ${
-                nomeMes
-                  .charAt(0)
-                  .toUpperCase() +
-                nomeMes.slice(1)
-              }
+              ${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)}
             </option>
           `;
         })
         .join("")}
     `;
 
-    if (
-      [...filtroMes.options].some(
-        (option) =>
-          option.value ===
-          valorAtual,
-      )
-    ) {
-      filtroMes.value =
-        valorAtual;
+    if ([...filtroMes.options].some((option) => option.value === valorAtual)) {
+      filtroMes.value = valorAtual;
     } else {
-      filtroMes.value =
-        "TODOS";
+      filtroMes.value = "TODOS";
     }
   }
 
@@ -4598,249 +4302,135 @@ function mostrarParcelas() {
   // FILTROS SELECIONADOS
   // ==========================================
 
-  const contaSelecionada =
-    filtroConta?.value ||
-    "TODAS";
+  const contaSelecionada = filtroConta?.value || "TODAS";
 
-  const mesSelecionado =
-    filtroMes?.value ||
-    "TODOS";
+  const mesSelecionado = filtroMes?.value || "TODOS";
 
   // ==========================================
   // APLICAÇÃO DOS FILTROS
   // ==========================================
 
-  let comprasFiltradas =
-    comprasNormalizadas.filter(
-      (compra) => {
-        // --------------------------------------
-        // CARTÃO
-        // --------------------------------------
+  let comprasFiltradas = comprasNormalizadas.filter((compra) => {
+    // --------------------------------------
+    // CARTÃO
+    // --------------------------------------
 
-        if (
-          contaSelecionada !==
-            "TODAS" &&
-          String(
-            compra.cartaoId,
-          ) !==
-            String(
-              contaSelecionada,
-            )
-        ) {
-          return false;
-        }
+    if (
+      contaSelecionada !== "TODAS" &&
+      String(compra.cartaoId) !== String(contaSelecionada)
+    ) {
+      return false;
+    }
 
-        // --------------------------------------
-        // MÊS
-        // --------------------------------------
+    // --------------------------------------
+    // MÊS
+    // --------------------------------------
 
-        if (
-          mesSelecionado !==
-          "TODOS"
-        ) {
-          const possuiParcela =
-            compra.parcelas.some(
-              (parcela) => {
-                const vencimento =
-                  parcela.vencimento ||
-                  parcela.dueDate;
+    if (mesSelecionado !== "TODOS") {
+      const possuiParcela = compra.parcelas.some((parcela) => {
+        const vencimento = parcela.vencimento || parcela.dueDate;
 
-                return (
-                  vencimento &&
-                  String(
-                    vencimento,
-                  ).substring(
-                    0,
-                    7,
-                  ) ===
-                    mesSelecionado
-                );
-              },
-            );
+        return (
+          vencimento && String(vencimento).substring(0, 7) === mesSelecionado
+        );
+      });
 
-          if (
-            !possuiParcela
-          ) {
-            return false;
-          }
-        }
+      if (!possuiParcela) {
+        return false;
+      }
+    }
 
-        return true;
-      },
-    );
+    return true;
+  });
 
   // ==========================================
   // STATUS
   // ==========================================
 
-  const status =
-    window.parcelasStatus ||
-    "ANDAMENTO";
+  const status = window.parcelasStatus || "ANDAMENTO";
 
-  if (
-    status ===
-    "FINALIZADAS"
-  ) {
-    comprasFiltradas =
-      comprasFiltradas.filter(
-        (compra) =>
-          compra.finalizada ===
-          true,
-      );
+  if (status === "FINALIZADAS") {
+    comprasFiltradas = comprasFiltradas.filter(
+      (compra) => compra.finalizada === true,
+    );
   } else {
-    comprasFiltradas =
-      comprasFiltradas.filter(
-        (compra) =>
-          compra.finalizada !==
-          true,
-      );
+    comprasFiltradas = comprasFiltradas.filter(
+      (compra) => compra.finalizada !== true,
+    );
   }
 
   // ==========================================
   // RESUMO
   // ==========================================
 
-  const quantidade =
-    comprasFiltradas.length;
+  const quantidade = comprasFiltradas.length;
 
-  const valorTotal =
-    comprasFiltradas.reduce(
-      (total, compra) =>
-        total +
-        Number(
-          compra.valorTotal ||
-            0,
-        ),
-      0,
-    );
+  const valorTotal = comprasFiltradas.reduce(
+    (total, compra) => total + Number(compra.valorTotal || 0),
+    0,
+  );
 
-  const valorPago =
-    comprasFiltradas.reduce(
-      (total, compra) =>
-        total +
-        Number(
-          compra.valorJaPago ||
-            0,
-        ),
-      0,
-    );
+  const valorPago = comprasFiltradas.reduce(
+    (total, compra) => total + Number(compra.valorJaPago || 0),
+    0,
+  );
 
-  const valorRestante =
-    comprasFiltradas.reduce(
-      (total, compra) =>
-        total +
-        Number(
-          compra.valorRestante ||
-            0,
-        ),
-      0,
-    );
+  const valorRestante = comprasFiltradas.reduce(
+    (total, compra) => total + Number(compra.valorRestante || 0),
+    0,
+  );
 
   const percentual =
-    valorTotal > 0
-      ? Math.min(
-          (
-            valorPago /
-            valorTotal
-          ) * 100,
-          100,
-        )
-      : 0;
+    valorTotal > 0 ? Math.min((valorPago / valorTotal) * 100, 100) : 0;
 
-  if (
-    elementoAndamento
-  ) {
-    elementoAndamento.textContent =
-      quantidade;
+  if (elementoAndamento) {
+    elementoAndamento.textContent = quantidade;
   }
 
-  if (
-    elementoValorTotal
-  ) {
-    elementoValorTotal.textContent =
-      dinheiro(
-        valorTotal,
-      );
+  if (elementoValorTotal) {
+    elementoValorTotal.textContent = dinheiro(valorTotal);
   }
 
-  if (
-    elementoJaPago
-  ) {
-    elementoJaPago.textContent =
-      dinheiro(
-        valorPago,
-      );
+  if (elementoJaPago) {
+    elementoJaPago.textContent = dinheiro(valorPago);
   }
 
-  if (
-    elementoRestante
-  ) {
-    elementoRestante.textContent =
-      dinheiro(
-        valorRestante,
-      );
+  if (elementoRestante) {
+    elementoRestante.textContent = dinheiro(valorRestante);
   }
 
-  if (
-    elementoProgresso
-  ) {
-    elementoProgresso.style.width =
-      `${percentual}%`;
+  if (elementoProgresso) {
+    elementoProgresso.style.width = `${percentual}%`;
   }
 
-  if (
-    elementoProgressoTexto
-  ) {
-    elementoProgressoTexto.textContent =
-      `${Math.round(
-        percentual,
-      )}% pago`;
+  if (elementoProgressoTexto) {
+    elementoProgressoTexto.textContent = `${Math.round(percentual)}% pago`;
   }
 
   // ==========================================
   // ÚLTIMA DATA
   // ==========================================
 
-  const datas =
-    comprasFiltradas
-      .flatMap(
-        (compra) =>
-          compra.parcelas.map(
-            (parcela) =>
-              parcela.vencimento ||
-              parcela.dueDate,
-          ),
-      )
-      .filter(Boolean)
-      .sort(
-        (a, b) =>
-          new Date(b) -
-          new Date(a),
-      );
+  const datas = comprasFiltradas
+    .flatMap((compra) =>
+      compra.parcelas.map((parcela) => parcela.vencimento || parcela.dueDate),
+    )
+    .filter(Boolean)
+    .sort((a, b) => new Date(b) - new Date(a));
 
-  if (
-    elementoUltimaData
-  ) {
-    elementoUltimaData.textContent =
-      datas.length
-        ? dataBR(
-            datas[0],
-          )
-        : "—";
+  if (elementoUltimaData) {
+    elementoUltimaData.textContent = datas.length ? dataBR(datas[0]) : "—";
   }
 
   // ==========================================
   // LISTA VAZIA
   // ==========================================
 
-  if (
-    !comprasFiltradas.length
-  ) {
+  if (!comprasFiltradas.length) {
     lista.innerHTML = `
       <div class="empty">
         ${
-          status ===
-          "FINALIZADAS"
+          status === "FINALIZADAS"
             ? "Nenhuma compra finalizada encontrada."
             : "Nenhuma compra em andamento encontrada."
         }
@@ -4854,156 +4444,77 @@ function mostrarParcelas() {
   // LISTA
   // ==========================================
 
-  lista.innerHTML =
-    comprasFiltradas
-      .map(
-        (compra) => {
-          let parcelaExibida =
-            null;
+  lista.innerHTML = comprasFiltradas
+    .map((compra) => {
+      let parcelaExibida = null;
 
-          // ------------------------------------
-          // MÊS ESPECÍFICO
-          // ------------------------------------
+      // ------------------------------------
+      // MÊS ESPECÍFICO
+      // ------------------------------------
 
-          if (
-            mesSelecionado !==
-            "TODOS"
-          ) {
-            parcelaExibida =
-              compra.parcelas.find(
-                (parcela) => {
-                  const vencimento =
-                    parcela.vencimento ||
-                    parcela.dueDate;
+      if (mesSelecionado !== "TODOS") {
+        parcelaExibida = compra.parcelas.find((parcela) => {
+          const vencimento = parcela.vencimento || parcela.dueDate;
 
-                  return (
-                    vencimento &&
-                    String(
-                      vencimento,
-                    ).substring(
-                      0,
-                      7,
-                    ) ===
-                      mesSelecionado
-                  );
-                },
-              );
-          }
+          return (
+            vencimento && String(vencimento).substring(0, 7) === mesSelecionado
+          );
+        });
+      }
 
-          // ------------------------------------
-          // PRÓXIMA PARCELA
-          // ------------------------------------
+      // ------------------------------------
+      // PRÓXIMA PARCELA
+      // ------------------------------------
 
-          if (
-            !parcelaExibida
-          ) {
-            parcelaExibida =
-              compra.parcelas.find(
-                (parcela) => {
-                  const statusParcela =
-                    String(
-                      parcela.status ||
-                        "",
-                    ).toUpperCase();
+      if (!parcelaExibida) {
+        parcelaExibida = compra.parcelas.find((parcela) => {
+          const statusParcela = String(parcela.status || "").toUpperCase();
 
-                  return ![
-                    "POSTED",
-                    "PAID",
-                    "SETTLED",
-                  ].includes(
-                    statusParcela,
-                  );
-                },
-              );
-          }
+          return !["POSTED", "PAID", "SETTLED"].includes(statusParcela);
+        });
+      }
 
-          // ------------------------------------
-          // ÚLTIMA PARCELA
-          // ------------------------------------
+      // ------------------------------------
+      // ÚLTIMA PARCELA
+      // ------------------------------------
 
-          if (
-            !parcelaExibida
-          ) {
-            parcelaExibida =
-              compra.parcelas[
-                compra.parcelas.length -
-                  1
-              ];
-          }
+      if (!parcelaExibida) {
+        parcelaExibida = compra.parcelas[compra.parcelas.length - 1];
+      }
 
-          const numeroParcela =
-            Number(
-              parcelaExibida
-                ?.parcelaAtual ||
-                0,
-            );
+      const numeroParcela = Number(parcelaExibida?.parcelaAtual || 0);
 
-          const totalParcelas =
-            Number(
-              parcelaExibida
-                ?.totalParcelas ||
-                compra.totalParcelas ||
-                0,
-            );
+      const totalParcelas = Number(
+        parcelaExibida?.totalParcelas || compra.totalParcelas || 0,
+      );
 
-          const valorParcela =
-            Math.abs(
-              Number(
-                parcelaExibida
-                  ?.valor ||
-                  0,
-              ),
-            );
+      const valorParcela = Math.abs(Number(parcelaExibida?.valor || 0));
 
-          const vencimento =
-            parcelaExibida?.vencimento ||
-            parcelaExibida?.dueDate;
+      const vencimento = parcelaExibida?.vencimento || parcelaExibida?.dueDate;
 
-          const progresso =
-            compra.valorTotal >
-            0
-              ? Math.min(
-                  (
-                    compra.valorJaPago /
-                    compra.valorTotal
-                  ) * 100,
-                  100,
-                )
-              : 0;
+      const progresso =
+        compra.valorTotal > 0
+          ? Math.min((compra.valorJaPago / compra.valorTotal) * 100, 100)
+          : 0;
 
-          const statusParcela =
-            String(
-              parcelaExibida?.status ||
-                "",
-            ).toUpperCase();
+      const statusParcela = String(parcelaExibida?.status || "").toUpperCase();
 
-          const textoStatus =
-            [
-              "POSTED",
-              "PAID",
-              "SETTLED",
-            ].includes(
-              statusParcela,
-            )
-              ? "🟢 Paga"
-              : "🟡 Pendente";
+      const textoStatus = ["POSTED", "PAID", "SETTLED"].includes(statusParcela)
+        ? "🟢 Paga"
+        : "🟡 Pendente";
 
-          return `
+      return `
             <div class="transaction">
 
               <div style="flex:1;">
 
                 <div class="desc">
-                  ${escapar(
-                    compra.nome,
-                  )}
+                  ${escapar(compra.nome)}
                 </div>
 
                 <div class="meta">
                   💳
-                  ${escapar(
-                    compra.cartaoNome,
-                  )}
+                  ${escapar(compra.cartaoNome)}
                 </div>
 
                 <div class="meta">
@@ -5015,37 +4526,27 @@ function mostrarParcelas() {
 
                 <div class="meta">
                   Valor desta parcela:
-                  ${dinheiro(
-                    valorParcela,
-                  )}
+                  ${dinheiro(valorParcela)}
                 </div>
 
                 <div class="meta">
                   Vencimento:
-                  ${dataBR(
-                    vencimento,
-                  )}
+                  ${dataBR(vencimento)}
                 </div>
 
                 <div class="meta">
                   Total da compra:
-                  ${dinheiro(
-                    compra.valorTotal,
-                  )}
+                  ${dinheiro(compra.valorTotal)}
                 </div>
 
                 <div class="meta">
                   Já pago:
-                  ${dinheiro(
-                    compra.valorJaPago,
-                  )}
+                  ${dinheiro(compra.valorJaPago)}
                 </div>
 
                 <div class="meta">
                   Restante:
-                  ${dinheiro(
-                    compra.valorRestante,
-                  )}
+                  ${dinheiro(compra.valorRestante)}
                 </div>
 
                 <div
@@ -5072,82 +4573,53 @@ function mostrarParcelas() {
                   class="meta"
                   style="margin-top:5px;"
                 >
-                  ${Math.round(
-                    progresso,
-                  )}% pago
+                  ${Math.round(progresso)}% pago
                 </div>
 
               </div>
 
               <div
-                class="amount ${
-                  compra.finalizada
-                    ? "income"
-                    : "expense"
-                }"
+                class="amount ${compra.finalizada ? "income" : "expense"}"
               >
-                ${
-                  compra.finalizada
-                    ? "✓ Finalizada"
-                    : dinheiro(
-                        valorParcela,
-                      )
-                }
+                ${compra.finalizada ? "✓ Finalizada" : dinheiro(valorParcela)}
               </div>
 
             </div>
           `;
-        },
-      )
-      .join("");
+    })
+    .join("");
 }
 
 // ==========================================
 // FILTROS DE PARCELAS
 // ==========================================
 
-document.addEventListener(
-  "change",
-  (evento) => {
-    if (
-      evento.target?.id ===
-        "parcelasFiltroConta" ||
-      evento.target?.id ===
-        "parcelasFiltroMes"
-    ) {
-      mostrarParcelas();
-    }
-  },
-);
+document.addEventListener("change", (evento) => {
+  if (
+    evento.target?.id === "parcelasFiltroConta" ||
+    evento.target?.id === "parcelasFiltroMes"
+  ) {
+    mostrarParcelas();
+  }
+});
 
 // ==========================================
 // ABAS DE PARCELAMENTOS
 // ==========================================
 
-document.addEventListener(
-  "click",
-  (evento) => {
-    if (
-      evento.target?.id ===
-      "parcelasTabAndamento"
-    ) {
-      window.parcelasStatus =
-        "ANDAMENTO";
+document.addEventListener("click", (evento) => {
+  if (evento.target?.id === "parcelasTabAndamento") {
+    window.parcelasStatus = "ANDAMENTO";
 
-      mostrarParcelas();
-    }
+    mostrarParcelas();
+  }
 
-    if (
-      evento.target?.id ===
-      "parcelasTabFinalizadas"
-    ) {
-      window.parcelasStatus =
-        "FINALIZADAS";
+  if (evento.target?.id === "parcelasTabFinalizadas") {
+    window.parcelasStatus = "FINALIZADAS";
 
-      mostrarParcelas();
-    }
-  },
-);
+    mostrarParcelas();
+  }
+});
 
 // ==========================================
 // MENU RESPONSIVO PARA CELULAR
@@ -5191,6 +4663,12 @@ function configurarMenuResponsivo() {
 
   document.body.appendChild(botaoMenu);
   document.body.appendChild(overlay);
+  const loginVisivel =
+  document.querySelector("#loginScreen")?.style.display !== "none";
+
+if (loginVisivel) {
+  botaoMenu.style.display = "none";
+}
 
   // ==========================================
   // CSS DO MENU
@@ -5210,7 +4688,8 @@ function configurarMenuResponsivo() {
       display: none;
       position: fixed;
       top: 15px;
-      left: 15px;
+      right: 15px;
+      left: auto;
       z-index: 10001;
 
       width: 48px;
@@ -5408,6 +4887,8 @@ function configurarMenuResponsivo() {
     botaoMenu.innerHTML = "✕";
     botaoMenu.setAttribute("aria-label", "Fechar menu");
 
+    botaoMenu.classList.add("menu-aberto");
+
     document.body.style.overflow = "hidden";
   }
 
@@ -5421,6 +4902,8 @@ function configurarMenuResponsivo() {
 
     botaoMenu.innerHTML = "☰";
     botaoMenu.setAttribute("aria-label", "Abrir menu");
+
+    botaoMenu.classList.remove("menu-aberto");
 
     document.body.style.overflow = "";
   }
