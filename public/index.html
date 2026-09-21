@@ -119,6 +119,11 @@
             <span> Contas fixas </span>
           </button>
 
+          <button class="nav-item" data-section="planejamento">
+            🧮
+            <span> Planejamento futuro </span>
+          </button>
+
           <button class="nav-item" data-section="caixinhas">
             💰
             <span> Caixinhas </span>
@@ -168,19 +173,47 @@
             </article>
 
             <article class="card">
-              <span> Entradas </span>
+              <span> Entradas externas </span>
 
               <strong id="totalIncome"> R$ 0,00 </strong>
 
-              <small> Período dos últimos 3 meses </small>
+              <small>
+                Dinheiro que realmente entrou de fora
+              </small>
             </article>
 
             <article class="card">
-              <span> Saídas </span>
+              <span> Saídas externas </span>
 
               <strong id="totalExpense"> R$ 0,00 </strong>
 
-              <small> Período dos últimos 3 meses </small>
+              <small>
+                Dinheiro que realmente saiu para terceiros
+              </small>
+            </article>
+
+            <article class="card">
+              <span> Transferências internas </span>
+
+              <strong id="internalMovementTotal">
+                R$ 0,00
+              </strong>
+
+              <small id="internalMovementCount">
+                Movimentações entre suas próprias contas
+              </small>
+            </article>
+
+            <article class="card highlight">
+              <span> Resultado externo líquido </span>
+
+              <strong id="realNetTotal">
+                R$ 0,00
+              </strong>
+
+              <small>
+                Entradas externas - saídas externas
+              </small>
             </article>
 
             <article class="card">
@@ -227,6 +260,127 @@
   </small>
 </article>  
           </div>
+
+          <div class="dashboard-block">
+
+            <div class="dashboard-block-head">
+
+              <p class="eyebrow">
+                COMPROMISSOS DO MÊS
+              </p>
+
+              <h2>
+                Quanto ainda preciso reservar para pagar
+              </h2>
+
+              <p>
+                Faturas com vencimento no mês
+                + contas fixas ainda pendentes.
+              </p>
+
+            </div>
+
+            <div class="cards commitment-cards">
+
+              <article class="card">
+
+                <span>
+                  💳 Faturas do mês
+                </span>
+
+                <strong id="monthlyBillsTotal">
+                  R$ 0,00
+                </strong>
+
+                <small id="monthlyBillsCount">
+                  0 faturas com vencimento no mês
+                </small>
+
+              </article>
+
+              <article class="card">
+
+                <span>
+                  🗓️ Contas fixas pendentes
+                </span>
+
+                <strong id="monthlyFixedPending">
+                  R$ 0,00
+                </strong>
+
+                <small>
+                  Somente o que ainda falta pagar
+                </small>
+
+              </article>
+
+              <article class="card highlight">
+
+                <span>
+                  Total previsto para pagar
+                </span>
+
+                <strong id="monthlyCommitmentsTotal">
+                  R$ 0,00
+                </strong>
+
+                <small>
+                  Faturas + contas fixas pendentes
+                </small>
+
+              </article>
+
+              <article class="card">
+
+                <span>
+                  Saldo após compromissos
+                </span>
+
+                <strong id="balanceAfterCommitments">
+                  R$ 0,00
+                </strong>
+
+                <small>
+                  Saldo das contas menos os compromissos
+                </small>
+
+              </article>
+
+            </div>
+
+          </div>
+
+
+          <article class="panel account-flow-panel">
+
+            <div class="panel-head">
+
+              <div>
+
+                <p class="eyebrow">
+                  FLUXO DO MÊS
+                </p>
+
+                <h2>
+                  Entradas e saídas por conta
+                </h2>
+
+                <p>
+                  Movimentações de caixinhas aparecem
+                  separadas e não distorcem o fluxo real.
+                </p>
+
+              </div>
+
+            </div>
+
+            <div
+              id="accountFlow"
+              class="account-flow"
+            ></div>
+
+          </article>
+
 
           <div class="grid-2">
             <article class="panel">
@@ -821,6 +975,380 @@
             </div>
           </div>
         </section>
+
+        <!-- ================================================= -->
+        <!-- PLANEJAMENTO FUTURO -->
+        <!-- ================================================= -->
+
+        <section id="planejamento" class="section">
+
+          <div class="section-title">
+
+            <div>
+
+              <p class="eyebrow">
+                SIMULAÇÃO
+              </p>
+
+              <h2>
+                Planejamento futuro
+              </h2>
+
+              <p>
+                Simule sua vida financeira futura sem alterar
+                nenhum dado real do Pierre.
+              </p>
+
+            </div>
+
+            <label class="planning-reference">
+
+              Início da projeção
+
+              <input
+                type="month"
+                id="planningReferenceMonth"
+              />
+
+            </label>
+
+          </div>
+
+
+          <div class="planning-warning">
+
+            🧪 Esta área é apenas uma simulação.
+            Nada cadastrado aqui altera suas contas,
+            cartões, caixinhas ou dados reais.
+
+          </div>
+
+
+          <div class="panel planning-reserve-start">
+
+            <div class="panel-head">
+
+              <div>
+                <p class="eyebrow">
+                  PATRIMÔNIO INICIAL
+                </p>
+
+                <h2>
+                  Reserva já existente
+                </h2>
+
+                <p>
+                  Quanto vocês já terão guardado no início
+                  deste planejamento.
+                </p>
+              </div>
+
+              <label class="planning-reference">
+                Valor inicial da reserva
+
+                <input
+                  type="number"
+                  id="planningInitialReserve"
+                  min="0"
+                  step="0.01"
+                  placeholder="Ex.: 25000"
+                />
+              </label>
+
+            </div>
+
+          </div>
+
+
+          <div class="cards planning-summary">
+
+            <article class="card">
+
+              <span>
+                Receitas do mês
+              </span>
+
+              <strong id="planningIncome">
+                R$ 0,00
+              </strong>
+
+            </article>
+
+
+            <article class="card">
+
+              <span>
+                Despesas do mês
+              </span>
+
+              <strong id="planningExpense">
+                R$ 0,00
+              </strong>
+
+            </article>
+
+
+            <article class="card highlight">
+
+              <span>
+                Sobra mensal
+              </span>
+
+              <strong id="planningBalance">
+                R$ 0,00
+              </strong>
+
+            </article>
+
+
+            <article class="card">
+
+              <span>
+                Reservas do mês
+              </span>
+
+              <strong id="planningReserve">
+                R$ 0,00
+              </strong>
+
+              <small>
+                Valor separado para seus objetivos
+              </small>
+
+            </article>
+
+
+            <article class="card">
+
+              <span>
+                Livre após reservas
+              </span>
+
+              <strong id="planningAvailable">
+                R$ 0,00
+              </strong>
+
+              <small>
+                Receita - despesas - reservas
+              </small>
+
+            </article>
+
+
+            <article class="card highlight">
+
+              <span>
+                Reserva projetada em 12 meses
+              </span>
+
+              <strong id="planningReserveProjected">
+                R$ 0,00
+              </strong>
+
+              <small>
+                Reserva inicial + aportes planejados
+              </small>
+
+            </article>
+
+
+            <article class="card">
+
+              <span>
+                Acumulado livre em 12 meses
+              </span>
+
+              <strong id="planningAccumulated">
+                R$ 0,00
+              </strong>
+
+            </article>
+
+          </div>
+
+
+          <div class="fixed-layout planning-layout">
+
+            <form
+              id="planningForm"
+              class="panel form-panel"
+            >
+
+              <h2>
+                Novo lançamento futuro
+              </h2>
+
+
+              <label>
+                Nome
+
+                <input
+                  type="text"
+                  id="planningName"
+                  required
+                  placeholder="Ex.: Aluguel"
+                />
+              </label>
+
+
+              <label>
+                Tipo
+
+                <select id="planningType">
+
+                  <option value="despesa">
+                    Despesa
+                  </option>
+
+                  <option value="receita">
+                    Receita
+                  </option>
+
+                  <option value="reserva">
+                    Reserva / investimento
+                  </option>
+
+                </select>
+              </label>
+
+
+              <label>
+                Valor
+
+                <input
+                  type="number"
+                  id="planningAmount"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  placeholder="1800,00"
+                />
+              </label>
+
+
+              <label>
+                Categoria
+
+                <input
+                  type="text"
+                  id="planningCategory"
+                  placeholder="Ex.: Moradia"
+                />
+              </label>
+
+
+              <label>
+                Frequência
+
+                <select id="planningRecurrence">
+
+                  <option value="mensal">
+                    Todo mês
+                  </option>
+
+                  <option value="unica">
+                    Uma única vez
+                  </option>
+
+                </select>
+              </label>
+
+
+              <label>
+                Começa em
+
+                <input
+                  type="month"
+                  id="planningStartMonth"
+                  required
+                />
+              </label>
+
+
+              <label>
+                Termina em
+
+                <input
+                  type="month"
+                  id="planningEndMonth"
+                />
+
+                <small>
+                  Deixe vazio se continuar indefinidamente.
+                </small>
+
+              </label>
+
+
+              <button
+                type="submit"
+                class="primary"
+              >
+                Adicionar à simulação
+              </button>
+
+            </form>
+
+
+            <div class="panel">
+
+              <div class="panel-head">
+
+                <div>
+
+                  <h2>
+                    Contas e receitas simuladas
+                  </h2>
+
+                  <p>
+                    Aqui você pode montar o cenário de quando
+                    estiver casado.
+                  </p>
+
+                </div>
+
+              </div>
+
+              <div
+                id="planningList"
+                class="planning-list"
+              ></div>
+
+            </div>
+
+          </div>
+
+
+          <div
+            class="panel planning-projection-panel"
+          >
+
+            <div class="panel-head">
+
+              <div>
+
+                <h2>
+                  Projeção dos próximos 12 meses
+                </h2>
+
+                <p>
+                  Veja mês a mês quanto entraria,
+                  quanto sairia e quanto sobraria.
+                </p>
+
+              </div>
+
+            </div>
+
+            <div
+              id="planningProjection"
+              class="table-wrap"
+            ></div>
+
+          </div>
+
+        </section>
+
 
         <!-- ================================================= -->
         <!-- CAIXINHAS -->

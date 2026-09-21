@@ -2356,3 +2356,612 @@ select:focus {
   }
 
 }
+
+/* =========================================================
+   DASHBOARD - COMPROMISSOS E FLUXO FINANCEIRO
+   ========================================================= */
+
+.dashboard-block {
+  margin-top: 18px;
+}
+
+.dashboard-block-head {
+  margin-bottom: 14px;
+}
+
+.commitment-cards {
+  margin-top: 14px;
+}
+
+.account-flow-panel {
+  margin-top: 16px;
+}
+
+.account-flow {
+  display: grid;
+  gap: 10px;
+}
+
+.account-flow-item {
+  display: grid;
+
+  grid-template-columns:
+    minmax(150px, .8fr)
+    2.2fr;
+
+  align-items: center;
+
+  gap: 18px;
+
+  padding: 15px 0;
+
+  border-top:
+    1px solid var(--border);
+}
+
+.account-flow-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.account-flow-name {
+  font-weight: 800;
+
+  color: var(--text);
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.account-flow-values {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(110px, 1fr)
+    );
+
+  gap: 12px;
+}
+
+.account-flow-values > div {
+  min-width: 0;
+
+  padding: 11px 12px;
+
+  border-radius: 12px;
+
+  background: #f8f9fd;
+
+  border:
+    1px solid #eceef6;
+}
+
+.account-flow-values span {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color: var(--muted);
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: .03em;
+}
+
+.account-flow-values strong {
+  display: block;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  font-size: 14px;
+}
+
+.internal {
+  color: var(--primary);
+}
+
+@media (max-width: 900px) {
+
+  .account-flow-item {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .account-flow-values {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+}
+
+@media (max-width: 520px) {
+
+  .account-flow-values {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+
+
+/* =========================================================
+   PLANEJAMENTO FUTURO
+   ========================================================= */
+
+.planning-warning {
+  margin: 16px 0;
+
+  padding: 14px 16px;
+
+  border: 1px solid #dcdcf8;
+
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f7f7ff,
+      #f3efff
+    );
+
+  color: #555a73;
+
+  font-size: 13px;
+}
+
+.planning-summary {
+  margin-bottom: 16px;
+}
+
+.planning-reference {
+  display: grid;
+
+  gap: 6px;
+
+  color: var(--muted);
+
+  font-size: 12px;
+
+  font-weight: 700;
+}
+
+.planning-layout {
+  margin-top: 16px;
+}
+
+.planning-list {
+  display: grid;
+  gap: 10px;
+}
+
+.planning-item {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 16px;
+
+  padding: 14px;
+
+  border: 1px solid var(--border);
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff,
+      #fbfbff
+    );
+}
+
+.planning-item strong,
+.planning-item small {
+  display: block;
+}
+
+.planning-item small {
+  margin-top: 5px;
+
+  color: var(--muted);
+}
+
+.planning-item-value {
+  display: flex;
+
+  align-items: center;
+
+  gap: 14px;
+
+  white-space: nowrap;
+}
+
+.planning-projection-panel {
+  margin-top: 16px;
+}
+
+@media (max-width: 720px) {
+
+  .planning-item {
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+  .planning-item-value {
+    justify-content:
+      space-between;
+  }
+
+  .planning-reference {
+    width: 100%;
+  }
+
+}
+
+
+
+/* ==========================================
+   RESERVA DO PLANEJAMENTO
+   ========================================== */
+
+.planning-reserve-start {
+  margin-top: 16px;
+  margin-bottom: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff,
+      #f4f1ff
+    );
+}
+
+#planningReserve,
+#planningReserveProjected {
+  color: var(--primary);
+}
+
+
+
+/* ==========================================
+   CONFERÊNCIA ENTRADAS / SAÍDAS EXTERNAS
+   ========================================== */
+
+.flow-audit-panel {
+  margin-top: 16px;
+}
+
+.flow-audit-summary {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  gap: 12px;
+
+  margin-bottom: 12px;
+}
+
+.flow-audit-summary > div {
+  padding: 14px;
+
+  border: 1px solid var(--border);
+
+  border-radius: 13px;
+
+  background: #fafaff;
+}
+
+.flow-audit-summary span {
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: var(--muted);
+
+  font-size: 11px;
+}
+
+.flow-audit-summary strong {
+  font-size: 17px;
+}
+
+.flow-audit-info {
+  margin-bottom: 14px;
+
+  padding: 10px 12px;
+
+  border-radius: 10px;
+
+  background: #f5f5fb;
+
+  color: var(--muted);
+
+  font-size: 12px;
+}
+
+.flow-details {
+  padding: 14px 0;
+
+  border-top:
+    1px solid var(--border);
+}
+
+.flow-details summary {
+  cursor: pointer;
+
+  font-weight: 750;
+}
+
+.flow-audit-list {
+  margin-top: 10px;
+}
+
+.flow-audit-row {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 16px;
+
+  padding: 11px 0;
+
+  border-top:
+    1px solid var(--border);
+}
+
+.flow-audit-row:first-child {
+  border-top: 0;
+}
+
+.flow-audit-description small,
+.flow-audit-row small {
+  display: block;
+
+  margin-top: 4px;
+
+  color: var(--muted);
+}
+
+.flow-audit-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+}
+
+.flow-internal-button,
+.flow-undo-button {
+  padding: 7px 10px;
+
+  border: 1px solid var(--border);
+
+  border-radius: 9px;
+
+  background: white;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.flow-internal-button:hover,
+.flow-undo-button:hover {
+  background: #f1efff;
+}
+
+@media (max-width: 760px) {
+
+  .flow-audit-summary {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .flow-audit-row {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .flow-audit-actions {
+    width: 100%;
+
+    justify-content:
+      space-between;
+  }
+
+}
+
+@media (max-width: 450px) {
+
+  .flow-audit-summary {
+    grid-template-columns:
+      1fr;
+  }
+
+}
+
+
+
+/* ==========================================
+   FILTROS E REVISÃO DO FLUXO
+   ========================================== */
+
+.flow-filter-panel {
+  display: grid;
+
+  grid-template-columns:
+    minmax(180px, 2fr)
+    minmax(150px, 1fr)
+    minmax(150px, 1fr)
+    minmax(100px, .7fr)
+    minmax(100px, .7fr);
+
+  gap: 10px;
+
+  margin: 18px 0 10px;
+}
+
+.flow-filter-panel input,
+.flow-filter-panel select {
+  width: 100%;
+
+  min-height: 42px;
+
+  padding: 9px 11px;
+
+  border: 1px solid var(--border);
+
+  border-radius: 10px;
+
+  background: white;
+
+  color: var(--text);
+
+  outline: none;
+}
+
+.flow-filter-panel input:focus,
+.flow-filter-panel select:focus {
+  border-color: var(--primary);
+}
+
+.flow-filter-result {
+  display: flex;
+
+  justify-content:
+    space-between;
+
+  gap: 12px;
+
+  margin-bottom: 8px;
+
+  color: var(--muted);
+
+  font-size: 12px;
+}
+
+.flow-row-pending {
+  background: #fffdf6;
+
+  border-radius: 10px;
+
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.flow-pending-label,
+.flow-external-label {
+  display: inline-block;
+
+  margin-top: 6px;
+
+  padding: 3px 7px;
+
+  border-radius: 999px;
+
+  font-size: 10px;
+
+  font-weight: 750;
+}
+
+.flow-pending-label {
+  background: #fff1c7;
+
+  color: #806000;
+}
+
+.flow-external-label {
+  background: #e8f8ef;
+
+  color: #187345;
+}
+
+.flow-confirm-external,
+.flow-confirm-internal {
+  border: 1px solid var(--border);
+
+  border-radius: 9px;
+
+  padding: 7px 9px;
+
+  background: white;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.flow-confirm-external:hover {
+  background: #eaf8f0;
+}
+
+.flow-confirm-internal:hover {
+  background: #f0edff;
+}
+
+.flow-review-card {
+  background:
+    linear-gradient(
+      135deg,
+      #fffdf4,
+      #fff9e8
+    ) !important;
+}
+
+@media (max-width: 1050px) {
+
+  .flow-filter-panel {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+}
+
+@media (max-width: 620px) {
+
+  .flow-filter-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-filter-result {
+    flex-direction: column;
+  }
+
+  .flow-audit-actions {
+    flex-wrap: wrap;
+  }
+
+}
+

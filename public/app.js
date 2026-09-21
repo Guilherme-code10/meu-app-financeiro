@@ -750,81 +750,2529 @@ function obterResumoContasFixasMes() {
   };
 }
 
+
+// ==========================================
+// RESUMO FINANCEIRO DO MÊS
+// ==========================================
+
+function normalizarTextoFinanceiro(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+// ==========================================
+// IDENTIFICAR MOVIMENTAÇÕES INTERNAS
+// ==========================================
+
+function ehMovimentacaoInterna(transacao) {
+  const texto = normalizarTextoFinanceiro(
+    [
+      transacao.descricao,
+      transacao.categoria,
+      transacao.operationType,
+      transacao.operation_type,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  const termos = [
+    "caixinha",
+    "caixinhas",
+    "dinheiro guardado",
+    "guardar dinheiro",
+    "aplicacao",
+    "aplicação",
+    "resgate",
+    "reserva",
+  ];
+
+  return termos.some((termo) =>
+    texto.includes(
+      normalizarTextoFinanceiro(termo),
+    ),
+  );
+}
+
+// ==========================================
+// VERIFICAR SE TRANSAÇÃO É DO MÊS ATUAL
+// ==========================================
+
+function transacaoEhDoMesAtual(transacao) {
+  if (!transacao?.data) {
+    return false;
+  }
+
+  const data = new Date(transacao.data);
+
+  if (Number.isNaN(data.getTime())) {
+    return false;
+  }
+
+  const hoje = new Date();
+
+  return (
+    data.getFullYear() === hoje.getFullYear() &&
+    data.getMonth() === hoje.getMonth()
+  );
+}
+
+// ==========================================
+// ENTRADAS / SAÍDAS REAIS DO MÊS
+// ==========================================
+
+
+// ==========================================
+// CONCILIAR TRANSFERÊNCIAS ENTRE MINHAS CONTAS
+// ==========================================
+
+
+const CHAVE_INTERNAS_MANUAIS =
+  "meuFinanceiroInternasManuais";
+
+const CHAVE_EXTERNAS_MANUAIS =
+  "meuFinanceiroExternasManuais";
+
+
+function obterChaveTransacao(transacao) {
+  const id =
+    transacao.id ||
+    transacao.transactionId ||
+    transacao.transaction_id ||
+    "";
+
+  const conta =
+    normalizarTextoFinanceiro(
+      transacao.conta ||
+      transacao.accountName ||
+      "",
+    );
+
+  if (id) {
+    return `id:${conta}:${id}`;
+  }
+
+  return [
+    conta,
+
+    String(
+      transacao.data || "",
+    ),
+
+    normalizarTextoFinanceiro(
+      transacao.descricao || "",
+    ),
+
+    String(
+      transacao.tipo || "",
+    ),
+
+    Math.abs(
+      Number(
+        transacao.valor || 0,
+      ),
+    ).toFixed(2),
+  ].join("|");
+}
+
+
+
+function obterExternasManuais() {
+  try {
+    const dados =
+      JSON.parse(
+        localStorage.getItem(
+          CHAVE_EXTERNAS_MANUAIS,
+        ) || "[]",
+      );
+
+    return new Set(
+      Array.isArray(dados)
+        ? dados
+        : [],
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+
+function salvarExternasManuais(conjunto) {
+  localStorage.setItem(
+    CHAVE_EXTERNAS_MANUAIS,
+    JSON.stringify(
+      [...conjunto],
+    ),
+  );
+}
+
+
+function ehExternaManual(transacao) {
+  return obterExternasManuais()
+    .has(
+      obterChaveTransacao(
+        transacao,
+      ),
+    );
+}
+
+
+function marcarComoExterna(transacao) {
+  const chave =
+    obterChaveTransacao(
+      transacao,
+    );
+
+  const externas =
+    obterExternasManuais();
+
+  const internas =
+    obterInternasManuais();
+
+  externas.add(chave);
+  internas.delete(chave);
+
+  salvarExternasManuais(
+    externas,
+  );
+
+  salvarInternasManuais(
+    internas,
+  );
+
+  atualizarDashboard();
+}
+
+
+function marcarComoInterna(transacao) {
+  const chave =
+    obterChaveTransacao(
+      transacao,
+    );
+
+  const externas =
+    obterExternasManuais();
+
+  const internas =
+    obterInternasManuais();
+
+  externas.delete(chave);
+  internas.add(chave);
+
+  salvarExternasManuais(
+    externas,
+  );
+
+  salvarInternasManuais(
+    internas,
+  );
+
+  atualizarDashboard();
+}
+
+
+function limparClassificacaoFinanceira(transacao) {
+  const chave =
+    obterChaveTransacao(
+      transacao,
+    );
+
+  const externas =
+    obterExternasManuais();
+
+  const internas =
+    obterInternasManuais();
+
+  externas.delete(chave);
+  internas.delete(chave);
+
+  salvarExternasManuais(
+    externas,
+  );
+
+  salvarInternasManuais(
+    internas,
+  );
+
+  atualizarDashboard();
+}
+
+
+function obterInternasManuais() {
+  try {
+    const dados =
+      JSON.parse(
+        localStorage.getItem(
+          CHAVE_INTERNAS_MANUAIS,
+        ) || "[]",
+      );
+
+    return new Set(
+      Array.isArray(dados)
+        ? dados
+        : [],
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+
+function salvarInternasManuais(conjunto) {
+  localStorage.setItem(
+    CHAVE_INTERNAS_MANUAIS,
+    JSON.stringify(
+      [...conjunto],
+    ),
+  );
+}
+
+
+function ehInternaManual(transacao) {
+  return obterInternasManuais()
+    .has(
+      obterChaveTransacao(
+        transacao,
+      ),
+    );
+}
+
+
+function alternarInternaManual(transacao) {
+  const conjunto =
+    obterInternasManuais();
+
+  const chave =
+    obterChaveTransacao(
+      transacao,
+    );
+
+  if (conjunto.has(chave)) {
+    conjunto.delete(chave);
+  } else {
+    conjunto.add(chave);
+  }
+
+  salvarInternasManuais(
+    conjunto,
+  );
+
+  atualizarDashboard();
+}
+
+
+function obterTransacoesFinanceirasUnicas() {
+  const transacoes =
+    Array.isArray(state.transacoes)
+      ? state.transacoes
+      : [];
+
+  const vistas =
+    new Set();
+
+  const resultado = [];
+
+  transacoes.forEach(
+    (transacao) => {
+      const chave =
+        obterChaveTransacao(
+          transacao,
+        );
+
+      if (
+        vistas.has(chave)
+      ) {
+        return;
+      }
+
+      vistas.add(chave);
+
+      resultado.push(
+        transacao,
+      );
+    },
+  );
+
+  return resultado;
+}
+
+
+function pareceTransferencia(transacao) {
+  const texto =
+    normalizarTextoFinanceiro(
+      [
+        transacao.descricao,
+        transacao.categoria,
+        transacao.operationType,
+        transacao.operation_type,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+
+  const termos = [
+    "pix",
+    "transferencia",
+    "transfer",
+    "ted",
+    "doc",
+    "entre contas",
+    "recebimento pix",
+    "envio pix",
+    "pix recebido",
+    "pix enviado",
+    "resgate",
+    "aplicacao",
+  ];
+
+  return termos.some(
+    (termo) =>
+      texto.includes(
+        normalizarTextoFinanceiro(
+          termo,
+        ),
+      ),
+  );
+}
+
+
+function obterConciliacaoTransferencias() {
+  const transacoes =
+    obterTransacoesFinanceirasUnicas();
+
+  const internas =
+    new Set();
+
+  const pares = [];
+
+  function obterData(
+    transacao,
+  ) {
+    const data =
+      new Date(
+        transacao?.data,
+      );
+
+    return Number.isNaN(
+      data.getTime(),
+    )
+      ? null
+      : data;
+  }
+
+  function obterConta(
+    transacao,
+  ) {
+    return normalizarTextoFinanceiro(
+      transacao?.conta ||
+      transacao?.accountName ||
+      "",
+    );
+  }
+
+  for (
+    let i = 0;
+    i < transacoes.length;
+    i++
+  ) {
+    const primeira =
+      transacoes[i];
+
+    if (
+      internas.has(
+        primeira,
+      )
+    ) {
+      continue;
+    }
+
+    const analisePrimeira =
+      analisarTransacao(
+        primeira,
+      );
+
+    if (
+      analisePrimeira.ehCartao
+    ) {
+      continue;
+    }
+
+    const dataPrimeira =
+      obterData(
+        primeira,
+      );
+
+    if (!dataPrimeira) {
+      continue;
+    }
+
+    const contaPrimeira =
+      obterConta(
+        primeira,
+      );
+
+    let melhor = null;
+
+    for (
+      let j = 0;
+      j < transacoes.length;
+      j++
+    ) {
+      if (i === j) {
+        continue;
+      }
+
+      const segunda =
+        transacoes[j];
+
+      if (
+        internas.has(
+          segunda,
+        )
+      ) {
+        continue;
+      }
+
+      const analiseSegunda =
+        analisarTransacao(
+          segunda,
+        );
+
+      if (
+        analiseSegunda.ehCartao
+      ) {
+        continue;
+      }
+
+      const sentidosOpostos =
+        (
+          analisePrimeira.ehEntrada &&
+          analiseSegunda.ehSaida
+        ) ||
+        (
+          analisePrimeira.ehSaida &&
+          analiseSegunda.ehEntrada
+        );
+
+      if (!sentidosOpostos) {
+        continue;
+      }
+
+      const diferencaValor =
+        Math.abs(
+          analisePrimeira.valor -
+          analiseSegunda.valor,
+        );
+
+      if (
+        diferencaValor > 0.05
+      ) {
+        continue;
+      }
+
+      const contaSegunda =
+        obterConta(
+          segunda,
+        );
+
+      if (
+        !contaPrimeira ||
+        !contaSegunda ||
+        contaPrimeira ===
+          contaSegunda
+      ) {
+        continue;
+      }
+
+      const dataSegunda =
+        obterData(
+          segunda,
+        );
+
+      if (!dataSegunda) {
+        continue;
+      }
+
+      const diferencaDias =
+        Math.abs(
+          dataPrimeira -
+          dataSegunda,
+        ) /
+        (
+          1000 *
+          60 *
+          60 *
+          24
+        );
+
+      if (
+        diferencaDias > 3
+      ) {
+        continue;
+      }
+
+      let pontos = 0;
+
+      // Mesmo valor
+      if (
+        diferencaValor <= 0.01
+      ) {
+        pontos += 2;
+      }
+
+      // Quanto mais perto no tempo,
+      // maior a confiança.
+      if (
+        diferencaDias < 0.25
+      ) {
+        pontos += 4;
+      } else if (
+        diferencaDias <= 1.1
+      ) {
+        pontos += 3;
+      } else if (
+        diferencaDias <= 2.1
+      ) {
+        pontos += 2;
+      } else {
+        pontos += 1;
+      }
+
+      if (
+        pareceTransferencia(
+          primeira,
+        )
+      ) {
+        pontos += 2;
+      }
+
+      if (
+        pareceTransferencia(
+          segunda,
+        )
+      ) {
+        pontos += 2;
+      }
+
+      if (
+        ehMovimentacaoInterna(
+          primeira,
+        )
+      ) {
+        pontos += 3;
+      }
+
+      if (
+        ehMovimentacaoInterna(
+          segunda,
+        )
+      ) {
+        pontos += 3;
+      }
+
+      if (
+        !melhor ||
+        pontos >
+          melhor.pontos ||
+        (
+          pontos ===
+            melhor.pontos &&
+          diferencaDias <
+            melhor.diferencaDias
+        )
+      ) {
+        melhor = {
+          segunda,
+          analiseSegunda,
+          pontos,
+          diferencaDias,
+        };
+      }
+    }
+
+    // Mesmo valor + mesmo dia
+    // já é evidência forte.
+    //
+    // Em datas diferentes exigimos
+    // algum indício adicional.
+    if (
+      !melhor ||
+      melhor.pontos < 5
+    ) {
+      continue;
+    }
+
+    const segunda =
+      melhor.segunda;
+
+    internas.add(
+      primeira,
+    );
+
+    internas.add(
+      segunda,
+    );
+
+    const saida =
+      analisePrimeira.ehSaida
+        ? primeira
+        : segunda;
+
+    const entrada =
+      analisePrimeira.ehEntrada
+        ? primeira
+        : segunda;
+
+    pares.push({
+      saida,
+      entrada,
+
+      valor:
+        analisePrimeira.valor,
+
+      confianca:
+        melhor.pontos,
+    });
+  }
+
+  return {
+    internas,
+    pares,
+    transacoes,
+  };
+}
+
+
+
+// ==========================================
+// REGRAS FINAIS DO FLUXO FINANCEIRO
+// ==========================================
+
+function ehInternaEvidente(transacao) {
+  const texto =
+    normalizarTextoFinanceiro(
+      [
+        transacao.descricao,
+        transacao.categoria,
+        transacao.operationType,
+        transacao.operation_type,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+
+  const termosInternos = [
+    "dinheiro retirado",
+    "valor recebido de investimentos",
+    "valor recebido de investimento",
+    "resgate de investimento",
+    "resgate investimento",
+    "resgate caixinha",
+    "retirada caixinha",
+    "retirada de caixinha",
+    "dinheiro guardado",
+    "guardar dinheiro",
+    "aplicacao",
+    "aplicação",
+    "caixinha",
+  ];
+
+  return termosInternos.some(
+    (termo) =>
+      texto.includes(
+        normalizarTextoFinanceiro(
+          termo,
+        ),
+      ),
+  );
+}
+
+
+function ehEntradaExternaEvidente(
+  transacao,
+  analise,
+) {
+  if (
+    !analise ||
+    !analise.ehEntrada
+  ) {
+    return false;
+  }
+
+  const texto =
+    normalizarTextoFinanceiro(
+      [
+        transacao.descricao,
+        transacao.categoria,
+        transacao.operationType,
+        transacao.operation_type,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+
+  // Salário, rendimento, estorno etc.
+  const termosExternos = [
+    "salario",
+    "salário",
+    "rendimentos",
+    "rendimento",
+    "dividendos",
+    "estorno",
+    "cashback",
+    "reembolso",
+  ];
+
+  if (
+    termosExternos.some(
+      (termo) =>
+        texto.includes(
+          normalizarTextoFinanceiro(
+            termo,
+          ),
+        ),
+    )
+  ) {
+    return true;
+  }
+
+  // PIX RECEBIDO de pessoa/empresa é entrada externa,
+  // desde que já não tenha sido pareado com outra conta sua.
+  if (
+    texto.includes("pix recebido") ||
+    texto.includes("pix recebido de") ||
+    texto.includes("recebimento pix")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+
+function obterResumoFluxoMes() {
+  let entradas = 0;
+  let saidas = 0;
+
+  let pendenteEntradas = 0;
+  let pendenteSaidas = 0;
+
+  const entradasLista = [];
+  const saidasLista = [];
+
+  const pendentesEntradaLista = [];
+  const pendentesSaidaLista = [];
+
+  const internasManuaisLista = [];
+  const internasAutomaticasLista = [];
+
+  const conciliacao =
+    obterConciliacaoTransferencias();
+
+  const internasAvulsas =
+    new Set();
+
+
+  conciliacao.transacoes.forEach(
+    (transacao) => {
+      if (
+        !transacaoEhDoMesAtual(
+          transacao,
+        )
+      ) {
+        return;
+      }
+
+      const analise =
+        analisarTransacao(
+          transacao,
+        );
+
+      if (analise.ehCartao) {
+        return;
+      }
+
+
+      // ======================================
+      // TRANSFERÊNCIA ENTRE CONTAS PRÓPRIAS
+      // ======================================
+
+      if (
+        conciliacao.internas.has(
+          transacao,
+        )
+      ) {
+        return;
+      }
+
+
+      // ======================================
+      // MARCADA MANUALMENTE COMO INTERNA
+      // ======================================
+
+      if (
+        ehInternaManual(
+          transacao,
+        )
+      ) {
+        internasAvulsas.add(
+          transacao,
+        );
+
+        internasManuaisLista.push({
+          transacao,
+          valor:
+            analise.valor,
+        });
+
+        return;
+      }
+
+
+      // ======================================
+      // CAIXINHA / RESERVA / INVESTIMENTO
+      // ======================================
+
+      if (
+        ehInternaEvidente(
+          transacao,
+        ) ||
+        ehMovimentacaoInterna(
+          transacao,
+        )
+      ) {
+        internasAvulsas.add(
+          transacao,
+        );
+
+        internasAutomaticasLista.push({
+          transacao,
+          valor:
+            analise.valor,
+        });
+
+        return;
+      }
+
+
+      // ======================================
+      // CLASSIFICAÇÃO MANUAL EXTERNA
+      // ======================================
+
+      if (
+        ehExternaManual(
+          transacao,
+        )
+      ) {
+        if (
+          analise.ehEntrada
+        ) {
+          entradas +=
+            analise.valor;
+
+          entradasLista.push({
+            transacao,
+            valor:
+              analise.valor,
+            confirmado:
+              true,
+          });
+        }
+
+        if (
+          analise.ehSaida
+        ) {
+          saidas +=
+            analise.valor;
+
+          saidasLista.push({
+            transacao,
+            valor:
+              analise.valor,
+            confirmado:
+              true,
+          });
+        }
+
+        return;
+      }
+
+
+      // ======================================
+      // ENTRADA CLARAMENTE EXTERNA
+      // ======================================
+
+      if (
+        ehEntradaExternaEvidente(
+          transacao,
+          analise,
+        )
+      ) {
+        entradas +=
+          analise.valor;
+
+        entradasLista.push({
+          transacao,
+          valor:
+            analise.valor,
+          confirmado:
+            false,
+        });
+
+        return;
+      }
+
+
+      // ======================================
+      // TRANSFERÊNCIA AMBÍGUA
+      // ======================================
+
+      if (
+        pareceTransferencia(
+          transacao,
+        )
+      ) {
+        if (
+          analise.ehEntrada
+        ) {
+          pendenteEntradas +=
+            analise.valor;
+
+          pendentesEntradaLista.push({
+            transacao,
+            valor:
+              analise.valor,
+          });
+        }
+
+        if (
+          analise.ehSaida
+        ) {
+          pendenteSaidas +=
+            analise.valor;
+
+          pendentesSaidaLista.push({
+            transacao,
+            valor:
+              analise.valor,
+          });
+        }
+
+        return;
+      }
+
+
+      // ======================================
+      // MOVIMENTAÇÃO NORMAL EXTERNA
+      // ======================================
+
+      if (
+        analise.ehEntrada
+      ) {
+        entradas +=
+          analise.valor;
+
+        entradasLista.push({
+          transacao,
+          valor:
+            analise.valor,
+          confirmado:
+            false,
+        });
+      }
+
+      if (
+        analise.ehSaida
+      ) {
+        saidas +=
+          analise.valor;
+
+        saidasLista.push({
+          transacao,
+          valor:
+            analise.valor,
+          confirmado:
+            false,
+        });
+      }
+    },
+  );
+
+
+  const paresDoMes =
+    conciliacao.pares.filter(
+      (par) =>
+        transacaoEhDoMesAtual(
+          par.saida,
+        ) ||
+        transacaoEhDoMesAtual(
+          par.entrada,
+        ),
+    );
+
+
+  const internasConciliadas =
+    paresDoMes.reduce(
+      (total, par) =>
+        total +
+        Number(
+          par.valor || 0,
+        ),
+      0,
+    );
+
+
+  const internasNaoPareadas =
+    [...internasAvulsas]
+      .reduce(
+        (
+          total,
+          transacao,
+        ) => {
+          const analise =
+            analisarTransacao(
+              transacao,
+            );
+
+          return (
+            total +
+            analise.valor
+          );
+        },
+        0,
+      );
+
+
+  const totalOriginais =
+    Array.isArray(
+      state.transacoes,
+    )
+      ? state.transacoes.length
+      : 0;
+
+
+  const duplicadasRemovidas =
+    Math.max(
+      totalOriginais -
+      conciliacao
+        .transacoes
+        .length,
+      0,
+    );
+
+
+  return {
+    entradas,
+    saidas,
+
+    resultado:
+      entradas -
+      saidas,
+
+    internas:
+      internasConciliadas +
+      internasNaoPareadas,
+
+    internasConciliadas,
+
+    quantidadeTransferencias:
+      paresDoMes.length,
+
+    entradasLista,
+    saidasLista,
+
+    pendenteEntradas,
+    pendenteSaidas,
+
+    pendentesEntradaLista,
+    pendentesSaidaLista,
+
+    internasManuaisLista,
+    internasAutomaticasLista,
+
+    paresDoMes,
+
+    duplicadasRemovidas,
+
+    conciliacao,
+  };
+}
+
+// ==========================================
+// CONTAS FIXAS PENDENTES DO MÊS ATUAL
+// ==========================================
+
+function obterResumoContasFixasMesAtual() {
+  const contas = pegarContasFixas();
+
+  const hoje = new Date();
+
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth();
+
+  let total = 0;
+  let pago = 0;
+  let pendente = 0;
+
+  contas.forEach((conta) => {
+    const ehParcelada =
+      conta.tipo === "parcelada" ||
+      Number(conta.totalParcelas || 0) > 0;
+
+    if (conta.finalizada === true) {
+      return;
+    }
+
+    if (ehParcelada) {
+      const totalParcelas =
+        Number(conta.totalParcelas || 0);
+
+      const parcelaInicial =
+        Number(conta.parcelaAtual || 1);
+
+      const anoInicial =
+        Number(conta.anoInicioParcela || ano);
+
+      const mesInicial =
+        Number(conta.mesInicioParcela ?? mes);
+
+      const diferencaMeses =
+        (ano - anoInicial) * 12 +
+        (mes - mesInicial);
+
+      const parcelaDoMes =
+        parcelaInicial + diferencaMeses;
+
+      if (
+        parcelaDoMes < parcelaInicial ||
+        parcelaDoMes > totalParcelas
+      ) {
+        return;
+      }
+    }
+
+    const valor =
+      Number(conta.amount || 0);
+
+    const chaveMes =
+      `${ano}-${String(mes + 1).padStart(2, "0")}`;
+
+    const foiPaga =
+      Array.isArray(conta.pagamentos) &&
+      conta.pagamentos.includes(chaveMes);
+
+    total += valor;
+
+    if (foiPaga) {
+      pago += valor;
+    } else {
+      pendente += valor;
+    }
+  });
+
+  return {
+    total,
+    pago,
+    pendente,
+  };
+}
+
+// ==========================================
+// VALOR DA FATURA
+// ==========================================
+
+function obterValorFaturaDashboard(fatura) {
+  let valor = Number(
+    fatura?.totalAmount ||
+    fatura?.valor ||
+    0,
+  );
+
+  if (valor > 0) {
+    return valor;
+  }
+
+  const cartao = state.cartoes.find(
+    (item) =>
+      String(item.id) ===
+      String(fatura?.accountId),
+  );
+
+  if (
+    !cartao ||
+    !fatura?.billClosingDate
+  ) {
+    return 0;
+  }
+
+  const fechamento =
+    new Date(fatura.billClosingDate);
+
+  if (
+    Number.isNaN(
+      fechamento.getTime(),
+    )
+  ) {
+    return 0;
+  }
+
+  const inicio =
+    new Date(fechamento);
+
+  inicio.setMonth(
+    inicio.getMonth() - 1,
+  );
+
+  return state.transacoes
+    .filter((transacao) => {
+      if (
+        transacao.conta !==
+        cartao.banco
+      ) {
+        return false;
+      }
+
+      if (
+        String(
+          transacao.tipoConta || "",
+        ).toUpperCase() !== "CREDIT"
+      ) {
+        return false;
+      }
+
+      if (
+        String(
+          transacao.tipo || "",
+        ).toUpperCase() !== "DEBIT"
+      ) {
+        return false;
+      }
+
+      const data =
+        new Date(transacao.data);
+
+      return (
+        data > inicio &&
+        data <= fechamento
+      );
+    })
+    .reduce(
+      (total, transacao) =>
+        total +
+        Math.abs(
+          Number(
+            transacao.valor || 0,
+          ),
+        ),
+      0,
+    );
+}
+
+// ==========================================
+// FATURAS COM VENCIMENTO NO MÊS
+// ==========================================
+
+function obterResumoFaturasMesAtual() {
+  const hoje = new Date();
+
+  const faturasMes =
+    state.faturas.filter((fatura) => {
+      if (!fatura?.dueDate) {
+        return false;
+      }
+
+      const vencimento =
+        new Date(fatura.dueDate);
+
+      if (
+        Number.isNaN(
+          vencimento.getTime(),
+        )
+      ) {
+        return false;
+      }
+
+      return (
+        vencimento.getFullYear() ===
+          hoje.getFullYear() &&
+        vencimento.getMonth() ===
+          hoje.getMonth()
+      );
+    });
+
+  // Evita duplicidade de fatura virtual + real
+  const faturasPorCartao =
+    new Map();
+
+  faturasMes.forEach((fatura) => {
+    const chave =
+      String(
+        fatura.accountId ||
+        fatura.id ||
+        "",
+      );
+
+    const existente =
+      faturasPorCartao.get(chave);
+
+    if (!existente) {
+      faturasPorCartao.set(
+        chave,
+        fatura,
+      );
+
+      return;
+    }
+
+    if (
+      existente.virtual &&
+      !fatura.virtual
+    ) {
+      faturasPorCartao.set(
+        chave,
+        fatura,
+      );
+
+      return;
+    }
+
+    if (
+      obterValorFaturaDashboard(
+        fatura,
+      ) >
+      obterValorFaturaDashboard(
+        existente,
+      )
+    ) {
+      faturasPorCartao.set(
+        chave,
+        fatura,
+      );
+    }
+  });
+
+  const faturas =
+    [...faturasPorCartao.values()];
+
+  const total =
+    faturas.reduce(
+      (soma, fatura) =>
+        soma +
+        obterValorFaturaDashboard(
+          fatura,
+        ),
+      0,
+    );
+
+  return {
+    total,
+    quantidade: faturas.length,
+    faturas,
+  };
+}
+
+// ==========================================
+// COMPROMISSOS DO MÊS
+// ==========================================
+
+function atualizarCompromissosMes() {
+  const faturas =
+    obterResumoFaturasMesAtual();
+
+  const fixas =
+    obterResumoContasFixasMesAtual();
+
+  const total =
+    faturas.total +
+    fixas.pendente;
+
+  const saldoContas =
+    state.contas.reduce(
+      (soma, conta) =>
+        soma +
+        Number(conta.saldo || 0),
+      0,
+    );
+
+  const saldoDepois =
+    saldoContas - total;
+
+  const faturasElemento =
+    document.querySelector(
+      "#monthlyBillsTotal",
+    );
+
+  const quantidadeElemento =
+    document.querySelector(
+      "#monthlyBillsCount",
+    );
+
+  const fixasElemento =
+    document.querySelector(
+      "#monthlyFixedPending",
+    );
+
+  const totalElemento =
+    document.querySelector(
+      "#monthlyCommitmentsTotal",
+    );
+
+  const saldoElemento =
+    document.querySelector(
+      "#balanceAfterCommitments",
+    );
+
+  if (faturasElemento) {
+    faturasElemento.textContent =
+      dinheiro(faturas.total);
+  }
+
+  if (quantidadeElemento) {
+    quantidadeElemento.textContent =
+      `${faturas.quantidade} fatura${
+        faturas.quantidade === 1
+          ? ""
+          : "s"
+      } com vencimento no mês`;
+  }
+
+  if (fixasElemento) {
+    fixasElemento.textContent =
+      dinheiro(fixas.pendente);
+  }
+
+  if (totalElemento) {
+    totalElemento.textContent =
+      dinheiro(total);
+  }
+
+  if (saldoElemento) {
+    saldoElemento.textContent =
+      dinheiro(saldoDepois);
+
+    saldoElemento.classList.toggle(
+      "income",
+      saldoDepois >= 0,
+    );
+
+    saldoElemento.classList.toggle(
+      "expense",
+      saldoDepois < 0,
+    );
+  }
+}
+
+// ==========================================
+// FLUXO POR CONTA
+// ==========================================
+
+
+// ==========================================
+// CONFERÊNCIA DO FLUXO EXTERNO
+// ==========================================
+
+function mostrarDetalhesFluxo() {
+  const fluxo =
+    obterResumoFluxoMes();
+
+  const referencia =
+    document.querySelector(
+      ".account-flow-panel",
+    );
+
+  if (!referencia) {
+    return;
+  }
+
+  let painel =
+    document.querySelector(
+      "#flowAuditPanel",
+    );
+
+  if (!painel) {
+    painel =
+      document.createElement(
+        "article",
+      );
+
+    painel.id =
+      "flowAuditPanel";
+
+    painel.className =
+      "panel flow-audit-panel";
+
+    referencia.insertAdjacentElement(
+      "afterend",
+      painel,
+    );
+  }
+
+
+  const todas =
+    [
+      ...fluxo.entradasLista.map(
+        (item) => ({
+          ...item,
+          grupo:
+            "entrada",
+        }),
+      ),
+
+      ...fluxo.saidasLista.map(
+        (item) => ({
+          ...item,
+          grupo:
+            "saida",
+        }),
+      ),
+
+      ...fluxo.pendentesEntradaLista.map(
+        (item) => ({
+          ...item,
+          grupo:
+            "pendente-entrada",
+        }),
+      ),
+
+      ...fluxo.pendentesSaidaLista.map(
+        (item) => ({
+          ...item,
+          grupo:
+            "pendente-saida",
+        }),
+      ),
+    ];
+
+
+  const contas =
+    [...new Set(
+      todas
+        .map(
+          (item) =>
+            item.transacao.conta ||
+            item.transacao.accountName ||
+            "Conta",
+        )
+        .filter(Boolean),
+    )]
+      .sort(
+        (a, b) =>
+          a.localeCompare(
+            b,
+            "pt-BR",
+          ),
+      );
+
+
+  painel.innerHTML = `
+
+    <div class="panel-head">
+
+      <div>
+
+        <p class="eyebrow">
+          CONFERÊNCIA
+        </p>
+
+        <h2>
+          Entradas e saídas externas
+        </h2>
+
+        <p>
+          PIX e transferências sem confirmação ficam
+          pendentes para não inflar seus valores.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="flow-audit-summary">
+
+      <div>
+        <span>
+          Entradas externas
+        </span>
+
+        <strong class="income">
+          ${dinheiro(
+            fluxo.entradas,
+          )}
+        </strong>
+      </div>
+
+
+      <div>
+        <span>
+          Saídas externas
+        </span>
+
+        <strong class="expense">
+          ${dinheiro(
+            fluxo.saidas,
+          )}
+        </strong>
+      </div>
+
+
+      <div>
+        <span>
+          Transferências internas
+        </span>
+
+        <strong class="internal">
+          ${dinheiro(
+            fluxo.internas,
+          )}
+        </strong>
+      </div>
+
+
+      <div class="flow-review-card">
+
+        <span>
+          A revisar
+        </span>
+
+        <strong>
+          ${dinheiro(
+            fluxo.pendenteEntradas +
+            fluxo.pendenteSaidas,
+          )}
+        </strong>
+
+        <small>
+          ${
+            fluxo.pendentesEntradaLista.length +
+            fluxo.pendentesSaidaLista.length
+          }
+          movimentação(ões)
+        </small>
+
+      </div>
+
+    </div>
+
+
+    <div class="flow-filter-panel">
+
+      <input
+        type="search"
+        id="flowSearch"
+        placeholder="Buscar PIX, nome, descrição..."
+      />
+
+
+      <select id="flowTypeFilter">
+
+        <option value="todos">
+          Todos
+        </option>
+
+        <option value="pendente-entrada">
+          Entradas a revisar
+        </option>
+
+        <option value="entrada">
+          Entradas externas
+        </option>
+
+        <option value="pendente-saida">
+          Saídas a revisar
+        </option>
+
+        <option value="saida">
+          Saídas externas
+        </option>
+
+      </select>
+
+
+      <select id="flowAccountFilter">
+
+        <option value="">
+          Todas as contas
+        </option>
+
+        ${contas
+          .map(
+            (conta) => `
+              <option
+                value="${escapar(conta)}"
+              >
+                ${escapar(conta)}
+              </option>
+            `,
+          )
+          .join("")}
+
+      </select>
+
+
+      <input
+        type="number"
+        id="flowMinValue"
+        min="0"
+        step="0.01"
+        placeholder="Valor mín."
+      />
+
+
+      <input
+        type="number"
+        id="flowMaxValue"
+        min="0"
+        step="0.01"
+        placeholder="Valor máx."
+      />
+
+    </div>
+
+
+    <div class="flow-filter-result">
+
+      <strong id="flowResultCount">
+        0 movimentações
+      </strong>
+
+      <span>
+        Duplicatas ignoradas:
+        ${fluxo.duplicadasRemovidas}
+      </span>
+
+    </div>
+
+
+    <div
+      id="flowFilteredList"
+      class="flow-audit-list"
+    ></div>
+
+  `;
+
+
+  function textoDaTransacao(
+    transacao,
+  ) {
+    return normalizarTextoFinanceiro(
+      [
+        transacao.descricao,
+        transacao.categoria,
+        transacao.conta,
+        transacao.accountName,
+        transacao.operationType,
+        transacao.operation_type,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+  }
+
+
+  function renderizarLista() {
+    const busca =
+      normalizarTextoFinanceiro(
+        document.querySelector(
+          "#flowSearch",
+        )?.value || "",
+      );
+
+    const tipo =
+      document.querySelector(
+        "#flowTypeFilter",
+      )?.value || "todos";
+
+    const contaSelecionada =
+      document.querySelector(
+        "#flowAccountFilter",
+      )?.value || "";
+
+    const minimo =
+      Number(
+        document.querySelector(
+          "#flowMinValue",
+        )?.value || 0,
+      );
+
+    const maxTexto =
+      document.querySelector(
+        "#flowMaxValue",
+      )?.value;
+
+    const maximo =
+      maxTexto
+        ? Number(maxTexto)
+        : Infinity;
+
+
+    const filtradas =
+      todas.filter(
+        (item) => {
+          const transacao =
+            item.transacao;
+
+          const conta =
+            transacao.conta ||
+            transacao.accountName ||
+            "Conta";
+
+          if (
+            tipo !== "todos" &&
+            item.grupo !== tipo
+          ) {
+            return false;
+          }
+
+          if (
+            contaSelecionada &&
+            conta !==
+              contaSelecionada
+          ) {
+            return false;
+          }
+
+          if (
+            item.valor < minimo ||
+            item.valor > maximo
+          ) {
+            return false;
+          }
+
+          if (
+            busca &&
+            !textoDaTransacao(
+              transacao,
+            ).includes(busca)
+          ) {
+            return false;
+          }
+
+          return true;
+        },
+      );
+
+
+    const contador =
+      document.querySelector(
+        "#flowResultCount",
+      );
+
+    if (contador) {
+      contador.textContent =
+        `${filtradas.length} movimentação${
+          filtradas.length === 1
+            ? ""
+            : "ões"
+        }`;
+    }
+
+
+    const lista =
+      document.querySelector(
+        "#flowFilteredList",
+      );
+
+    if (!lista) {
+      return;
+    }
+
+
+    if (!filtradas.length) {
+      lista.innerHTML = `
+        <div class="empty">
+          Nenhuma movimentação encontrada.
+        </div>
+      `;
+
+      return;
+    }
+
+
+    lista.innerHTML =
+      filtradas
+        .sort(
+          (a, b) =>
+            String(
+              b.transacao.data,
+            ).localeCompare(
+              String(
+                a.transacao.data,
+              ),
+            ),
+        )
+        .map(
+          (item) => {
+            const transacao =
+              item.transacao;
+
+            const pendente =
+              item.grupo.startsWith(
+                "pendente",
+              );
+
+            const entrada =
+              item.grupo.includes(
+                "entrada",
+              );
+
+            const chave =
+              encodeURIComponent(
+                obterChaveTransacao(
+                  transacao,
+                ),
+              );
+
+            return `
+
+              <div
+                class="flow-audit-row ${
+                  pendente
+                    ? "flow-row-pending"
+                    : ""
+                }"
+              >
+
+                <div class="flow-audit-description">
+
+                  <strong>
+                    ${escapar(
+                      transacao.descricao ||
+                      "Movimentação",
+                    )}
+                  </strong>
+
+                  <small>
+                    ${dataBR(
+                      transacao.data,
+                    )}
+
+                    ·
+
+                    ${escapar(
+                      transacao.conta ||
+                      transacao.accountName ||
+                      "Conta",
+                    )}
+                  </small>
+
+                  ${
+                    pendente
+                      ? `
+                        <span class="flow-pending-label">
+                          Precisa de revisão
+                        </span>
+                      `
+                      : `
+                        <span class="flow-external-label">
+                          ${
+                            entrada
+                              ? "Entrada externa"
+                              : "Saída externa"
+                          }
+                        </span>
+                      `
+                  }
+
+                </div>
+
+
+                <div class="flow-audit-actions">
+
+                  <strong
+                    class="${
+                      entrada
+                        ? "income"
+                        : "expense"
+                    }"
+                  >
+                    ${
+                      entrada
+                        ? "+"
+                        : "-"
+                    }
+
+                    ${dinheiro(
+                      item.valor,
+                    )}
+                  </strong>
+
+
+                  ${
+                    pendente
+                      ? `
+                        <button
+                          type="button"
+                          class="flow-confirm-external"
+                          data-external="${chave}"
+                        >
+                          É externa
+                        </button>
+
+                        <button
+                          type="button"
+                          class="flow-confirm-internal"
+                          data-internal="${chave}"
+                        >
+                          É minha transferência
+                        </button>
+                      `
+                      : `
+                        <button
+                          type="button"
+                          class="flow-confirm-internal"
+                          data-internal="${chave}"
+                        >
+                          Marcar como interna
+                        </button>
+                      `
+                  }
+
+                </div>
+
+              </div>
+
+            `;
+          },
+        )
+        .join("");
+
+
+    lista
+      .querySelectorAll(
+        "[data-internal]",
+      )
+      .forEach(
+        (botao) => {
+          botao.addEventListener(
+            "click",
+            () => {
+              const chave =
+                decodeURIComponent(
+                  botao.dataset.internal,
+                );
+
+              const transacao =
+                obterTransacoesFinanceirasUnicas()
+                  .find(
+                    (item) =>
+                      obterChaveTransacao(
+                        item,
+                      ) === chave,
+                  );
+
+              if (transacao) {
+                marcarComoInterna(
+                  transacao,
+                );
+              }
+            },
+          );
+        },
+      );
+
+
+    lista
+      .querySelectorAll(
+        "[data-external]",
+      )
+      .forEach(
+        (botao) => {
+          botao.addEventListener(
+            "click",
+            () => {
+              const chave =
+                decodeURIComponent(
+                  botao.dataset.external,
+                );
+
+              const transacao =
+                obterTransacoesFinanceirasUnicas()
+                  .find(
+                    (item) =>
+                      obterChaveTransacao(
+                        item,
+                      ) === chave,
+                  );
+
+              if (transacao) {
+                marcarComoExterna(
+                  transacao,
+                );
+              }
+            },
+          );
+        },
+      );
+  }
+
+
+  [
+    "#flowSearch",
+    "#flowTypeFilter",
+    "#flowAccountFilter",
+    "#flowMinValue",
+    "#flowMaxValue",
+  ].forEach(
+    (seletor) => {
+      const elemento =
+        document.querySelector(
+          seletor,
+        );
+
+      if (!elemento) {
+        return;
+      }
+
+      elemento.addEventListener(
+        "input",
+        renderizarLista,
+      );
+
+      elemento.addEventListener(
+        "change",
+        renderizarLista,
+      );
+    },
+  );
+
+
+  // Começa mostrando o que precisa
+  // de revisão primeiro.
+  const filtroTipo =
+    document.querySelector(
+      "#flowTypeFilter",
+    );
+
+  if (
+    filtroTipo &&
+    fluxo.pendentesEntradaLista.length
+  ) {
+    filtroTipo.value =
+      "pendente-entrada";
+  }
+
+
+  renderizarLista();
+}
+
+
+function mostrarFluxoPorConta() {
+  const container =
+    document.querySelector(
+      "#accountFlow",
+    );
+
+  if (!container) {
+    return;
+  }
+
+  const contas = {};
+
+  const conciliacao =
+    obterConciliacaoTransferencias();
+
+  state.transacoes.forEach(
+    (transacao) => {
+      if (
+        !transacaoEhDoMesAtual(
+          transacao,
+        )
+      ) {
+        return;
+      }
+
+      const analise =
+        analisarTransacao(
+          transacao,
+        );
+
+      if (analise.ehCartao) {
+        return;
+      }
+
+      const conta =
+        transacao.conta ||
+        transacao.accountName ||
+        "Conta";
+
+      if (!contas[conta]) {
+        contas[conta] = {
+          entradas: 0,
+          saidas: 0,
+          internas: 0,
+        };
+      }
+
+      if (
+        conciliacao.internas.has(
+          transacao,
+        ) ||
+        ehMovimentacaoInterna(
+          transacao,
+        )
+      ) {
+        contas[conta].internas +=
+          analise.valor;
+
+        return;
+      }
+
+      if (analise.ehEntrada) {
+        contas[conta].entradas +=
+          analise.valor;
+      }
+
+      if (analise.ehSaida) {
+        contas[conta].saidas +=
+          analise.valor;
+      }
+    },
+  );
+
+  const lista =
+    Object.entries(contas)
+      .sort(
+        (a, b) =>
+          a[0].localeCompare(
+            b[0],
+            "pt-BR",
+          ),
+      );
+
+  if (!lista.length) {
+    container.innerHTML = `
+      <div class="empty">
+        Nenhuma movimentação bancária
+        encontrada neste mês.
+      </div>
+    `;
+
+    return;
+  }
+
+  container.innerHTML =
+    lista
+      .map(
+        ([conta, valores]) => {
+          const liquido =
+            valores.entradas -
+            valores.saidas;
+
+          return `
+            <div class="account-flow-item">
+
+              <div class="account-flow-name">
+                ${escapar(conta)}
+              </div>
+
+              <div class="account-flow-values">
+
+                <div>
+                  <span>Entrou</span>
+
+                  <strong class="income">
+                    ${dinheiro(
+                      valores.entradas,
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Saiu</span>
+
+                  <strong class="expense">
+                    ${dinheiro(
+                      valores.saidas,
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Interno</span>
+
+                  <strong class="internal">
+                    ${dinheiro(
+                      valores.internas,
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Líquido</span>
+
+                  <strong
+                    class="${
+                      liquido >= 0
+                        ? "income"
+                        : "expense"
+                    }"
+                  >
+                    ${dinheiro(
+                      liquido,
+                    )}
+                  </strong>
+                </div>
+
+              </div>
+
+            </div>
+          `;
+        },
+      )
+      .join("");
+}
+
+
 // ==========================================
 // DASHBOARD
 // ==========================================
 
 function atualizarDashboard() {
-  const saldoContas = state.contas.reduce(
-    (total, conta) => total + Number(conta.saldo || 0),
-    0,
-  );
+  const saldoContas =
+    state.contas.reduce(
+      (total, conta) =>
+        total +
+        Number(conta.saldo || 0),
+      0,
+    );
 
-  const entradas = state.transacoes
-    .filter((transacao) => {
-      const analise = analisarTransacao(transacao);
+  const fluxo =
+    obterResumoFluxoMes();
 
-      return analise.ehEntrada;
-    })
-    .reduce((total, transacao) => {
-      const analise = analisarTransacao(transacao);
+  const resumoFixas =
+    obterResumoContasFixasMes();
 
-      return total + analise.valor;
-    }, 0);
+  const elementoFixedTotal =
+    document.querySelector(
+      "#fixedTotal",
+    );
 
-  const saidas = state.transacoes
-    .filter((transacao) => {
-      const analise = analisarTransacao(transacao);
+  const elementoFixedPaid =
+    document.querySelector(
+      "#fixedPaid",
+    );
 
-      return analise.ehSaida;
-    })
-    .reduce((total, transacao) => {
-      const analise = analisarTransacao(transacao);
-
-      return total + analise.valor;
-    }, 0);
-
-  // ==========================================
-  // CONTAS FIXAS DO MÊS
-  // ==========================================
-
-  const resumoFixas = obterResumoContasFixasMes();
-
-  const elementoFixedTotal = document.querySelector("#fixedTotal");
-
-  const elementoFixedPaid = document.querySelector("#fixedPaid");
-
-  const elementoFixedPending = document.querySelector("#fixedPending");
+  const elementoFixedPending =
+    document.querySelector(
+      "#fixedPending",
+    );
 
   if (elementoFixedTotal) {
-    elementoFixedTotal.textContent = dinheiro(resumoFixas.total);
+    elementoFixedTotal.textContent =
+      dinheiro(
+        resumoFixas.total,
+      );
   }
 
   if (elementoFixedPaid) {
-    elementoFixedPaid.textContent = dinheiro(resumoFixas.pago);
+    elementoFixedPaid.textContent =
+      dinheiro(
+        resumoFixas.pago,
+      );
   }
 
   if (elementoFixedPending) {
-    elementoFixedPending.textContent = dinheiro(resumoFixas.pendente);
+    elementoFixedPending.textContent =
+      dinheiro(
+        resumoFixas.pendente,
+      );
   }
 
-  const elementoSaldo = document.querySelector("#totalBalance");
+  const elementoSaldo =
+    document.querySelector(
+      "#totalBalance",
+    );
 
-  const elementoEntradas = document.querySelector("#totalIncome");
+  const elementoEntradas =
+    document.querySelector(
+      "#totalIncome",
+    );
 
-  const elementoSaidas = document.querySelector("#totalExpense");
+  const elementoSaidas =
+    document.querySelector(
+      "#totalExpense",
+    );
+
+  const elementoInternas =
+    document.querySelector(
+      "#internalMovementTotal",
+    );
+
+  const elementoResultadoReal =
+    document.querySelector(
+      "#realNetTotal",
+    );
+
+  const elementoTransferencias =
+    document.querySelector(
+      "#internalMovementCount",
+    );
 
   if (elementoSaldo) {
-    elementoSaldo.textContent = dinheiro(saldoContas);
+    elementoSaldo.textContent =
+      dinheiro(saldoContas);
   }
 
   if (elementoEntradas) {
-    elementoEntradas.textContent = dinheiro(entradas);
+    elementoEntradas.textContent =
+      dinheiro(
+        fluxo.entradas,
+      );
   }
 
   if (elementoSaidas) {
-    elementoSaidas.textContent = dinheiro(saidas);
+    elementoSaidas.textContent =
+      dinheiro(
+        fluxo.saidas,
+      );
   }
+
+  if (elementoInternas) {
+    elementoInternas.textContent =
+      dinheiro(
+        fluxo.internas,
+      );
+  }
+
+  if (elementoTransferencias) {
+    elementoTransferencias.textContent =
+      `${fluxo.quantidadeTransferencias} transferência${
+        fluxo.quantidadeTransferencias === 1
+          ? ""
+          : "s"
+      } conciliada${
+        fluxo.quantidadeTransferencias === 1
+          ? ""
+          : "s"
+      } automaticamente`;
+  }
+
+  if (elementoResultadoReal) {
+    elementoResultadoReal.textContent =
+      dinheiro(
+        fluxo.resultado,
+      );
+
+    elementoResultadoReal.classList.toggle(
+      "income",
+      fluxo.resultado >= 0,
+    );
+
+    elementoResultadoReal.classList.toggle(
+      "expense",
+      fluxo.resultado < 0,
+    );
+  }
+
+  atualizarCompromissosMes();
+
+  mostrarFluxoPorConta();
+
+  mostrarDetalhesFluxo();
 
   mostrarRecentes();
 
@@ -878,7 +3326,10 @@ function mostrarCategorias() {
   state.transacoes.forEach((transacao) => {
     const analise = analisarTransacao(transacao);
 
-    if (!analise.ehSaida) {
+    if (
+      !analise.ehSaida ||
+      ehMovimentacaoInterna(transacao)
+    ) {
       return;
     }
 
@@ -3320,6 +5771,8 @@ function navegar(secao) {
 
     fixas: "Contas fixas",
 
+    planejamento: "Planejamento futuro",
+
     caixinhas: "Caixinhas",
   };
 
@@ -3752,6 +6205,786 @@ function configurarFormularioContaFixa() {
   });
 }
 
+
+// ==========================================
+// PLANEJAMENTO FUTURO
+// ==========================================
+
+const CHAVE_PLANEJAMENTO =
+  "meuFinanceiroPlanejamentoFuturo";
+
+const CHAVE_RESERVA_INICIAL =
+  "meuFinanceiroReservaInicialPlanejamento";
+
+function carregarPlanejamentoFuturo() {
+  try {
+    const dados = JSON.parse(
+      localStorage.getItem(
+        CHAVE_PLANEJAMENTO,
+      ) || "[]",
+    );
+
+    return Array.isArray(dados)
+      ? dados
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function salvarPlanejamentoFuturo(itens) {
+  localStorage.setItem(
+    CHAVE_PLANEJAMENTO,
+    JSON.stringify(itens),
+  );
+}
+
+function obterReservaInicialPlanejamento() {
+  return Number(
+    localStorage.getItem(
+      CHAVE_RESERVA_INICIAL,
+    ) || 0,
+  );
+}
+
+function salvarReservaInicialPlanejamento(valor) {
+  localStorage.setItem(
+    CHAVE_RESERVA_INICIAL,
+    String(Number(valor || 0)),
+  );
+}
+
+function mesParaData(valor) {
+  if (!valor) {
+    return null;
+  }
+
+  const [ano, mes] =
+    valor.split("-").map(Number);
+
+  if (!ano || !mes) {
+    return null;
+  }
+
+  return new Date(
+    ano,
+    mes - 1,
+    1,
+  );
+}
+
+function chaveMes(data) {
+  return (
+    data.getFullYear() +
+    "-" +
+    String(
+      data.getMonth() + 1,
+    ).padStart(2, "0")
+  );
+}
+
+function itemAtivoNoMes(
+  item,
+  dataMes,
+) {
+  const inicio =
+    mesParaData(item.inicio);
+
+  const fim =
+    mesParaData(item.fim);
+
+  if (!inicio) {
+    return false;
+  }
+
+  const atual =
+    new Date(
+      dataMes.getFullYear(),
+      dataMes.getMonth(),
+      1,
+    );
+
+  if (atual < inicio) {
+    return false;
+  }
+
+  if (
+    fim &&
+    atual > fim
+  ) {
+    return false;
+  }
+
+  if (
+    item.recorrencia ===
+    "unica"
+  ) {
+    return (
+      chaveMes(atual) ===
+      chaveMes(inicio)
+    );
+  }
+
+  return true;
+}
+
+function obterMesInicialPlanejamento() {
+  const campo =
+    document.querySelector(
+      "#planningReferenceMonth",
+    );
+
+  if (
+    campo &&
+    campo.value
+  ) {
+    const data =
+      mesParaData(
+        campo.value,
+      );
+
+    if (data) {
+      return data;
+    }
+  }
+
+  const hoje =
+    new Date();
+
+  return new Date(
+    hoje.getFullYear(),
+    hoje.getMonth(),
+    1,
+  );
+}
+
+function renderizarPlanejamentoFuturo() {
+  const itens =
+    carregarPlanejamentoFuturo();
+
+  const lista =
+    document.querySelector(
+      "#planningList",
+    );
+
+  const tabela =
+    document.querySelector(
+      "#planningProjection",
+    );
+
+  const receitaElemento =
+    document.querySelector(
+      "#planningIncome",
+    );
+
+  const despesaElemento =
+    document.querySelector(
+      "#planningExpense",
+    );
+
+  const sobraElemento =
+    document.querySelector(
+      "#planningBalance",
+    );
+
+  const acumuladoElemento =
+    document.querySelector(
+      "#planningAccumulated",
+    );
+
+  const reservaElemento =
+    document.querySelector(
+      "#planningReserve",
+    );
+
+  const disponivelElemento =
+    document.querySelector(
+      "#planningAvailable",
+    );
+
+  const reservaProjetadaElemento =
+    document.querySelector(
+      "#planningReserveProjected",
+    );
+
+  const inicio =
+    obterMesInicialPlanejamento();
+
+  let primeiraReceita = 0;
+  let primeiraDespesa = 0;
+  let primeiraReserva = 0;
+
+  let acumulado = 0;
+
+  const reservaInicial =
+    obterReservaInicialPlanejamento();
+
+  let reservaProjetada =
+    reservaInicial;
+
+  const meses = [];
+
+  for (
+    let indice = 0;
+    indice < 12;
+    indice++
+  ) {
+    const data =
+      new Date(
+        inicio.getFullYear(),
+        inicio.getMonth() + indice,
+        1,
+      );
+
+    let receitas = 0;
+    let despesas = 0;
+    let reservas = 0;
+
+    itens.forEach((item) => {
+      if (
+        !itemAtivoNoMes(
+          item,
+          data,
+        )
+      ) {
+        return;
+      }
+
+      const valor =
+        Number(item.valor || 0);
+
+      if (
+        item.tipo === "receita"
+      ) {
+        receitas += valor;
+      } else if (
+        item.tipo === "reserva"
+      ) {
+        reservas += valor;
+      } else {
+        despesas += valor;
+      }
+    });
+
+    const saldo =
+      receitas -
+      despesas -
+      reservas;
+
+    acumulado += saldo;
+
+    reservaProjetada +=
+      reservas;
+
+    if (indice === 0) {
+      primeiraReceita =
+        receitas;
+
+      primeiraDespesa =
+        despesas;
+
+      primeiraReserva =
+        reservas;
+    }
+
+    meses.push({
+      data,
+      receitas,
+      despesas,
+      reservas,
+      saldo,
+      acumulado,
+      reservaProjetada,
+    });
+  }
+
+  if (receitaElemento) {
+    receitaElemento.textContent =
+      dinheiro(
+        primeiraReceita,
+      );
+  }
+
+  if (despesaElemento) {
+    despesaElemento.textContent =
+      dinheiro(
+        primeiraDespesa,
+      );
+  }
+
+  if (sobraElemento) {
+    const sobra =
+      primeiraReceita -
+      primeiraDespesa;
+
+    sobraElemento.textContent =
+      dinheiro(sobra);
+
+    sobraElemento.classList.toggle(
+      "income",
+      sobra >= 0,
+    );
+
+    sobraElemento.classList.toggle(
+      "expense",
+      sobra < 0,
+    );
+  }
+
+  if (reservaElemento) {
+    reservaElemento.textContent =
+      dinheiro(primeiraReserva);
+  }
+
+  if (disponivelElemento) {
+    const livre =
+      primeiraReceita -
+      primeiraDespesa -
+      primeiraReserva;
+
+    disponivelElemento.textContent =
+      dinheiro(livre);
+
+    disponivelElemento.classList.toggle(
+      "income",
+      livre >= 0,
+    );
+
+    disponivelElemento.classList.toggle(
+      "expense",
+      livre < 0,
+    );
+  }
+
+  if (reservaProjetadaElemento) {
+    reservaProjetadaElemento.textContent =
+      dinheiro(reservaProjetada);
+  }
+
+  if (acumuladoElemento) {
+    acumuladoElemento.textContent =
+      dinheiro(acumulado);
+
+    acumuladoElemento.classList.toggle(
+      "income",
+      acumulado >= 0,
+    );
+
+    acumuladoElemento.classList.toggle(
+      "expense",
+      acumulado < 0,
+    );
+  }
+
+  if (lista) {
+    if (!itens.length) {
+      lista.innerHTML = `
+        <div class="empty">
+          Nenhum item de planejamento cadastrado.
+        </div>
+      `;
+    } else {
+      lista.innerHTML =
+        itens
+          .map((item) => {
+            const recorrencia =
+              item.recorrencia === "unica"
+                ? "Uma vez"
+                : "Mensal";
+
+            return `
+              <div class="planning-item">
+
+                <div>
+                  <strong>
+                    ${escapar(item.nome)}
+                  </strong>
+
+                  <small>
+                    ${escapar(item.categoria || "Outros")}
+                    ·
+                    ${recorrencia}
+                    ·
+                    início ${item.inicio}
+                    ${
+                      item.fim
+                        ? ` · até ${item.fim}`
+                        : ""
+                    }
+                  </small>
+                </div>
+
+                <div class="planning-item-value">
+
+                  <strong
+                    class="${
+                      item.tipo === "receita"
+                        ? "income"
+                        : item.tipo === "reserva"
+                          ? "internal"
+                          : "expense"
+                    }"
+                  >
+                    ${
+                      item.tipo === "receita"
+                        ? "+"
+                        : item.tipo === "reserva"
+                          ? "↗"
+                          : "-"
+                    }
+                    ${dinheiro(item.valor)}
+                  </strong>
+
+                  <button
+                    type="button"
+                    class="delete-btn"
+                    data-delete-planning="${item.id}"
+                  >
+                    Excluir
+                  </button>
+
+                </div>
+
+              </div>
+            `;
+          })
+          .join("");
+
+      lista
+        .querySelectorAll(
+          "[data-delete-planning]",
+        )
+        .forEach((botao) => {
+          botao.addEventListener(
+            "click",
+            () => {
+              const id =
+                botao.dataset
+                  .deletePlanning;
+
+              const atuais =
+                carregarPlanejamentoFuturo();
+
+              const novos =
+                atuais.filter(
+                  (item) =>
+                    String(item.id) !==
+                    String(id),
+                );
+
+              salvarPlanejamentoFuturo(
+                novos,
+              );
+
+              renderizarPlanejamentoFuturo();
+            },
+          );
+        });
+    }
+  }
+
+  if (tabela) {
+    tabela.innerHTML = `
+      <table>
+
+        <thead>
+          <tr>
+            <th>Mês</th>
+            <th>Receitas</th>
+            <th>Despesas</th>
+            <th>Reservas</th>
+            <th>Livre</th>
+            <th>Reserva acumulada</th>
+            <th>Acumulado livre</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          ${meses
+            .map((mes) => {
+              const titulo =
+                mes.data
+                  .toLocaleDateString(
+                    "pt-BR",
+                    {
+                      month: "long",
+                      year: "numeric",
+                    },
+                  );
+
+              return `
+                <tr>
+
+                  <td>
+                    ${
+                      titulo
+                        .charAt(0)
+                        .toUpperCase() +
+                      titulo.slice(1)
+                    }
+                  </td>
+
+                  <td class="income">
+                    ${dinheiro(mes.receitas)}
+                  </td>
+
+                  <td class="expense">
+                    ${dinheiro(mes.despesas)}
+                  </td>
+
+                  <td class="internal">
+                    ${dinheiro(mes.reservas)}
+                  </td>
+
+                  <td
+                    class="${
+                      mes.saldo >= 0
+                        ? "income"
+                        : "expense"
+                    }"
+                  >
+                    ${dinheiro(mes.saldo)}
+                  </td>
+
+                  <td class="internal">
+                    ${dinheiro(mes.reservaProjetada)}
+                  </td>
+
+                  <td
+                    class="${
+                      mes.acumulado >= 0
+                        ? "income"
+                        : "expense"
+                    }"
+                  >
+                    ${dinheiro(mes.acumulado)}
+                  </td>
+
+                </tr>
+              `;
+            })
+            .join("")}
+
+        </tbody>
+
+      </table>
+    `;
+  }
+}
+
+function configurarPlanejamentoFuturo() {
+  const formulario =
+    document.querySelector(
+      "#planningForm",
+    );
+
+  const referencia =
+    document.querySelector(
+      "#planningReferenceMonth",
+    );
+
+  const inicio =
+    document.querySelector(
+      "#planningStartMonth",
+    );
+
+  const reservaInicialCampo =
+    document.querySelector(
+      "#planningInitialReserve",
+    );
+
+  if (reservaInicialCampo) {
+    reservaInicialCampo.value =
+      obterReservaInicialPlanejamento() || "";
+
+    if (
+      !reservaInicialCampo.dataset
+        .reserveReady
+    ) {
+      reservaInicialCampo.dataset
+        .reserveReady = "1";
+
+      reservaInicialCampo.addEventListener(
+        "input",
+        () => {
+          const valor =
+            Number(
+              reservaInicialCampo.value || 0,
+            );
+
+          salvarReservaInicialPlanejamento(
+            valor,
+          );
+
+          renderizarPlanejamentoFuturo();
+        },
+      );
+    }
+  }
+
+  if (
+    referencia &&
+    !referencia.value
+  ) {
+    const hoje =
+      new Date();
+
+    referencia.value =
+      chaveMes(hoje);
+  }
+
+  if (
+    inicio &&
+    !inicio.value
+  ) {
+    const hoje =
+      new Date();
+
+    inicio.value =
+      chaveMes(hoje);
+  }
+
+  if (
+    referencia &&
+    !referencia.dataset
+      .planningReady
+  ) {
+    referencia.dataset.planningReady =
+      "1";
+
+    referencia.addEventListener(
+      "change",
+      renderizarPlanejamentoFuturo,
+    );
+  }
+
+  if (
+    formulario &&
+    !formulario.dataset
+      .planningReady
+  ) {
+    formulario.dataset.planningReady =
+      "1";
+
+    formulario.addEventListener(
+      "submit",
+      (evento) => {
+        evento.preventDefault();
+
+        const nome =
+          document.querySelector(
+            "#planningName",
+          )?.value.trim();
+
+        const tipo =
+          document.querySelector(
+            "#planningType",
+          )?.value;
+
+        const valor =
+          Number(
+            document.querySelector(
+              "#planningAmount",
+            )?.value,
+          );
+
+        const categoria =
+          document.querySelector(
+            "#planningCategory",
+          )?.value.trim();
+
+        const recorrencia =
+          document.querySelector(
+            "#planningRecurrence",
+          )?.value;
+
+        const mesInicio =
+          document.querySelector(
+            "#planningStartMonth",
+          )?.value;
+
+        const mesFim =
+          document.querySelector(
+            "#planningEndMonth",
+          )?.value;
+
+        if (!nome) {
+          alert(
+            "Digite o nome da receita ou despesa.",
+          );
+
+          return;
+        }
+
+        if (
+          !Number.isFinite(valor) ||
+          valor <= 0
+        ) {
+          alert(
+            "Digite um valor válido.",
+          );
+
+          return;
+        }
+
+        if (!mesInicio) {
+          alert(
+            "Informe o mês de início.",
+          );
+
+          return;
+        }
+
+        const itens =
+          carregarPlanejamentoFuturo();
+
+        itens.push({
+          id:
+            crypto.randomUUID(),
+
+          nome,
+          tipo,
+          valor,
+
+          categoria:
+            categoria ||
+            "Outros",
+
+          recorrencia:
+            recorrencia ||
+            "mensal",
+
+          inicio:
+            mesInicio,
+
+          fim:
+            mesFim || "",
+        });
+
+        salvarPlanejamentoFuturo(
+          itens,
+        );
+
+        formulario.reset();
+
+        const hoje =
+          new Date();
+
+        document.querySelector(
+          "#planningStartMonth",
+        ).value =
+          chaveMes(hoje);
+
+        renderizarPlanejamentoFuturo();
+      },
+    );
+  }
+
+  renderizarPlanejamentoFuturo();
+}
+
+
 // ==========================================
 // DATAS PADRÃO
 // ==========================================
@@ -3795,6 +7028,8 @@ async function iniciarAplicacao() {
 
   configurarFormularioContaFixa();
   configurarNavegacaoContasFixas();
+
+  configurarPlanejamentoFuturo();
 
   configurarFormularioCaixinha();
 
