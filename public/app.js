@@ -6358,6 +6358,133 @@ function obterMesInicialPlanejamento() {
   );
 }
 
+
+// ==========================================
+// CONFERÊNCIA DAS PARCELAS
+// ==========================================
+
+function verificarIntegridadeParcelasPlanejamento() {
+  const avisos = [];
+
+  (state.parcelamentos || []).forEach((compra) => {
+    const parcelas = Array.isArray(compra.parcelas)
+      ? compra.parcelas
+      : [];
+
+    let totalParcelas =
+      Number(compra.totalParcelas || 0);
+
+    parcelas.forEach((parcela) => {
+      totalParcelas = Math.max(
+        totalParcelas,
+        Number(parcela.totalParcelas || 0),
+      );
+    });
+
+    if (totalParcelas <= 1) {
+      return;
+    }
+
+    const numeros = new Set(
+      parcelas
+        .map((parcela) =>
+          Number(parcela.parcelaAtual || 0)
+        )
+        .filter((numero) => numero > 0)
+    );
+
+    const faltantes = [];
+
+    for (
+      let numero = 1;
+      numero <= totalParcelas;
+      numero++
+    ) {
+      if (!numeros.has(numero)) {
+        faltantes.push(numero);
+      }
+    }
+
+    if (faltantes.length) {
+      avisos.push({
+        tipo: "CARTAO",
+
+        nome:
+          compra.nome ||
+          compra.descricao ||
+          "Compra parcelada",
+
+        mensagem:
+          `Possível parcela faltando: ${faltantes.join(", ")} ` +
+          `de ${totalParcelas}.`,
+      });
+    }
+  });
+
+
+  (state.contasFixas || [])
+    .filter(
+      (conta) =>
+        String(conta.tipo || "").toLowerCase() ===
+        "parcelada"
+    )
+    .forEach((conta) => {
+      const atual =
+        Number(conta.parcelaAtual || 0);
+
+      const total =
+        Number(conta.totalParcelas || 0);
+
+      if (!total) {
+        avisos.push({
+          tipo: "MANUAL",
+          nome: conta.name || "Parcela manual",
+          mensagem: "Total de parcelas não informado.",
+        });
+
+        return;
+      }
+
+      if (
+        !atual ||
+        atual < 1 ||
+        atual > total
+      ) {
+        avisos.push({
+          tipo: "MANUAL",
+
+          nome:
+            conta.name ||
+            "Parcela manual",
+
+          mensagem:
+            `Parcela atual inválida (${atual || 0}/${total}).`,
+        });
+      }
+
+      if (
+        conta.anoInicioParcela === null ||
+        conta.anoInicioParcela === undefined ||
+        conta.mesInicioParcela === null ||
+        conta.mesInicioParcela === undefined
+      ) {
+        avisos.push({
+          tipo: "MANUAL",
+
+          nome:
+            conta.name ||
+            "Parcela manual",
+
+          mensagem:
+            "Data inicial da parcela não encontrada.",
+        });
+      }
+    });
+
+  return avisos;
+}
+
+
 function renderizarPlanejamentoFuturo() {
   const itens =
     carregarPlanejamentoFuturo();
@@ -6407,12 +6534,43 @@ function renderizarPlanejamentoFuturo() {
       "#planningReserveProjected",
     );
 
+  const parcelasCartaoElemento =
+    document.querySelector(
+      "#planningCardInstallments",
+    );
+
+  const parcelasManuaisElemento =
+    document.querySelector(
+      "#planningManualInstallments",
+    );
+
+  const compromissosElemento =
+    document.querySelector(
+      "#planningCommittedTotal",
+    );
+
+  const compromissosLista =
+    document.querySelector(
+      "#planningCommitmentsList",
+    );
+
+  const avisosParcelasElemento =
+    document.querySelector(
+      "#planningInstallmentWarnings",
+    );
+
   const inicio =
     obterMesInicialPlanejamento();
 
   let primeiraReceita = 0;
   let primeiraDespesa = 0;
   let primeiraReserva = 0;
+
+  let primeiraParcelaCartao = 0;
+  let primeiraParcelaManual = 0;
+  let primeiroTotalCompromissos = 0;
+
+  let primeirosCompromissos = [];
 
   let acumulado = 0;
 
@@ -6466,6 +6624,51 @@ function renderizarPlanejamentoFuturo() {
       }
     });
 
+    const mesAtualChave =
+      chaveMes(data);
+
+    const compromissos =
+      obterCompromissosReaisDoMes(
+        mesAtualChave,
+      );
+
+    const parcelasCartao =
+      compromissos.filter(
+        (item) =>
+          item.origem === "CARTAO",
+      );
+
+    const parcelasManuais =
+      compromissos.filter(
+        (item) =>
+          item.origem === "MANUAL",
+      );
+
+    const totalParcelasCartao =
+      parcelasCartao.reduce(
+        (total, item) =>
+          total +
+          Number(item.valor || 0),
+        0,
+      );
+
+    const totalParcelasManuais =
+      parcelasManuais.reduce(
+        (total, item) =>
+          total +
+          Number(item.valor || 0),
+        0,
+      );
+
+    const totalCompromissos =
+      totalParcelasCartao +
+      totalParcelasManuais;
+
+    // As parcelas reais passam a fazer parte
+    // das despesas do planejamento.
+    despesas +=
+      totalCompromissos;
+
     const saldo =
       receitas -
       despesas -
@@ -6495,6 +6698,11 @@ function renderizarPlanejamentoFuturo() {
       saldo,
       acumulado,
       reservaProjetada,
+
+      totalParcelasCartao,
+      totalParcelasManuais,
+      totalCompromissos,
+      compromissos,
     });
   }
 
@@ -6574,6 +6782,126 @@ function renderizarPlanejamentoFuturo() {
       "expense",
       acumulado < 0,
     );
+  }
+
+  if (parcelasCartaoElemento) {
+    parcelasCartaoElemento.textContent =
+      dinheiro(
+        primeiraParcelaCartao,
+      );
+  }
+
+  if (parcelasManuaisElemento) {
+    parcelasManuaisElemento.textContent =
+      dinheiro(
+        primeiraParcelaManual,
+      );
+  }
+
+  if (compromissosElemento) {
+    compromissosElemento.textContent =
+      dinheiro(
+        primeiroTotalCompromissos,
+      );
+  }
+
+  if (compromissosLista) {
+    if (!primeirosCompromissos.length) {
+      compromissosLista.innerHTML = `
+        <div class="empty">
+          Nenhuma parcela encontrada para este mês.
+        </div>
+      `;
+    } else {
+      compromissosLista.innerHTML =
+        primeirosCompromissos
+          .sort(
+            (a, b) =>
+              new Date(a.vencimento) -
+              new Date(b.vencimento),
+          )
+          .map((item) => {
+            const origem =
+              item.origem === "CARTAO"
+                ? "💳 Cartão"
+                : "📝 Manual";
+
+            const parcela =
+              item.totalParcelas
+                ? `${item.parcelaAtual}/${item.totalParcelas}`
+                : "—";
+
+            return `
+              <div class="planning-commitment-item">
+
+                <div>
+
+                  <strong>
+                    ${escapar(item.nome)}
+                  </strong>
+
+                  <small>
+                    ${origem}
+                    ·
+                    ${escapar(item.conta || "")}
+                    ·
+                    Parcela ${parcela}
+                  </small>
+
+                </div>
+
+                <div>
+
+                  <strong class="expense">
+                    ${dinheiro(item.valor)}
+                  </strong>
+
+                  <small>
+                    ${dataBR(item.vencimento)}
+                  </small>
+
+                </div>
+
+              </div>
+            `;
+          })
+          .join("");
+    }
+  }
+
+  if (avisosParcelasElemento) {
+    const avisos =
+      verificarIntegridadeParcelasPlanejamento();
+
+    if (!avisos.length) {
+      avisosParcelasElemento.innerHTML = `
+        <div class="planning-check-ok">
+          ✅ Conferência das parcelas:
+          nenhuma inconsistência encontrada.
+        </div>
+      `;
+    } else {
+      avisosParcelasElemento.innerHTML = `
+        <div class="planning-check-warning">
+
+          <strong>
+            ⚠️ Conferência de parcelas
+          </strong>
+
+          ${avisos
+            .map(
+              (aviso) => `
+                <div>
+                  ${escapar(aviso.nome)}:
+                  ${escapar(aviso.mensagem)}
+                </div>
+              `,
+            )
+            .join("")}
+
+        </div>
+      `;
+    }
   }
 
   if (lista) {
@@ -6692,6 +7020,7 @@ function renderizarPlanejamentoFuturo() {
             <th>Mês</th>
             <th>Receitas</th>
             <th>Despesas</th>
+            <th>Parcelas reais</th>
             <th>Reservas</th>
             <th>Livre</th>
             <th>Reserva acumulada</th>
@@ -6733,6 +7062,10 @@ function renderizarPlanejamentoFuturo() {
                     ${dinheiro(mes.despesas)}
                   </td>
 
+                  <td class="expense">
+                    ${dinheiro(mes.totalCompromissos)}
+                  </td>
+
                   <td class="internal">
                     ${dinheiro(mes.reservas)}
                   </td>
@@ -6772,6 +7105,398 @@ function renderizarPlanejamentoFuturo() {
     `;
   }
 }
+
+
+// ==========================================
+// COMPROMISSOS REAIS DO PLANEJAMENTO
+// ==========================================
+
+function obterMesChave(data) {
+  const d = new Date(data);
+
+  if (Number.isNaN(d.getTime())) {
+    return null;
+  }
+
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function obterParcelasCartaoDoMes(mesChave) {
+  const itens = [];
+
+  (state.parcelamentos || []).forEach((compra) => {
+    const parcelas = Array.isArray(compra.parcelas)
+      ? compra.parcelas
+      : [];
+
+    parcelas.forEach((parcela) => {
+      const vencimento =
+        parcela.vencimento ||
+        parcela.dueDate;
+
+      if (!vencimento) {
+        return;
+      }
+
+      const mes = String(vencimento).substring(0, 7);
+
+      if (mes !== mesChave) {
+        return;
+      }
+
+      const status = String(
+        parcela.status || ""
+      ).toUpperCase();
+
+      if (
+        ["POSTED", "PAID", "SETTLED"].includes(status)
+      ) {
+        return;
+      }
+
+      itens.push({
+        id:
+          parcela.id ||
+          `${compra.id}-${mes}-${parcela.parcelaAtual || ""}`,
+
+        origem: "CARTAO",
+
+        nome:
+          compra.nome ||
+          compra.descricao ||
+          "Compra parcelada",
+
+        valor: Math.abs(
+          Number(parcela.valor || 0)
+        ),
+
+        parcelaAtual:
+          Number(parcela.parcelaAtual || 0),
+
+        totalParcelas:
+          Number(
+            parcela.totalParcelas ||
+            compra.totalParcelas ||
+            0
+          ),
+
+        conta:
+          compra.cartaoNome ||
+          compra.banco ||
+          "Cartão",
+
+        vencimento,
+      });
+    });
+  });
+
+  return itens;
+}
+
+function obterParcelasManuaisDoMes(mesChave) {
+  const itens = [];
+
+  (state.contasFixas || []).forEach((conta) => {
+    const tipo = String(
+      conta.tipo || ""
+    ).toLowerCase();
+
+    if (tipo !== "parcelada") {
+      return;
+    }
+
+    const totalParcelas =
+      Number(conta.totalParcelas || 0);
+
+    const parcelaInicial =
+      Number(conta.parcelaAtual || 1);
+
+    const anoInicio =
+      Number(conta.anoInicioParcela);
+
+    const mesInicio =
+      Number(conta.mesInicioParcela);
+
+    if (
+      !totalParcelas ||
+      !anoInicio ||
+      !Number.isFinite(mesInicio)
+    ) {
+      return;
+    }
+
+    const [anoAlvo, mesAlvoNumero] =
+      mesChave.split("-").map(Number);
+
+    const mesAlvo = mesAlvoNumero - 1;
+
+    const diferencaMeses =
+      (anoAlvo - anoInicio) * 12 +
+      (mesAlvo - mesInicio);
+
+    const parcelaDoMes =
+      parcelaInicial + diferencaMeses;
+
+    if (
+      parcelaDoMes < parcelaInicial ||
+      parcelaDoMes > totalParcelas
+    ) {
+      return;
+    }
+
+    itens.push({
+      id:
+        conta.id ||
+        `${conta.name}-${mesChave}`,
+
+      origem: "MANUAL",
+
+      nome:
+        conta.name ||
+        "Conta parcelada",
+
+      valor:
+        Math.abs(
+          Number(conta.amount || 0)
+        ),
+
+      parcelaAtual:
+        parcelaDoMes,
+
+      totalParcelas,
+
+      conta:
+        conta.category ||
+        "Manual",
+
+      vencimento: `${mesChave}-${String(
+        Number(conta.day || 1)
+      ).padStart(2, "0")}`,
+    });
+  });
+
+  return itens;
+}
+
+function obterCompromissosReaisDoMes(mesChave) {
+  const cartao =
+    obterParcelasCartaoDoMes(mesChave);
+
+  const manuais =
+    obterParcelasManuaisDoMes(mesChave);
+
+  return [
+    ...cartao,
+    ...manuais,
+  ];
+}
+
+function obterTotalCompromissosReaisDoMes(mesChave) {
+  return obterCompromissosReaisDoMes(
+    mesChave
+  ).reduce(
+    (total, item) =>
+      total + Number(item.valor || 0),
+    0,
+  );
+}
+
+
+
+// ==========================================
+// COMPROMISSOS REAIS DO PLANEJAMENTO
+// ==========================================
+
+function obterMesChave(data) {
+  const d = new Date(data);
+
+  if (Number.isNaN(d.getTime())) {
+    return null;
+  }
+
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function obterParcelasCartaoDoMes(mesChave) {
+  const itens = [];
+
+  (state.parcelamentos || []).forEach((compra) => {
+    const parcelas = Array.isArray(compra.parcelas)
+      ? compra.parcelas
+      : [];
+
+    parcelas.forEach((parcela) => {
+      const vencimento =
+        parcela.vencimento ||
+        parcela.dueDate;
+
+      if (!vencimento) {
+        return;
+      }
+
+      const mes = String(vencimento).substring(0, 7);
+
+      if (mes !== mesChave) {
+        return;
+      }
+
+      const status = String(
+        parcela.status || ""
+      ).toUpperCase();
+
+      if (
+        ["POSTED", "PAID", "SETTLED"].includes(status)
+      ) {
+        return;
+      }
+
+      itens.push({
+        id:
+          parcela.id ||
+          `${compra.id}-${mes}-${parcela.parcelaAtual || ""}`,
+
+        origem: "CARTAO",
+
+        nome:
+          compra.nome ||
+          compra.descricao ||
+          "Compra parcelada",
+
+        valor: Math.abs(
+          Number(parcela.valor || 0)
+        ),
+
+        parcelaAtual:
+          Number(parcela.parcelaAtual || 0),
+
+        totalParcelas:
+          Number(
+            parcela.totalParcelas ||
+            compra.totalParcelas ||
+            0
+          ),
+
+        conta:
+          compra.cartaoNome ||
+          compra.banco ||
+          "Cartão",
+
+        vencimento,
+      });
+    });
+  });
+
+  return itens;
+}
+
+function obterParcelasManuaisDoMes(mesChave) {
+  const itens = [];
+
+  (state.contasFixas || []).forEach((conta) => {
+    const tipo = String(
+      conta.tipo || ""
+    ).toLowerCase();
+
+    if (tipo !== "parcelada") {
+      return;
+    }
+
+    const totalParcelas =
+      Number(conta.totalParcelas || 0);
+
+    const parcelaInicial =
+      Number(conta.parcelaAtual || 1);
+
+    const anoInicio =
+      Number(conta.anoInicioParcela);
+
+    const mesInicio =
+      Number(conta.mesInicioParcela);
+
+    if (
+      !totalParcelas ||
+      !anoInicio ||
+      !Number.isFinite(mesInicio)
+    ) {
+      return;
+    }
+
+    const [anoAlvo, mesAlvoNumero] =
+      mesChave.split("-").map(Number);
+
+    const mesAlvo = mesAlvoNumero - 1;
+
+    const diferencaMeses =
+      (anoAlvo - anoInicio) * 12 +
+      (mesAlvo - mesInicio);
+
+    const parcelaDoMes =
+      parcelaInicial + diferencaMeses;
+
+    if (
+      parcelaDoMes < parcelaInicial ||
+      parcelaDoMes > totalParcelas
+    ) {
+      return;
+    }
+
+    itens.push({
+      id:
+        conta.id ||
+        `${conta.name}-${mesChave}`,
+
+      origem: "MANUAL",
+
+      nome:
+        conta.name ||
+        "Conta parcelada",
+
+      valor:
+        Math.abs(
+          Number(conta.amount || 0)
+        ),
+
+      parcelaAtual:
+        parcelaDoMes,
+
+      totalParcelas,
+
+      conta:
+        conta.category ||
+        "Manual",
+
+      vencimento: `${mesChave}-${String(
+        Number(conta.day || 1)
+      ).padStart(2, "0")}`,
+    });
+  });
+
+  return itens;
+}
+
+function obterCompromissosReaisDoMes(mesChave) {
+  const cartao =
+    obterParcelasCartaoDoMes(mesChave);
+
+  const manuais =
+    obterParcelasManuaisDoMes(mesChave);
+
+  return [
+    ...cartao,
+    ...manuais,
+  ];
+}
+
+function obterTotalCompromissosReaisDoMes(mesChave) {
+  return obterCompromissosReaisDoMes(
+    mesChave
+  ).reduce(
+    (total, item) =>
+      total + Number(item.valor || 0),
+    0,
+  );
+}
+
 
 function configurarPlanejamentoFuturo() {
   const formulario =
@@ -7040,6 +7765,11 @@ async function iniciarAplicacao() {
   //await migrarContasFixas();
 
   await carregarContasFixas();
+
+  // Agora que parcelas do Pierre e contas
+  // manuais já foram carregadas, recalcular
+  // o planejamento.
+  renderizarPlanejamentoFuturo();
 }
 
 // ==========================================

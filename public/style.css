@@ -2965,3 +2965,91 @@ select:focus {
 
 }
 
+
+
+/* =========================================================
+   PLANEJAMENTO - COMPROMISSOS REAIS
+   ========================================================= */
+
+.planning-real-summary {
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.planning-commitments-panel {
+  margin-bottom: 16px;
+}
+
+.planning-commitments-list {
+  display: grid;
+  gap: 8px;
+}
+
+.planning-commitment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  padding: 13px 14px;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  background: #fbfbff;
+}
+
+.planning-commitment-item strong,
+.planning-commitment-item small {
+  display: block;
+}
+
+.planning-commitment-item small {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.planning-commitment-item > div:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.planning-installment-warnings {
+  margin-top: 14px;
+}
+
+.planning-check-ok,
+.planning-check-warning {
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.planning-check-ok {
+  background: #edf9f3;
+  color: #187345;
+}
+
+.planning-check-warning {
+  background: #fff8df;
+  color: #806000;
+}
+
+.planning-check-warning > div {
+  margin-top: 6px;
+}
+
+@media (max-width: 720px) {
+
+  .planning-commitment-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .planning-commitment-item > div:last-child {
+    width: 100%;
+    text-align: left;
+  }
+
+}
+

@@ -2303,77 +2303,6 @@ app.post("/api/caixinhas/:id/movimentacoes", exigirAdmin, async (req, res) => {
 
 
 // ==========================================
-// RECALCULAR SALDOS DAS CAIXINHAS
-// ==========================================
-
-async function recalcularSaldosCaixinhas() {
-  const { data: caixinhas, error: erroCaixinhas } = await supabase
-    .from("caixinhas")
-    .select("id, nome");
-
-  if (erroCaixinhas) {
-    throw erroCaixinhas;
-  }
-
-  for (const caixinha of caixinhas || []) {
-    const { data: movimentacoes, error: erroMovimentacoes } = await supabase
-      .from("movimentacoes_caixinhas")
-      .select("tipo, valor")
-      .eq("caixinha_id", caixinha.id);
-
-    if (erroMovimentacoes) {
-      throw erroMovimentacoes;
-    }
-
-    const { data: rendimentos, error: erroRendimentos } = await supabase
-      .from("rendimentos_caixinhas")
-      .select("valor")
-      .eq("caixinha_id", caixinha.id);
-
-    if (erroRendimentos) {
-      throw erroRendimentos;
-    }
-
-    let saldoCalculado = 0;
-
-    for (const movimento of movimentacoes || []) {
-      const valor = Math.abs(Number(movimento.valor || 0));
-      const tipo = String(movimento.tipo || "").toUpperCase();
-
-      if (tipo === "ENTRADA") {
-        saldoCalculado += valor;
-      } else if (tipo === "SAIDA") {
-        saldoCalculado -= valor;
-      } else if (tipo === "RENDIMENTO") {
-        saldoCalculado += valor;
-      }
-    }
-
-    for (const rendimento of rendimentos || []) {
-      saldoCalculado += Math.abs(Number(rendimento.valor || 0));
-    }
-
-    saldoCalculado = Math.round(saldoCalculado * 100) / 100;
-
-    const { error: erroAtualizacao } = await supabase
-      .from("caixinhas")
-      .update({
-        saldo: saldoCalculado,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", caixinha.id);
-
-    if (erroAtualizacao) {
-      throw erroAtualizacao;
-    }
-
-    console.log(
-      `🧮 Saldo recalculado: ${caixinha.nome} = R$ ${saldoCalculado.toFixed(2)}`
-    );
-  }
-}
-
-// ==========================================
 // SINCRONIZAR CAIXINHAS COM O PIERRE
 // ==========================================
 
@@ -2799,12 +2728,6 @@ const dataFimFormatada = dataFim
         descricao,
       });
     }
-
-    // ==========================================
-    // RECALCULAR SALDOS A PARTIR DO HISTÓRICO
-    // ==========================================
-
-    await recalcularSaldosCaixinhas();
 
     // ==========================================
     // SALVAR ÚLTIMA SINCRONIZAÇÃO
