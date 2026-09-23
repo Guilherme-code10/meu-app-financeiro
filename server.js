@@ -374,7 +374,23 @@ async function pierreRequest(endpoint, params = {}) {
     },
   });
 
-  const dados = await resposta.json();
+  const textoResposta = await resposta.text();
+
+  console.log("PIERRE STATUS:", resposta.status);
+  console.log("PIERRE CONTENT-TYPE:", resposta.headers.get("content-type"));
+  console.log("PIERRE URL:", url.toString());
+  console.log("PIERRE RESPOSTA BRUTA:", textoResposta.slice(0, 500));
+
+  let dados;
+
+  try {
+    dados = JSON.parse(textoResposta);
+  } catch {
+    throw new Error(
+      `Pierre retornou resposta inválida. HTTP ${resposta.status}. ` +
+      `Content-Type: ${resposta.headers.get("content-type") || "não informado"}.`
+    );
+  }
 
   if (!resposta.ok) {
     throw new Error(
@@ -2285,6 +2301,78 @@ app.post("/api/caixinhas/:id/movimentacoes", exigirAdmin, async (req, res) => {
   }
 });
 
+
+// ==========================================
+// RECALCULAR SALDOS DAS CAIXINHAS
+// ==========================================
+
+async function recalcularSaldosCaixinhas() {
+  const { data: caixinhas, error: erroCaixinhas } = await supabase
+    .from("caixinhas")
+    .select("id, nome");
+
+  if (erroCaixinhas) {
+    throw erroCaixinhas;
+  }
+
+  for (const caixinha of caixinhas || []) {
+    const { data: movimentacoes, error: erroMovimentacoes } = await supabase
+      .from("movimentacoes_caixinhas")
+      .select("tipo, valor")
+      .eq("caixinha_id", caixinha.id);
+
+    if (erroMovimentacoes) {
+      throw erroMovimentacoes;
+    }
+
+    const { data: rendimentos, error: erroRendimentos } = await supabase
+      .from("rendimentos_caixinhas")
+      .select("valor")
+      .eq("caixinha_id", caixinha.id);
+
+    if (erroRendimentos) {
+      throw erroRendimentos;
+    }
+
+    let saldoCalculado = 0;
+
+    for (const movimento of movimentacoes || []) {
+      const valor = Math.abs(Number(movimento.valor || 0));
+      const tipo = String(movimento.tipo || "").toUpperCase();
+
+      if (tipo === "ENTRADA") {
+        saldoCalculado += valor;
+      } else if (tipo === "SAIDA") {
+        saldoCalculado -= valor;
+      } else if (tipo === "RENDIMENTO") {
+        saldoCalculado += valor;
+      }
+    }
+
+    for (const rendimento of rendimentos || []) {
+      saldoCalculado += Math.abs(Number(rendimento.valor || 0));
+    }
+
+    saldoCalculado = Math.round(saldoCalculado * 100) / 100;
+
+    const { error: erroAtualizacao } = await supabase
+      .from("caixinhas")
+      .update({
+        saldo: saldoCalculado,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", caixinha.id);
+
+    if (erroAtualizacao) {
+      throw erroAtualizacao;
+    }
+
+    console.log(
+      `🧮 Saldo recalculado: ${caixinha.nome} = R$ ${saldoCalculado.toFixed(2)}`
+    );
+  }
+}
+
 // ==========================================
 // SINCRONIZAR CAIXINHAS COM O PIERRE
 // ==========================================
@@ -2349,10 +2437,10 @@ app.post("/api/caixinhas/sincronizar", exigirAdmin, async (req, res) => {
 
     const dataInicio = new Date(agora);
 
-    dataInicio.setDate(dataInicio.getDate() - 3);
+    dataInicio.setDate(dataInicio.getDate() - 30);
 
     console.log(
-      "🔄 Buscando movimentações dos últimos 3 dias para identificar novidades.",
+      "🔄 Buscando movimentações dos últimos 30 dias para identificar novidades.",
     );
 
     const dataInicioFormatada = dataInicio.toISOString().slice(0, 10);
@@ -2461,17 +2549,17 @@ const dataFimFormatada = dataFim
       // ==========================================
 
       const ehReserva =
-  descricaoNormalizada.includes(
-    "reserva por gastos"
-  ) ||
-  descricaoNormalizada.includes(
-    "dinheiro reservado"
-  );
+        descricaoNormalizada.includes("reserva por gastos") ||
+        descricaoNormalizada.includes("dinheiro reservado") ||
+        descricaoNormalizada.includes("valor reservado") ||
+        descricaoNormalizada.includes("reserva") ||
+        descricaoNormalizada.includes("guardar dinheiro");
 
-const ehRetirada =
-  descricaoNormalizada.includes(
-    "dinheiro retirado"
-  );
+      const ehRetirada =
+        descricaoNormalizada.includes("dinheiro retirado") ||
+        descricaoNormalizada.includes("valor retirado") ||
+        descricaoNormalizada.includes("retirada") ||
+        descricaoNormalizada.includes("resgate");
 
       if (!ehReserva && !ehRetirada) {
         ignoradas.push({
@@ -2711,6 +2799,12 @@ const ehRetirada =
         descricao,
       });
     }
+
+    // ==========================================
+    // RECALCULAR SALDOS A PARTIR DO HISTÓRICO
+    // ==========================================
+
+    await recalcularSaldosCaixinhas();
 
     // ==========================================
     // SALVAR ÚLTIMA SINCRONIZAÇÃO
