@@ -801,22 +801,106 @@ function ehMovimentacaoInterna(transacao) {
 // VERIFICAR SE TRANSAÇÃO É DO MÊS ATUAL
 // ==========================================
 
-function transacaoEhDoMesAtual(transacao) {
-  if (!transacao?.data) {
-    return false;
-  }
-
-  const data = new Date(transacao.data);
-
-  if (Number.isNaN(data.getTime())) {
-    return false;
-  }
-
+function obterCicloFinanceiroAtual() {
   const hoje = new Date();
 
+  let anoReferencia = hoje.getFullYear();
+  let mesReferencia = hoje.getMonth();
+
+  // Do dia 1 ao dia 10 ainda estamos fechando o mês anterior.
+  if (hoje.getDate() <= 10) {
+    mesReferencia -= 1;
+
+    if (mesReferencia < 0) {
+      mesReferencia = 11;
+      anoReferencia -= 1;
+    }
+  }
+
+  const inicio = new Date(
+    anoReferencia,
+    mesReferencia,
+    11,
+    0,
+    0,
+    0,
+    0,
+  );
+
+  const fim = new Date(
+    anoReferencia,
+    mesReferencia + 1,
+    10,
+    23,
+    59,
+    59,
+    999,
+  );
+
+  return {
+    inicio,
+    fim,
+    anoReferencia,
+    mesReferencia,
+  };
+}
+
+
+function converterDataFinanceira(valor) {
+  if (!valor) {
+    return null;
+  }
+
+  const texto = String(valor);
+
+  // Evita o problema de UTC em datas YYYY-MM-DD.
+  const parteData = texto.substring(0, 10);
+  const partes = parteData.split("-");
+
+  if (partes.length === 3) {
+    const ano = Number(partes[0]);
+    const mes = Number(partes[1]);
+    const dia = Number(partes[2]);
+
+    if (ano && mes && dia) {
+      return new Date(
+        ano,
+        mes - 1,
+        dia,
+        12,
+        0,
+        0,
+        0,
+      );
+    }
+  }
+
+  const data = new Date(valor);
+
+  if (Number.isNaN(data.getTime())) {
+    return null;
+  }
+
+  return data;
+}
+
+
+function transacaoEhDoMesAtual(transacao) {
+  const data =
+    converterDataFinanceira(
+      transacao?.data,
+    );
+
+  if (!data) {
+    return false;
+  }
+
+  const ciclo =
+    obterCicloFinanceiroAtual();
+
   return (
-    data.getFullYear() === hoje.getFullYear() &&
-    data.getMonth() === hoje.getMonth()
+    data >= ciclo.inicio &&
+    data <= ciclo.fim
   );
 }
 
@@ -1200,6 +1284,15 @@ function obterConciliacaoTransferencias() {
       continue;
     }
 
+    // Movimentações de caixinha, reserva e investimento
+    // não podem formar pares de transferência bancária.
+    if (
+      ehInternaEvidente(primeira) ||
+      ehMovimentacaoInterna(primeira)
+    ) {
+      continue;
+    }
+
     const dataPrimeira =
       obterData(
         primeira,
@@ -1243,6 +1336,15 @@ function obterConciliacaoTransferencias() {
 
       if (
         analiseSegunda.ehCartao
+      ) {
+        continue;
+      }
+
+      // Não usar movimentações de caixinha/reserva
+      // para conciliar transferências entre contas.
+      if (
+        ehInternaEvidente(segunda) ||
+        ehMovimentacaoInterna(segunda)
       ) {
         continue;
       }
