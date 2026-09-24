@@ -2178,7 +2178,21 @@ function obterValorFaturaDashboard(fatura) {
 // ==========================================
 
 function obterResumoFaturasMesAtual() {
-  const hoje = new Date();
+  const ciclo =
+    obterCicloFinanceiroAtual();
+
+  // A fatura referente ao mês financeiro
+  // vence no mês seguinte.
+  let anoVencimento =
+    ciclo.anoReferencia;
+
+  let mesVencimento =
+    ciclo.mesReferencia + 1;
+
+  if (mesVencimento > 11) {
+    mesVencimento = 0;
+    anoVencimento += 1;
+  }
 
   const faturasMes =
     state.faturas.filter((fatura) => {
@@ -2186,26 +2200,28 @@ function obterResumoFaturasMesAtual() {
         return false;
       }
 
-      const vencimento =
-        new Date(fatura.dueDate);
+      const partes =
+        String(fatura.dueDate)
+          .substring(0, 10)
+          .split("-");
 
-      if (
-        Number.isNaN(
-          vencimento.getTime(),
-        )
-      ) {
+      if (partes.length !== 3) {
         return false;
       }
 
+      const ano =
+        Number(partes[0]);
+
+      const mes =
+        Number(partes[1]) - 1;
+
       return (
-        vencimento.getFullYear() ===
-          hoje.getFullYear() &&
-        vencimento.getMonth() ===
-          hoje.getMonth()
+        ano === anoVencimento &&
+        mes === mesVencimento
       );
     });
 
-  // Evita duplicidade de fatura virtual + real
+  // Evita duplicidade de fatura virtual + real.
   const faturasPorCartao =
     new Map();
 
@@ -2229,6 +2245,7 @@ function obterResumoFaturasMesAtual() {
       return;
     }
 
+    // Prefere fatura real.
     if (
       existente.virtual &&
       !fatura.virtual
@@ -2242,12 +2259,8 @@ function obterResumoFaturasMesAtual() {
     }
 
     if (
-      obterValorFaturaDashboard(
-        fatura,
-      ) >
-      obterValorFaturaDashboard(
-        existente,
-      )
+      obterValorFaturaDashboard(fatura) >
+      obterValorFaturaDashboard(existente)
     ) {
       faturasPorCartao.set(
         chave,
@@ -2271,8 +2284,11 @@ function obterResumoFaturasMesAtual() {
 
   return {
     total,
-    quantidade: faturas.length,
+    quantidade:
+      faturas.length,
     faturas,
+    anoVencimento,
+    mesVencimento,
   };
 }
 
@@ -3233,7 +3249,75 @@ function mostrarFluxoPorConta() {
 // DASHBOARD
 // ==========================================
 
+function atualizarPeriodoFinanceiroDashboard() {
+  const ciclo =
+    obterCicloFinanceiroAtual();
+
+  const nomesMeses = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ];
+
+  const nomeMes =
+    nomesMeses[
+      ciclo.mesReferencia
+    ];
+
+  const inicio =
+    ciclo.inicio.toLocaleDateString(
+      "pt-BR",
+    );
+
+  const fim =
+    ciclo.fim.toLocaleDateString(
+      "pt-BR",
+    );
+
+  const periodo =
+    document.querySelector(
+      "#dashboardFinancialPeriod",
+    );
+
+  if (periodo) {
+    periodo.innerHTML = `
+      <strong>
+        ${nomeMes}/${ciclo.anoReferencia}
+      </strong>
+
+      <span>
+        Ciclo financeiro:
+        ${inicio}
+        até
+        ${fim}
+      </span>
+    `;
+  }
+
+  const compromissoMes =
+    document.querySelector(
+      "#dashboardCommitmentMonth",
+    );
+
+  if (compromissoMes) {
+    compromissoMes.textContent =
+      `${nomeMes}/${ciclo.anoReferencia}`;
+  }
+}
+
+
 function atualizarDashboard() {
+  atualizarPeriodoFinanceiroDashboard();
+
   const saldoContas =
     state.contas.reduce(
       (total, conta) =>
@@ -5264,6 +5348,128 @@ async function excluirCaixinha(id) {
 // CARTÕES E FATURAS
 // ==========================================
 
+function obterFaturaDestaqueDoCartao(faturas) {
+  if (!Array.isArray(faturas) || !faturas.length) {
+    return null;
+  }
+
+  const hoje = new Date();
+
+  let anoVencimento = hoje.getFullYear();
+  let mesVencimento = hoje.getMonth();
+
+  // Depois do dia 10, a fatura anterior já foi paga
+  // e passamos a mostrar a fatura aberta seguinte.
+  if (hoje.getDate() > 10) {
+    mesVencimento += 1;
+
+    if (mesVencimento > 11) {
+      mesVencimento = 0;
+      anoVencimento += 1;
+    }
+  }
+
+  const candidatas = faturas.filter((fatura) => {
+    if (!fatura?.dueDate) {
+      return false;
+    }
+
+    const dataTexto = String(fatura.dueDate).substring(0, 10);
+    const partes = dataTexto.split("-");
+
+    if (partes.length !== 3) {
+      return false;
+    }
+
+    const ano = Number(partes[0]);
+    const mes = Number(partes[1]) - 1;
+
+    return (
+      ano === anoVencimento &&
+      mes === mesVencimento
+    );
+  });
+
+  if (candidatas.length) {
+    // Prefere a fatura real à virtual.
+    return (
+      candidatas.find((fatura) => fatura.virtual !== true) ||
+      candidatas[0]
+    );
+  }
+
+  // Fallback: procura a próxima fatura futura.
+  const ordenadas = [...faturas].sort(
+    (a, b) =>
+      new Date(a.dueDate) -
+      new Date(b.dueDate),
+  );
+
+  const hojeInicio = new Date(
+    hoje.getFullYear(),
+    hoje.getMonth(),
+    hoje.getDate(),
+  );
+
+  const futura = ordenadas.find((fatura) => {
+    const vencimento = new Date(fatura.dueDate);
+
+    return (
+      !Number.isNaN(vencimento.getTime()) &&
+      vencimento >= hojeInicio
+    );
+  });
+
+  return futura || ordenadas.at(-1) || null;
+}
+
+
+function obterNomeMesFatura(fatura) {
+  if (!fatura?.dueDate) {
+    return "Fatura";
+  }
+
+  const partes =
+    String(fatura.dueDate)
+      .substring(0, 10)
+      .split("-");
+
+  if (partes.length !== 3) {
+    return "Fatura";
+  }
+
+  let ano = Number(partes[0]);
+  let mes = Number(partes[1]) - 2;
+
+  if (mes < 0) {
+    mes = 11;
+    ano -= 1;
+  }
+
+  const dataReferencia =
+    new Date(ano, mes, 1);
+
+  const nome =
+    dataReferencia.toLocaleDateString(
+      "pt-BR",
+      {
+        month: "long",
+        year: "numeric",
+      },
+    );
+
+  return (
+    "Fatura de " +
+    nome.charAt(0).toUpperCase() +
+    nome.slice(1)
+  );
+}
+
+
+// ==========================================
+// CARTÕES E FATURAS
+// ==========================================
+
 function mostrarCartoesEFaturas() {
   const container = document.querySelector("#creditCards");
 
@@ -5287,7 +5493,10 @@ function mostrarCartoesEFaturas() {
         .filter((fatura) => String(fatura.accountId) === String(cartao.id))
         .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
 
-      const faturaAtual = faturas[0];
+      const faturaAtual =
+        obterFaturaDestaqueDoCartao(
+          faturas,
+        );
 
       let valorFatura = Number(
         faturaAtual?.totalAmount || faturaAtual?.valor || 0,
@@ -5354,8 +5563,28 @@ function mostrarCartoesEFaturas() {
               </div>
 
               <div class="meta">
-                Fatura atual
+                ${
+                  faturaAtual
+                    ? obterNomeMesFatura(faturaAtual)
+                    : "Fatura"
+                }
               </div>
+
+              ${
+                faturaAtual
+                  ? `
+                    <div class="meta">
+                      ${
+                        new Date().getDate() > 10
+                          ? "🟢 Fatura aberta"
+                          : "🟡 Fatura do fechamento"
+                      }
+                      · Vence em
+                      ${dataBR(faturaAtual.dueDate)}
+                    </div>
+                  `
+                  : ""
+              }
 
               <div class="meta">
                 Limite:
@@ -5402,6 +5631,11 @@ function mostrarDetalhesCartao(cartaoId) {
   const faturas = state.faturas
     .filter((fatura) => String(fatura.accountId) === String(cartao.id))
     .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
+
+  const faturaDestaque =
+    obterFaturaDestaqueDoCartao(
+      faturas,
+    );
 
   const cards = document.querySelector("#creditCards");
 
@@ -5477,7 +5711,12 @@ function mostrarDetalhesCartao(cartaoId) {
               return `
                   <option
                     value="${fatura.id}"
-                    ${index === 0 ? "selected" : ""}
+                    ${
+                      String(fatura.id) ===
+                      String(faturaDestaque?.id)
+                        ? "selected"
+                        : ""
+                    }
                   >
                     ${texto}
                   </option>

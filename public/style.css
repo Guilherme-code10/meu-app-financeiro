@@ -3053,3 +3053,29 @@ select:focus {
 
 }
 
+
+
+/* ==========================================
+   PERÍODO FINANCEIRO DO DASHBOARD
+   ========================================== */
+
+.financial-period {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
+.financial-period strong {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(91, 80, 238, 0.12);
+  color: #5147d9;
+}
+
+.financial-period span {
+  color: #6f789b;
+}
+
