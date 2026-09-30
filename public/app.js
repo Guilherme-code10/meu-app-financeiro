@@ -2209,90 +2209,29 @@ function obterResumoContasFixasMesAtual() {
 // ==========================================
 
 function obterValorFaturaDashboard(fatura) {
-  let valor = Number(
-    fatura?.totalAmount ||
-    fatura?.valor ||
-    0,
-  );
-
-  if (valor > 0) {
-    return valor;
-  }
-
-  const cartao = state.cartoes.find(
-    (item) =>
-      String(item.id) ===
-      String(fatura?.accountId),
-  );
-
-  if (
-    !cartao ||
-    !fatura?.billClosingDate
-  ) {
+  if (!fatura) {
     return 0;
   }
 
-  const fechamento =
-    new Date(fatura.billClosingDate);
-
-  if (
-    Number.isNaN(
-      fechamento.getTime(),
-    )
-  ) {
-    return 0;
-  }
-
-  const inicio =
-    new Date(fechamento);
-
-  inicio.setMonth(
-    inicio.getMonth() - 1,
-  );
-
-  return state.transacoes
-    .filter((transacao) => {
-      if (
-        transacao.conta !==
-        cartao.banco
-      ) {
-        return false;
-      }
-
-      if (
-        String(
-          transacao.tipoConta || "",
-        ).toUpperCase() !== "CREDIT"
-      ) {
-        return false;
-      }
-
-      if (
-        String(
-          transacao.tipo || "",
-        ).toUpperCase() !== "DEBIT"
-      ) {
-        return false;
-      }
-
-      const data =
-        new Date(transacao.data);
-
-      return (
-        data > inicio &&
-        data <= fechamento
-      );
-    })
-    .reduce(
-      (total, transacao) =>
-        total +
-        Math.abs(
-          Number(
-            transacao.valor || 0,
-          ),
-        ),
-      0,
+  const cartao =
+    (state.cartoes || []).find(
+      (item) =>
+        String(item.id) ===
+        String(fatura.accountId)
     );
+
+  if (!cartao) {
+    return Number(
+      fatura.totalAmount ||
+      fatura.valor ||
+      0
+    );
+  }
+
+  return obterValorCorretoFatura(
+    cartao,
+    fatura
+  );
 }
 
 // ==========================================
@@ -2319,6 +2258,22 @@ function obterResumoFaturasMesAtual() {
   const faturasMes =
     state.faturas.filter((fatura) => {
       if (!fatura?.dueDate) {
+        return false;
+      }
+
+      const cartaoDaFatura =
+        (state.cartoes || []).find(
+          (cartao) =>
+            String(cartao.id) ===
+            String(fatura.accountId)
+        );
+
+      if (
+        cartaoDaFatura &&
+        cartaoItauAuxiliar(
+          cartaoDaFatura
+        )
+      ) {
         return false;
       }
 
@@ -5823,6 +5778,157 @@ function obterValorParcelasDaFatura(cartao, fatura) {
 }
 
 
+function obterValorCorretoFatura(cartao, fatura) {
+  if (!cartao || !fatura) {
+    return 0;
+  }
+
+  // ==========================================
+  // FATURA REAL DO BANCO
+  // ==========================================
+
+  const valorBanco =
+    Number(
+      fatura.totalAmount ||
+      fatura.valor ||
+      0
+    );
+
+  if (
+    fatura.virtual !== true &&
+    valorBanco > 0
+  ) {
+    return valorBanco;
+  }
+
+  // ==========================================
+  // FATURA VIRTUAL:
+  // CALCULAR TRANSAÇÕES DO CARTÃO CORRETO
+  // ==========================================
+
+  if (fatura.billClosingDate) {
+    const fechamento =
+      new Date(
+        fatura.billClosingDate
+      );
+
+    if (
+      !Number.isNaN(
+        fechamento.getTime()
+      )
+    ) {
+      const inicio =
+        new Date(
+          fechamento
+        );
+
+      inicio.setMonth(
+        inicio.getMonth() - 1
+      );
+
+      const totalTransacoes =
+        (state.transacoes || [])
+          .filter(
+            (transacao) => {
+              // O ponto mais importante:
+              // comparar pelo ID do cartão,
+              // e não somente pelo nome do banco.
+              if (
+                String(
+                  transacao.accountId || ""
+                ) !==
+                String(
+                  cartao.id || ""
+                )
+              ) {
+                return false;
+              }
+
+              if (
+                String(
+                  transacao.tipoConta || ""
+                ).toUpperCase() !==
+                "CREDIT"
+              ) {
+                return false;
+              }
+
+              if (
+                String(
+                  transacao.tipo || ""
+                ).toUpperCase() !==
+                "DEBIT"
+              ) {
+                return false;
+              }
+
+              const data =
+                new Date(
+                  transacao.data
+                );
+
+              if (
+                Number.isNaN(
+                  data.getTime()
+                )
+              ) {
+                return false;
+              }
+
+              return (
+                data > inicio &&
+                data <= fechamento
+              );
+            },
+          )
+          .reduce(
+            (total, transacao) =>
+              total +
+              Math.abs(
+                Number(
+                  transacao.valor || 0
+                )
+              ),
+            0,
+          );
+
+      if (
+        totalTransacoes > 0
+      ) {
+        return totalTransacoes;
+      }
+    }
+  }
+
+  // ==========================================
+  // FALLBACK:
+  // PARCELAS IDENTIFICADAS
+  // ==========================================
+
+  const valorParcelas =
+    obterValorParcelasDaFatura(
+      cartao,
+      fatura
+    );
+
+  if (
+    valorParcelas > 0
+  ) {
+    return valorParcelas;
+  }
+
+  return valorBanco;
+}
+
+
+function cartaoItauAuxiliar(cartao) {
+  return (
+    String(cartao?.id) ===
+    "0881d673-2da4-4eb2-aff3-c2f57e259963"
+  );
+}
+
+
 function mostrarCartoesEFaturas() {
   const container = document.querySelector("#creditCards");
 
@@ -5841,6 +5947,12 @@ function mostrarCartoesEFaturas() {
   }
 
   container.innerHTML = state.cartoes
+    .filter(
+      (cartao) =>
+        !cartaoItauAuxiliar(
+          cartao
+        )
+    )
     .map((cartao) => {
       const faturas = state.faturas
         .filter((fatura) => String(fatura.accountId) === String(cartao.id))
@@ -5851,63 +5963,11 @@ function mostrarCartoesEFaturas() {
           faturas,
         );
 
-      let valorFatura = Number(
-        faturaAtual?.totalAmount ||
-        faturaAtual?.valor ||
-        0,
-      );
-
-      // Algumas instituições, como o Mercado Pago,
-      // podem retornar a fatura aberta zerada,
-      // enquanto as parcelas já estão disponíveis.
-      if (
-        faturaAtual &&
-        valorFatura === 0
-      ) {
-        const valorParcelas =
-          obterValorParcelasDaFatura(
-            cartao,
-            faturaAtual,
-          );
-
-        if (valorParcelas > 0) {
-          valorFatura =
-            valorParcelas;
-        }
-      }
-
-      // Se a fatura atual ainda não possui
-      // totalAmount, calcular pelas compras
-      if (faturaAtual && valorFatura === 0) {
-        const fechamento = new Date(faturaAtual.billClosingDate);
-
-        const dataAnterior = new Date(fechamento);
-
-        dataAnterior.setMonth(dataAnterior.getMonth() - 1);
-
-        const comprasFaturaAtual = state.transacoes.filter((transacao) => {
-          if (transacao.conta !== cartao.banco) {
-            return false;
-          }
-
-          if (transacao.tipoConta !== "CREDIT") {
-            return false;
-          }
-
-          if (transacao.tipo !== "DEBIT") {
-            return false;
-          }
-
-          const data = new Date(transacao.data);
-
-          return data > dataAnterior && data <= fechamento;
-        });
-
-        valorFatura = comprasFaturaAtual.reduce(
-          (total, transacao) => total + Math.abs(Number(transacao.valor)),
-          0,
+      const valorFatura =
+        obterValorCorretoFatura(
+          cartao,
+          faturaAtual
         );
-      }
 
       return `
             <article
