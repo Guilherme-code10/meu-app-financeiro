@@ -4100,7 +4100,36 @@ function mostrarContasFixas() {
       conta.tipo === "parcelada" || Number(conta.totalParcelas || 0) > 0;
 
     if (!ehParcelada) {
-      return true;
+      const anoInicio =
+        Number(
+          conta.anoInicioParcela || 0
+        );
+
+      const mesInicio =
+        Number(
+          conta.mesInicioParcela
+        );
+
+      // Contas antigas, sem mês inicial,
+      // continuam aparecendo normalmente.
+      if (
+        !anoInicio ||
+        !Number.isFinite(mesInicio)
+      ) {
+        return true;
+      }
+
+      const mesDaTela =
+        anoSelecionado * 12 +
+        mesSelecionado;
+
+      const mesDeInicio =
+        anoInicio * 12 +
+        mesInicio;
+
+      return (
+        mesDaTela >= mesDeInicio
+      );
     }
 
     // --------------------------------------
@@ -6785,11 +6814,13 @@ function configurarFormularioContaFixa() {
     // DEFINIR MÊS DE INÍCIO DA PARCELA
     // ==========================================
 
-    const dataInicioParcela = new Date();
+    // A conta começa no mês que está aberto
+    // na tela de Contas fixas.
+    const anoInicioParcela =
+      mesContasFixas.getFullYear();
 
-    const anoInicioParcela = dataInicioParcela.getFullYear();
-
-    const mesInicioParcela = dataInicioParcela.getMonth();
+    const mesInicioParcela =
+      mesContasFixas.getMonth();
 
     // ==========================================
     // CRIAR CONTA
@@ -6816,9 +6847,11 @@ function configurarFormularioContaFixa() {
       // INÍCIO DA PARCELA
       // ========================================
 
-      anoInicioParcela: tipo === "parcelada" ? anoInicioParcela : null,
+      // Usamos os mesmos campos para registrar
+      // o mês em que a conta começou.
+      anoInicioParcela: anoInicioParcela,
 
-      mesInicioParcela: tipo === "parcelada" ? mesInicioParcela : null,
+      mesInicioParcela: mesInicioParcela,
 
       pagamentos: [],
 
