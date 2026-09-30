@@ -2007,78 +2007,200 @@ function obterResumoFluxoMes() {
 // CONTAS FIXAS PENDENTES DO MÊS ATUAL
 // ==========================================
 
-function obterResumoContasFixasMesAtual() {
-  const contas = pegarContasFixas();
-
+function obterMesAutomaticoContasFixas() {
   const hoje = new Date();
 
-  const ano = hoje.getFullYear();
-  const mes = hoje.getMonth();
+  let ano = hoje.getFullYear();
+  let mes = hoje.getMonth();
 
-  let total = 0;
-  let pago = 0;
-  let pendente = 0;
+  // A partir do dia 11, começamos a preparar
+  // as contas do próximo mês.
+  if (hoje.getDate() >= 11) {
+    mes += 1;
+
+    if (mes > 11) {
+      mes = 0;
+      ano += 1;
+    }
+  }
+
+  return {
+    ano,
+    mes,
+    data: new Date(
+      ano,
+      mes,
+      1,
+    ),
+  };
+}
+
+
+function obterResumoContasFixasPorMes(
+  ano,
+  mes,
+) {
+  const contas =
+    pegarContasFixas();
+
+  let fixasTotal = 0;
+  let fixasPago = 0;
+  let fixasPendente = 0;
+
+  let parcelasTotal = 0;
+  let parcelasPago = 0;
+  let parcelasPendente = 0;
+
+  const pendentes = [];
 
   contas.forEach((conta) => {
-    const ehParcelada =
-      conta.tipo === "parcelada" ||
-      Number(conta.totalParcelas || 0) > 0;
-
     if (conta.finalizada === true) {
       return;
     }
 
+    const ehParcelada =
+      conta.tipo === "parcelada" ||
+      Number(
+        conta.totalParcelas || 0,
+      ) > 0;
+
     if (ehParcelada) {
       const totalParcelas =
-        Number(conta.totalParcelas || 0);
+        Number(
+          conta.totalParcelas || 0,
+        );
 
       const parcelaInicial =
-        Number(conta.parcelaAtual || 1);
+        Number(
+          conta.parcelaAtual || 1,
+        );
 
       const anoInicial =
-        Number(conta.anoInicioParcela || ano);
+        Number(
+          conta.anoInicioParcela ||
+          ano,
+        );
 
       const mesInicial =
-        Number(conta.mesInicioParcela ?? mes);
+        Number(
+          conta.mesInicioParcela ??
+          mes,
+        );
 
       const diferencaMeses =
         (ano - anoInicial) * 12 +
         (mes - mesInicial);
 
       const parcelaDoMes =
-        parcelaInicial + diferencaMeses;
+        parcelaInicial +
+        diferencaMeses;
 
       if (
-        parcelaDoMes < parcelaInicial ||
-        parcelaDoMes > totalParcelas
+        parcelaDoMes <
+          parcelaInicial ||
+        parcelaDoMes >
+          totalParcelas
       ) {
         return;
       }
     }
 
     const valor =
-      Number(conta.amount || 0);
+      Math.abs(
+        Number(
+          conta.amount || 0,
+        ),
+      );
 
     const chaveMes =
-      `${ano}-${String(mes + 1).padStart(2, "0")}`;
+      `${ano}-${String(
+        mes + 1,
+      ).padStart(2, "0")}`;
 
     const foiPaga =
-      Array.isArray(conta.pagamentos) &&
-      conta.pagamentos.includes(chaveMes);
+      Array.isArray(
+        conta.pagamentos,
+      ) &&
+      conta.pagamentos.includes(
+        chaveMes,
+      );
 
-    total += valor;
+    if (ehParcelada) {
+      parcelasTotal += valor;
+
+      if (foiPaga) {
+        parcelasPago += valor;
+      } else {
+        parcelasPendente += valor;
+
+        pendentes.push({
+          nome:
+            conta.name ||
+            "Parcela",
+          valor,
+        });
+      }
+
+      return;
+    }
+
+    fixasTotal += valor;
 
     if (foiPaga) {
-      pago += valor;
+      fixasPago += valor;
     } else {
-      pendente += valor;
+      fixasPendente += valor;
+
+      pendentes.push({
+        nome:
+          conta.name ||
+          "Conta fixa",
+        valor,
+      });
     }
   });
 
   return {
-    total,
-    pago,
-    pendente,
+    total:
+      fixasTotal +
+      parcelasTotal,
+
+    pago:
+      fixasPago +
+      parcelasPago,
+
+    pendente:
+      fixasPendente +
+      parcelasPendente,
+
+    fixasTotal,
+    fixasPago,
+    fixasPendente,
+
+    parcelasTotal,
+    parcelasPago,
+    parcelasPendente,
+
+    pendentes,
+  };
+}
+
+
+function obterResumoContasFixasMesAtual() {
+  const referencia =
+    obterMesAutomaticoContasFixas();
+
+  return {
+    ...obterResumoContasFixasPorMes(
+      referencia.ano,
+      referencia.mes,
+    ),
+
+    ano:
+      referencia.ano,
+
+    mes:
+      referencia.mes,
   };
 }
 
@@ -2305,18 +2427,24 @@ function atualizarCompromissosMes() {
 
   const total =
     faturas.total +
-    fixas.pendente;
+    fixas.fixasPendente +
+    fixas.parcelasPendente;
 
-  const saldoContas =
-    state.contas.reduce(
-      (soma, conta) =>
-        soma +
-        Number(conta.saldo || 0),
-      0,
+  const caixinhaSalarios =
+    (state.caixinhas || []).find(
+      (caixinha) =>
+        normalizarTextoFinanceiro(
+          caixinha.nome || ""
+        ) === "salarios"
+    );
+
+  const saldoSalarios =
+    Number(
+      caixinhaSalarios?.saldo || 0
     );
 
   const saldoDepois =
-    saldoContas - total;
+    saldoSalarios - total;
 
   const faturasElemento =
     document.querySelector(
@@ -2331,6 +2459,11 @@ function atualizarCompromissosMes() {
   const fixasElemento =
     document.querySelector(
       "#monthlyFixedPending",
+    );
+
+  const parcelasElemento =
+    document.querySelector(
+      "#monthlyInstallmentsPending",
     );
 
   const totalElemento =
@@ -2351,15 +2484,22 @@ function atualizarCompromissosMes() {
   if (quantidadeElemento) {
     quantidadeElemento.textContent =
       `${faturas.quantidade} fatura${
-        faturas.quantidade === 1
-          ? ""
-          : "s"
-      } com vencimento no mês`;
+        faturas.quantidade === 1 ? "" : "s"
+      } do ciclo`;
   }
 
   if (fixasElemento) {
     fixasElemento.textContent =
-      dinheiro(fixas.pendente);
+      dinheiro(
+        fixas.fixasPendente
+      );
+  }
+
+  if (parcelasElemento) {
+    parcelasElemento.textContent =
+      dinheiro(
+        fixas.parcelasPendente
+      );
   }
 
   if (totalElemento) {
@@ -3702,9 +3842,15 @@ async function marcarContaComoPaga(id) {
       ? [...conta.pagamentos]
       : [];
 
-    const mesAtual = obterMesAtual();
+    const mesAtual =
+      `${mesContasFixas.getFullYear()}-${String(
+        mesContasFixas.getMonth() + 1,
+      ).padStart(2, "0")}`;
 
-    const indice = pagamentosAtuais.indexOf(mesAtual);
+    const indice =
+      pagamentosAtuais.indexOf(
+        mesAtual,
+      );
 
     if (indice >= 0) {
       // Desmarcar como paga
@@ -3749,11 +3895,11 @@ async function marcarContaComoPaga(id) {
 // MÊS SELECIONADO NAS CONTAS FIXAS
 // ==========================================
 
-let mesContasFixas = new Date(
-  new Date().getFullYear(),
-  new Date().getMonth(),
-  1,
-);
+const referenciaAutomaticaContasFixas =
+  obterMesAutomaticoContasFixas();
+
+let mesContasFixas =
+  referenciaAutomaticaContasFixas.data;
 
 // ==========================================
 // FORMATAR MÊS
@@ -3770,6 +3916,91 @@ function formatarMesContasFixas(data) {
 // ATUALIZAR TÍTULO DO MÊS
 // ==========================================
 
+function atualizarAlertaContasFixas() {
+  const alerta =
+    document.querySelector(
+      "#fixedPendingAlert",
+    );
+
+  if (!alerta) {
+    return;
+  }
+
+  const hoje =
+    new Date();
+
+  // O alerta só aparece após o dia 10.
+  if (hoje.getDate() < 11) {
+    alerta.style.display =
+      "none";
+
+    return;
+  }
+
+  const anoAtual =
+    hoje.getFullYear();
+
+  const mesAtual =
+    hoje.getMonth();
+
+  const resumo =
+    obterResumoContasFixasPorMes(
+      anoAtual,
+      mesAtual,
+    );
+
+  if (resumo.pendente <= 0) {
+    alerta.style.display =
+      "none";
+
+    return;
+  }
+
+  const nomeMes =
+    new Date(
+      anoAtual,
+      mesAtual,
+      1,
+    ).toLocaleDateString(
+      "pt-BR",
+      {
+        month: "long",
+        year: "numeric",
+      },
+    );
+
+  alerta.style.display =
+    "block";
+
+  alerta.innerHTML = `
+    <strong>
+      ⚠️ Atenção:
+      ainda existem contas de
+      ${nomeMes}
+      pendentes.
+    </strong>
+
+    <div>
+      ${resumo.pendentes.length}
+      compromisso${
+        resumo.pendentes.length === 1
+          ? ""
+          : "s"
+      }
+      ·
+      ${dinheiro(
+        resumo.pendente,
+      )}
+      pendente${
+        resumo.pendentes.length === 1
+          ? ""
+          : "s"
+      }.
+    </div>
+  `;
+}
+
+
 function atualizarMesContasFixas() {
   const titulo = document.querySelector("#fixedMonthTitle");
 
@@ -3782,8 +4013,11 @@ function atualizarMesContasFixas() {
   }
 
   if (subtitulo) {
-    subtitulo.textContent = "Contas e parcelas deste mês";
+    subtitulo.textContent =
+      "Contas e parcelas deste mês";
   }
+
+  atualizarAlertaContasFixas();
 }
 
 // ==========================================
@@ -4187,6 +4421,11 @@ async function carregarCaixinhas() {
     mostrarCaixinhas();
 
     atualizarTotalCaixinhas();
+
+    // Recalcula o saldo dos compromissos
+    // usando a caixinha Salários já carregada.
+    atualizarCompromissosMes();
+
   } catch (erro) {
     console.error("Erro ao carregar caixinhas:", erro);
   }
@@ -5470,6 +5709,91 @@ function obterNomeMesFatura(fatura) {
 // CARTÕES E FATURAS
 // ==========================================
 
+function obterValorParcelasDaFatura(cartao, fatura) {
+  if (
+    !cartao ||
+    !fatura?.dueDate ||
+    !Array.isArray(state.parcelamentos)
+  ) {
+    return 0;
+  }
+
+  const mesFatura =
+    String(fatura.dueDate)
+      .substring(0, 7);
+
+  let total = 0;
+
+  state.parcelamentos.forEach(
+    (compra) => {
+      const cartaoCompra =
+        compra.cartaoId ||
+        compra.accountId ||
+        compra.account_id ||
+        "";
+
+      // Só parcelas do mesmo cartão.
+      if (
+        String(cartaoCompra) !==
+        String(cartao.id)
+      ) {
+        return;
+      }
+
+      const parcelas =
+        Array.isArray(compra.parcelas)
+          ? compra.parcelas
+          : [];
+
+      parcelas.forEach(
+        (parcela) => {
+          const vencimento =
+            parcela.vencimento ||
+            parcela.dueDate;
+
+          if (!vencimento) {
+            return;
+          }
+
+          if (
+            String(vencimento)
+              .substring(0, 7) !==
+            mesFatura
+          ) {
+            return;
+          }
+
+          const status =
+            String(
+              parcela.status || ""
+            ).toUpperCase();
+
+          // Se já foi liquidada,
+          // não entra na fatura aberta.
+          if (
+            [
+              "PAID",
+              "SETTLED",
+            ].includes(status)
+          ) {
+            return;
+          }
+
+          total +=
+            Math.abs(
+              Number(
+                parcela.valor || 0
+              )
+            );
+        },
+      );
+    },
+  );
+
+  return total;
+}
+
+
 function mostrarCartoesEFaturas() {
   const container = document.querySelector("#creditCards");
 
@@ -5499,8 +5823,29 @@ function mostrarCartoesEFaturas() {
         );
 
       let valorFatura = Number(
-        faturaAtual?.totalAmount || faturaAtual?.valor || 0,
+        faturaAtual?.totalAmount ||
+        faturaAtual?.valor ||
+        0,
       );
+
+      // Algumas instituições, como o Mercado Pago,
+      // podem retornar a fatura aberta zerada,
+      // enquanto as parcelas já estão disponíveis.
+      if (
+        faturaAtual &&
+        valorFatura === 0
+      ) {
+        const valorParcelas =
+          obterValorParcelasDaFatura(
+            cartao,
+            faturaAtual,
+          );
+
+        if (valorParcelas > 0) {
+          valorFatura =
+            valorParcelas;
+        }
+      }
 
       // Se a fatura atual ainda não possui
       // totalAmount, calcular pelas compras
