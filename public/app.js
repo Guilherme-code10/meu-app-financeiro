@@ -6614,6 +6614,8 @@ async function carregarContasFixas() {
 
     mostrarContasFixas();
 
+    mostrarParcelasForaCartao();
+
     atualizarDashboard();
   } catch (erro) {
     console.error("Erro ao carregar contas fixas:", erro);
@@ -9044,28 +9046,226 @@ function mostrarParcelas() {
   }
 
   // ==========================================
+  // PROJEÇÃO DA COMPRA ATÉ O MÊS SELECIONADO
+  // ==========================================
+
+  function obterResumoCompraAteMes(
+    compra,
+    mesReferencia,
+  ) {
+    const valorTotal =
+      Number(
+        compra.valorTotal || 0
+      );
+
+    // Sem mês selecionado, mantém a situação real atual.
+    if (
+      !mesReferencia ||
+      mesReferencia === "TODOS"
+    ) {
+      const valorPago =
+        Number(
+          compra.valorJaPago || 0
+        );
+
+      return {
+        valorTotal,
+        valorPago,
+
+        valorRestante:
+          Math.max(
+            valorTotal - valorPago,
+            0,
+          ),
+
+        percentual:
+          valorTotal > 0
+            ? Math.min(
+                (valorPago / valorTotal) * 100,
+                100,
+              )
+            : 0,
+      };
+    }
+
+    // Procura qual parcela pertence ao mês escolhido.
+    const parcelaReferencia =
+      (compra.parcelas || []).find(
+        (parcela) => {
+          const vencimento =
+            parcela.vencimento ||
+            parcela.dueDate;
+
+          return (
+            vencimento &&
+            String(vencimento).substring(0, 7) ===
+              mesReferencia
+          );
+        },
+      );
+
+    // Se não encontrar uma parcela nesse mês,
+    // mantém os valores reais atuais.
+    if (!parcelaReferencia) {
+      const valorPago =
+        Number(
+          compra.valorJaPago || 0
+        );
+
+      return {
+        valorTotal,
+        valorPago,
+
+        valorRestante:
+          Math.max(
+            valorTotal - valorPago,
+            0,
+          ),
+
+        percentual:
+          valorTotal > 0
+            ? Math.min(
+                (valorPago / valorTotal) * 100,
+                100,
+              )
+            : 0,
+      };
+    }
+
+    const numeroParcela =
+      Number(
+        parcelaReferencia.parcelaAtual ||
+        parcelaReferencia.installmentNumber ||
+        0
+      );
+
+    const totalParcelas =
+      Number(
+        parcelaReferencia.totalParcelas ||
+        parcelaReferencia.totalInstallments ||
+        compra.totalParcelas ||
+        0
+      );
+
+    // Soma todas as parcelas até a parcela
+    // correspondente ao mês selecionado.
+    const valorPago =
+      (compra.parcelas || []).reduce(
+        (total, parcela) => {
+          const numero =
+            Number(
+              parcela.parcelaAtual ||
+              parcela.installmentNumber ||
+              0
+            );
+
+          if (
+            numero > 0 &&
+            numero <= numeroParcela
+          ) {
+            return (
+              total +
+              Math.abs(
+                Number(
+                  parcela.valor || 0
+                )
+              )
+            );
+          }
+
+          return total;
+        },
+        0,
+      );
+
+    const valorPagoLimitado =
+      Math.min(
+        valorPago,
+        valorTotal,
+      );
+
+    const valorRestante =
+      Math.max(
+        valorTotal -
+        valorPagoLimitado,
+        0,
+      );
+
+    // Percentual baseado na posição da parcela.
+    const percentual =
+      totalParcelas > 0
+        ? Math.min(
+            (numeroParcela / totalParcelas) * 100,
+            100,
+          )
+        : (
+            valorTotal > 0
+              ? Math.min(
+                  (valorPagoLimitado / valorTotal) * 100,
+                  100,
+                )
+              : 0
+          );
+
+    return {
+      valorTotal,
+      valorPago:
+        valorPagoLimitado,
+      valorRestante,
+      percentual,
+    };
+  }
+
+  // ==========================================
   // RESUMO
   // ==========================================
 
-  const quantidade = comprasFiltradas.length;
+  const quantidade =
+    comprasFiltradas.length;
 
-  const valorTotal = comprasFiltradas.reduce(
-    (total, compra) => total + Number(compra.valorTotal || 0),
-    0,
-  );
+  const resumosCompras =
+    comprasFiltradas.map(
+      (compra) =>
+        obterResumoCompraAteMes(
+          compra,
+          mesSelecionado,
+        ),
+    );
 
-  const valorPago = comprasFiltradas.reduce(
-    (total, compra) => total + Number(compra.valorJaPago || 0),
-    0,
-  );
+  const valorTotal =
+    resumosCompras.reduce(
+      (total, resumo) =>
+        total +
+        resumo.valorTotal,
+      0,
+    );
 
-  const valorRestante = comprasFiltradas.reduce(
-    (total, compra) => total + Number(compra.valorRestante || 0),
-    0,
-  );
+  const valorPago =
+    resumosCompras.reduce(
+      (total, resumo) =>
+        total +
+        resumo.valorPago,
+      0,
+    );
+
+  const valorRestante =
+    resumosCompras.reduce(
+      (total, resumo) =>
+        total +
+        resumo.valorRestante,
+      0,
+    );
 
   const percentual =
-    valorTotal > 0 ? Math.min((valorPago / valorTotal) * 100, 100) : 0;
+    valorTotal > 0
+      ? Math.min(
+          (
+            valorPago /
+            valorTotal
+          ) * 100,
+          100,
+        )
+      : 0;
 
   if (elementoAndamento) {
     elementoAndamento.textContent = quantidade;
@@ -9176,10 +9376,16 @@ function mostrarParcelas() {
 
       const vencimento = parcelaExibida?.vencimento || parcelaExibida?.dueDate;
 
+      const resumoProjetado =
+        obterResumoCompraAteMes(
+          compra,
+          mesSelecionado,
+        );
+
       const progresso =
-        compra.valorTotal > 0
-          ? Math.min((compra.valorJaPago / compra.valorTotal) * 100, 100)
-          : 0;
+        Number(
+          resumoProjetado.percentual || 0
+        );
 
       const statusParcela = String(parcelaExibida?.status || "").toUpperCase();
 
@@ -9225,12 +9431,12 @@ function mostrarParcelas() {
 
                 <div class="meta">
                   Já pago:
-                  ${dinheiro(compra.valorJaPago)}
+                  ${dinheiro(resumoProjetado.valorPago)}
                 </div>
 
                 <div class="meta">
                   Restante:
-                  ${dinheiro(compra.valorRestante)}
+                  ${dinheiro(resumoProjetado.valorRestante)}
                 </div>
 
                 <div
@@ -9274,9 +9480,1457 @@ function mostrarParcelas() {
     .join("");
 }
 
+
+// ==========================================
+// PARCELAS FORA DO CARTÃO
+// ==========================================
+
+function mostrarParcelasForaCartao() {
+  const lista =
+    document.querySelector(
+      "#parcelasManuaisLista",
+    );
+
+  if (!lista) {
+    return;
+  }
+
+  const filtroMes =
+    document.querySelector(
+      "#parcelasManuaisFiltroMes",
+    );
+
+  const contas =
+    (state.contasFixas || []).filter(
+      (conta) =>
+        String(
+          conta.tipo || "",
+        ).toLowerCase() ===
+          "parcelada" ||
+        Number(
+          conta.totalParcelas || 0,
+        ) > 0,
+    );
+
+  // ========================================
+  // NORMALIZAR PARCELAMENTOS
+  // ========================================
+
+  const parcelamentos =
+    contas
+      .map((conta) => {
+        const valorParcela =
+          Math.abs(
+            Number(
+              conta.amount || 0,
+            ),
+          );
+
+        const totalParcelas =
+          Number(
+            conta.totalParcelas || 0,
+          );
+
+        const parcelaInicial =
+          Number(
+            conta.parcelaAtual || 1,
+          );
+
+        const anoInicio =
+          Number(
+            conta.anoInicioParcela,
+          );
+
+        const mesInicio =
+          Number(
+            conta.mesInicioParcela,
+          );
+
+        if (
+          !totalParcelas ||
+          !anoInicio ||
+          !Number.isFinite(
+            mesInicio,
+          )
+        ) {
+          return null;
+        }
+
+        const mesesRestantes =
+          totalParcelas -
+          parcelaInicial;
+
+        const dataFinal =
+          new Date(
+            anoInicio,
+            mesInicio +
+              mesesRestantes,
+            Number(
+              conta.day || 1,
+            ),
+          );
+
+        const chaveUltimoMes =
+          `${dataFinal.getFullYear()}-${String(
+            dataFinal.getMonth() + 1,
+          ).padStart(2, "0")}`;
+
+        const pagamentos =
+          Array.isArray(
+            conta.pagamentos,
+          )
+            ? conta.pagamentos
+            : [];
+
+        const finalizada =
+          conta.finalizada === true ||
+          pagamentos.includes(
+            chaveUltimoMes,
+          );
+
+        return {
+          ...conta,
+
+          valorParcela,
+          totalParcelas,
+          parcelaInicial,
+          anoInicio,
+          mesInicio,
+
+          valorTotal:
+            valorParcela *
+            totalParcelas,
+
+          dataFinal,
+
+          finalizada,
+        };
+      })
+      .filter(Boolean);
+
+  // ========================================
+  // MESES DISPONÍVEIS
+  // ========================================
+
+  if (filtroMes) {
+    const valorAtual =
+      filtroMes.value ||
+      "TODOS";
+
+    const meses =
+      new Set();
+
+    parcelamentos.forEach(
+      (item) => {
+        for (
+          let numero =
+            item.parcelaInicial;
+          numero <=
+          item.totalParcelas;
+          numero++
+        ) {
+          const deslocamento =
+            numero -
+            item.parcelaInicial;
+
+          const data =
+            new Date(
+              item.anoInicio,
+              item.mesInicio +
+                deslocamento,
+              1,
+            );
+
+          meses.add(
+            `${data.getFullYear()}-${String(
+              data.getMonth() + 1,
+            ).padStart(2, "0")}`,
+          );
+        }
+      },
+    );
+
+    const mesesOrdenados =
+      [...meses].sort();
+
+    filtroMes.innerHTML = `
+      <option value="TODOS">
+        Situação atual
+      </option>
+
+      ${mesesOrdenados
+        .map((mes) => {
+          const [
+            ano,
+            numeroMes,
+          ] =
+            mes
+              .split("-")
+              .map(Number);
+
+          const texto =
+            new Date(
+              ano,
+              numeroMes - 1,
+              1,
+            ).toLocaleDateString(
+              "pt-BR",
+              {
+                month:
+                  "long",
+                year:
+                  "numeric",
+              },
+            );
+
+          return `
+            <option value="${mes}">
+              ${
+                texto
+                  .charAt(0)
+                  .toUpperCase() +
+                texto.slice(1)
+              }
+            </option>
+          `;
+        })
+        .join("")}
+    `;
+
+    if (
+      [...filtroMes.options]
+        .some(
+          (option) =>
+            option.value ===
+            valorAtual,
+        )
+    ) {
+      filtroMes.value =
+        valorAtual;
+    }
+  }
+
+  const mesSelecionado =
+    filtroMes?.value ||
+    "TODOS";
+
+  const status =
+    window.parcelasManuaisStatus ||
+    "ANDAMENTO";
+
+  // ========================================
+  // REFERÊNCIA ATUAL
+  // ========================================
+
+  const hoje =
+    new Date();
+
+  const mesAtual =
+    `${hoje.getFullYear()}-${String(
+      hoje.getMonth() + 1,
+    ).padStart(2, "0")}`;
+
+  const referencia =
+    mesSelecionado ===
+    "TODOS"
+      ? mesAtual
+      : mesSelecionado;
+
+  // ========================================
+  // CALCULAR SITUAÇÃO NO MÊS
+  // ========================================
+
+  const calcular =
+    (item) => {
+      const [
+        anoReferencia,
+        mesReferenciaNumero,
+      ] =
+        referencia
+          .split("-")
+          .map(Number);
+
+      const mesReferencia =
+        mesReferenciaNumero - 1;
+
+      const diferencaMeses =
+        (
+          anoReferencia -
+          item.anoInicio
+        ) * 12 +
+        (
+          mesReferencia -
+          item.mesInicio
+        );
+
+      const parcelaDoMes =
+        item.parcelaInicial +
+        diferencaMeses;
+
+      const antesDoInicio =
+        parcelaDoMes <
+        item.parcelaInicial;
+
+      const depoisDoFim =
+        parcelaDoMes >
+        item.totalParcelas;
+
+      let parcelaConsiderada =
+        parcelaDoMes;
+
+      if (antesDoInicio) {
+        parcelaConsiderada =
+          item.parcelaInicial -
+          1;
+      }
+
+      if (depoisDoFim) {
+        parcelaConsiderada =
+          item.totalParcelas;
+      }
+
+      const quantidadePaga =
+        Math.max(
+          Math.min(
+            parcelaConsiderada,
+            item.totalParcelas,
+          ),
+          0,
+        );
+
+      const valorPago =
+        Math.min(
+          quantidadePaga *
+            item.valorParcela,
+          item.valorTotal,
+        );
+
+      const valorRestante =
+        Math.max(
+          item.valorTotal -
+            valorPago,
+          0,
+        );
+
+      const percentual =
+        item.totalParcelas > 0
+          ? Math.min(
+              (
+                quantidadePaga /
+                item.totalParcelas
+              ) *
+                100,
+              100,
+            )
+          : 0;
+
+      return {
+        parcelaDoMes,
+        antesDoInicio,
+        depoisDoFim,
+        quantidadePaga,
+        valorPago,
+        valorRestante,
+        percentual,
+      };
+    };
+
+  let itens =
+    parcelamentos.map(
+      (item) => ({
+        item,
+        resumo:
+          calcular(item),
+      }),
+    );
+
+  // Se escolheu mês específico,
+  // mostra apenas os parcelamentos
+  // que existem naquele mês.
+  if (
+    mesSelecionado !==
+    "TODOS"
+  ) {
+    itens =
+      itens.filter(
+        ({ item, resumo }) =>
+          resumo.parcelaDoMes >=
+            item.parcelaInicial &&
+          resumo.parcelaDoMes <=
+            item.totalParcelas,
+      );
+  }
+
+  if (
+    status ===
+    "FINALIZADAS"
+  ) {
+    itens =
+      itens.filter(
+        ({ item }) =>
+          item.finalizada,
+      );
+  } else {
+    itens =
+      itens.filter(
+        ({ item }) =>
+          !item.finalizada,
+      );
+  }
+
+  // ========================================
+  // RESUMO GERAL
+  // ========================================
+
+  const quantidade =
+    itens.length;
+
+  const valorTotal =
+    itens.reduce(
+      (total, { item }) =>
+        total +
+        item.valorTotal,
+      0,
+    );
+
+  const valorPago =
+    itens.reduce(
+      (total, { resumo }) =>
+        total +
+        resumo.valorPago,
+      0,
+    );
+
+  const valorRestante =
+    itens.reduce(
+      (total, { resumo }) =>
+        total +
+        resumo.valorRestante,
+      0,
+    );
+
+  const percentual =
+    valorTotal > 0
+      ? Math.min(
+          (
+            valorPago /
+            valorTotal
+          ) *
+            100,
+          100,
+        )
+      : 0;
+
+  const quantidadeElemento =
+    document.querySelector(
+      "#parcelasManuaisQuantidade",
+    );
+
+  const totalElemento =
+    document.querySelector(
+      "#parcelasManuaisValorTotal",
+    );
+
+  const pagoElemento =
+    document.querySelector(
+      "#parcelasManuaisPago",
+    );
+
+  const restanteElemento =
+    document.querySelector(
+      "#parcelasManuaisRestante",
+    );
+
+  const progressoElemento =
+    document.querySelector(
+      "#parcelasManuaisProgresso",
+    );
+
+  const progressoTexto =
+    document.querySelector(
+      "#parcelasManuaisProgressoTexto",
+    );
+
+  if (quantidadeElemento) {
+    quantidadeElemento.textContent =
+      quantidade;
+  }
+
+  if (totalElemento) {
+    totalElemento.textContent =
+      dinheiro(
+        valorTotal,
+      );
+  }
+
+  if (pagoElemento) {
+    pagoElemento.textContent =
+      dinheiro(
+        valorPago,
+      );
+  }
+
+  if (restanteElemento) {
+    restanteElemento.textContent =
+      dinheiro(
+        valorRestante,
+      );
+  }
+
+  if (progressoElemento) {
+    progressoElemento.style.width =
+      `${percentual}%`;
+  }
+
+  if (progressoTexto) {
+    progressoTexto.textContent =
+      `${Math.round(
+        percentual,
+      )}% pago`;
+  }
+
+  // ========================================
+  // LISTA
+  // ========================================
+
+  if (!itens.length) {
+    lista.innerHTML = `
+      <div class="empty">
+        ${
+          status ===
+          "FINALIZADAS"
+            ? "Nenhum parcelamento finalizado."
+            : "Nenhum parcelamento encontrado para este período."
+        }
+      </div>
+    `;
+
+    return;
+  }
+
+  lista.innerHTML =
+    itens
+      .map(
+        ({
+          item,
+          resumo,
+        }) => {
+          const numero =
+            Math.max(
+              Math.min(
+                resumo.parcelaDoMes,
+                item.totalParcelas,
+              ),
+              item.parcelaInicial,
+            );
+
+          const dataParcela =
+            new Date(
+              item.anoInicio,
+              item.mesInicio +
+                (
+                  numero -
+                  item.parcelaInicial
+                ),
+              Number(
+                item.day || 1,
+              ),
+            );
+
+          const chaveMes =
+            `${dataParcela.getFullYear()}-${String(
+              dataParcela.getMonth() + 1,
+            ).padStart(2, "0")}`;
+
+          const pagaRealmente =
+            Array.isArray(
+              item.pagamentos,
+            ) &&
+            item.pagamentos.includes(
+              chaveMes,
+            );
+
+          return `
+            <div class="transaction">
+
+              <div style="flex:1;">
+
+                <div class="desc">
+                  ${escapar(
+                    item.name ||
+                    "Parcela",
+                  )}
+                </div>
+
+                <div class="meta">
+                  📦 Fora do cartão
+                  ·
+                  ${escapar(
+                    item.category ||
+                    "Outros",
+                  )}
+                </div>
+
+                <div class="meta">
+                  Parcela
+                  ${numero}/${item.totalParcelas}
+                  ·
+                  ${
+                    pagaRealmente
+                      ? "🟢 Paga"
+                      : mesSelecionado !==
+                          "TODOS"
+                        ? "🔵 Projeção"
+                        : "🟡 Pendente"
+                  }
+                </div>
+
+                <div class="meta">
+                  Valor da parcela:
+                  ${dinheiro(
+                    item.valorParcela,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Vencimento:
+                  ${dataBR(
+                    dataParcela,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Total do parcelamento:
+                  ${dinheiro(
+                    item.valorTotal,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Já pago / projetado:
+                  ${dinheiro(
+                    resumo.valorPago,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Restante:
+                  ${dinheiro(
+                    resumo.valorRestante,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Última parcela:
+                  ${dataBR(
+                    item.dataFinal,
+                  )}
+                </div>
+
+                <div
+                  style="
+                    margin-top:10px;
+                    width:100%;
+                    height:7px;
+                    background:#e5e7eb;
+                    border-radius:999px;
+                    overflow:hidden;
+                  "
+                >
+                  <div
+                    style="
+                      width:${resumo.percentual}%;
+                      height:100%;
+                      background:#16a34a;
+                      border-radius:999px;
+                    "
+                  ></div>
+                </div>
+
+                <div
+                  class="meta"
+                  style="margin-top:5px;"
+                >
+                  ${Math.round(
+                    resumo.percentual,
+                  )}% pago
+                </div>
+
+              </div>
+
+              <div class="amount expense">
+                ${dinheiro(
+                  item.valorParcela,
+                )}
+              </div>
+
+            </div>
+          `;
+        },
+      )
+      .join("");
+}
+
+
+// ==========================================
+// EVENTOS DAS PARCELAS FORA DO CARTÃO
+// ==========================================
+
+document.addEventListener(
+  "change",
+  (evento) => {
+    if (
+      evento.target?.id ===
+      "parcelasManuaisFiltroMes"
+    ) {
+      mostrarParcelasForaCartao();
+    }
+  },
+);
+
+
+document.addEventListener(
+  "click",
+  (evento) => {
+    if (
+      evento.target?.id ===
+      "parcelasManuaisTabAndamento"
+    ) {
+      window.parcelasManuaisStatus =
+        "ANDAMENTO";
+
+      mostrarParcelasForaCartao();
+    }
+
+    if (
+      evento.target?.id ===
+      "parcelasManuaisTabFinalizadas"
+    ) {
+      window.parcelasManuaisStatus =
+        "FINALIZADAS";
+
+      mostrarParcelasForaCartao();
+    }
+  },
+);
+
+
+
+// ==========================================
+// PARCELAS FORA DO CARTÃO
+// ==========================================
+
+function mostrarParcelasForaCartao() {
+  const lista =
+    document.querySelector(
+      "#parcelasManuaisLista",
+    );
+
+  if (!lista) {
+    return;
+  }
+
+  const filtroMes =
+    document.querySelector(
+      "#parcelasManuaisFiltroMes",
+    );
+
+  const contas =
+    (state.contasFixas || []).filter(
+      (conta) =>
+        String(
+          conta.tipo || "",
+        ).toLowerCase() === "parcelada" ||
+        Number(
+          conta.totalParcelas || 0,
+        ) > 0,
+    );
+
+  const parcelamentos =
+    contas
+      .map((conta) => {
+        const valorParcela =
+          Math.abs(
+            Number(
+              conta.amount || 0,
+            ),
+          );
+
+        const totalParcelas =
+          Number(
+            conta.totalParcelas || 0,
+          );
+
+        const parcelaInicial =
+          Number(
+            conta.parcelaAtual || 1,
+          );
+
+        const anoInicio =
+          Number(
+            conta.anoInicioParcela,
+          );
+
+        const mesInicio =
+          Number(
+            conta.mesInicioParcela,
+          );
+
+        if (
+          !totalParcelas ||
+          !anoInicio ||
+          !Number.isFinite(mesInicio)
+        ) {
+          return null;
+        }
+
+        const mesesRestantes =
+          totalParcelas -
+          parcelaInicial;
+
+        const dataFinal =
+          new Date(
+            anoInicio,
+            mesInicio +
+              mesesRestantes,
+            Number(
+              conta.day || 1,
+            ),
+          );
+
+        const chaveUltimoMes =
+          `${dataFinal.getFullYear()}-${String(
+            dataFinal.getMonth() + 1,
+          ).padStart(2, "0")}`;
+
+        const pagamentos =
+          Array.isArray(
+            conta.pagamentos,
+          )
+            ? conta.pagamentos
+            : [];
+
+        const finalizada =
+          conta.finalizada === true ||
+          pagamentos.includes(
+            chaveUltimoMes,
+          );
+
+        return {
+          ...conta,
+
+          valorParcela,
+          totalParcelas,
+          parcelaInicial,
+          anoInicio,
+          mesInicio,
+
+          valorTotal:
+            valorParcela *
+            totalParcelas,
+
+          dataFinal,
+
+          finalizada,
+        };
+      })
+      .filter(Boolean);
+
+  // ========================================
+  // FILTRO DE MESES
+  // ========================================
+
+  if (filtroMes) {
+    const valorAtual =
+      filtroMes.value ||
+      "TODOS";
+
+    const meses =
+      new Set();
+
+    parcelamentos.forEach(
+      (item) => {
+        for (
+          let numero =
+            item.parcelaInicial;
+          numero <=
+          item.totalParcelas;
+          numero++
+        ) {
+          const deslocamento =
+            numero -
+            item.parcelaInicial;
+
+          const data =
+            new Date(
+              item.anoInicio,
+              item.mesInicio +
+                deslocamento,
+              1,
+            );
+
+          meses.add(
+            `${data.getFullYear()}-${String(
+              data.getMonth() + 1,
+            ).padStart(2, "0")}`,
+          );
+        }
+      },
+    );
+
+    const mesesOrdenados =
+      [...meses].sort();
+
+    filtroMes.innerHTML = `
+      <option value="TODOS">
+        Situação atual
+      </option>
+
+      ${mesesOrdenados
+        .map((mes) => {
+          const [
+            ano,
+            numeroMes,
+          ] =
+            mes
+              .split("-")
+              .map(Number);
+
+          const texto =
+            new Date(
+              ano,
+              numeroMes - 1,
+              1,
+            ).toLocaleDateString(
+              "pt-BR",
+              {
+                month: "long",
+                year: "numeric",
+              },
+            );
+
+          return `
+            <option value="${mes}">
+              ${
+                texto
+                  .charAt(0)
+                  .toUpperCase() +
+                texto.slice(1)
+              }
+            </option>
+          `;
+        })
+        .join("")}
+    `;
+
+    if (
+      [...filtroMes.options]
+        .some(
+          (option) =>
+            option.value ===
+            valorAtual,
+        )
+    ) {
+      filtroMes.value =
+        valorAtual;
+    }
+  }
+
+  const mesSelecionado =
+    filtroMes?.value ||
+    "TODOS";
+
+  const status =
+    window.parcelasManuaisStatus ||
+    "ANDAMENTO";
+
+  const hoje =
+    new Date();
+
+  const mesAtual =
+    `${hoje.getFullYear()}-${String(
+      hoje.getMonth() + 1,
+    ).padStart(2, "0")}`;
+
+  const referencia =
+    mesSelecionado === "TODOS"
+      ? mesAtual
+      : mesSelecionado;
+
+  // ========================================
+  // CALCULAR SITUAÇÃO
+  // ========================================
+
+  const calcular =
+    (item) => {
+      const [
+        anoReferencia,
+        mesReferenciaNumero,
+      ] =
+        referencia
+          .split("-")
+          .map(Number);
+
+      const mesReferencia =
+        mesReferenciaNumero - 1;
+
+      const diferencaMeses =
+        (
+          anoReferencia -
+          item.anoInicio
+        ) * 12 +
+        (
+          mesReferencia -
+          item.mesInicio
+        );
+
+      const parcelaDoMes =
+        item.parcelaInicial +
+        diferencaMeses;
+
+      const antesDoInicio =
+        parcelaDoMes <
+        item.parcelaInicial;
+
+      const depoisDoFim =
+        parcelaDoMes >
+        item.totalParcelas;
+
+      let parcelaConsiderada =
+        parcelaDoMes;
+
+      if (antesDoInicio) {
+        parcelaConsiderada =
+          item.parcelaInicial - 1;
+      }
+
+      if (depoisDoFim) {
+        parcelaConsiderada =
+          item.totalParcelas;
+      }
+
+      const quantidadePaga =
+        Math.max(
+          Math.min(
+            parcelaConsiderada,
+            item.totalParcelas,
+          ),
+          0,
+        );
+
+      const valorPago =
+        Math.min(
+          quantidadePaga *
+            item.valorParcela,
+          item.valorTotal,
+        );
+
+      const valorRestante =
+        Math.max(
+          item.valorTotal -
+            valorPago,
+          0,
+        );
+
+      const percentual =
+        item.totalParcelas > 0
+          ? Math.min(
+              (
+                quantidadePaga /
+                item.totalParcelas
+              ) * 100,
+              100,
+            )
+          : 0;
+
+      return {
+        parcelaDoMes,
+        quantidadePaga,
+        valorPago,
+        valorRestante,
+        percentual,
+      };
+    };
+
+  let itens =
+    parcelamentos.map(
+      (item) => ({
+        item,
+        resumo:
+          calcular(item),
+      }),
+    );
+
+  if (
+    mesSelecionado !==
+    "TODOS"
+  ) {
+    itens =
+      itens.filter(
+        ({ item, resumo }) =>
+          resumo.parcelaDoMes >=
+            item.parcelaInicial &&
+          resumo.parcelaDoMes <=
+            item.totalParcelas,
+      );
+  }
+
+  if (
+    status === "FINALIZADAS"
+  ) {
+    itens =
+      itens.filter(
+        ({ item }) =>
+          item.finalizada,
+      );
+  } else {
+    itens =
+      itens.filter(
+        ({ item }) =>
+          !item.finalizada,
+      );
+  }
+
+  // ========================================
+  // RESUMO GERAL
+  // ========================================
+
+  const quantidade =
+    itens.length;
+
+  const valorTotal =
+    itens.reduce(
+      (total, { item }) =>
+        total +
+        item.valorTotal,
+      0,
+    );
+
+  const valorPago =
+    itens.reduce(
+      (total, { resumo }) =>
+        total +
+        resumo.valorPago,
+      0,
+    );
+
+  const valorRestante =
+    itens.reduce(
+      (total, { resumo }) =>
+        total +
+        resumo.valorRestante,
+      0,
+    );
+
+  const percentual =
+    valorTotal > 0
+      ? Math.min(
+          (
+            valorPago /
+            valorTotal
+          ) * 100,
+          100,
+        )
+      : 0;
+
+  const quantidadeElemento =
+    document.querySelector(
+      "#parcelasManuaisQuantidade",
+    );
+
+  const totalElemento =
+    document.querySelector(
+      "#parcelasManuaisValorTotal",
+    );
+
+  const pagoElemento =
+    document.querySelector(
+      "#parcelasManuaisPago",
+    );
+
+  const restanteElemento =
+    document.querySelector(
+      "#parcelasManuaisRestante",
+    );
+
+  const progressoElemento =
+    document.querySelector(
+      "#parcelasManuaisProgresso",
+    );
+
+  const progressoTexto =
+    document.querySelector(
+      "#parcelasManuaisProgressoTexto",
+    );
+
+  if (quantidadeElemento) {
+    quantidadeElemento.textContent =
+      quantidade;
+  }
+
+  if (totalElemento) {
+    totalElemento.textContent =
+      dinheiro(
+        valorTotal,
+      );
+  }
+
+  if (pagoElemento) {
+    pagoElemento.textContent =
+      dinheiro(
+        valorPago,
+      );
+  }
+
+  if (restanteElemento) {
+    restanteElemento.textContent =
+      dinheiro(
+        valorRestante,
+      );
+  }
+
+  if (progressoElemento) {
+    progressoElemento.style.width =
+      `${percentual}%`;
+  }
+
+  if (progressoTexto) {
+    progressoTexto.textContent =
+      `${Math.round(
+        percentual,
+      )}% pago`;
+  }
+
+  // ========================================
+  // LISTA
+  // ========================================
+
+  if (!itens.length) {
+    lista.innerHTML = `
+      <div class="empty">
+        ${
+          status ===
+          "FINALIZADAS"
+            ? "Nenhum parcelamento finalizado."
+            : "Nenhum parcelamento encontrado para este período."
+        }
+      </div>
+    `;
+
+    return;
+  }
+
+  lista.innerHTML =
+    itens
+      .map(
+        ({
+          item,
+          resumo,
+        }) => {
+          const numero =
+            Math.max(
+              Math.min(
+                resumo.parcelaDoMes,
+                item.totalParcelas,
+              ),
+              item.parcelaInicial,
+            );
+
+          const dataParcela =
+            new Date(
+              item.anoInicio,
+              item.mesInicio +
+                (
+                  numero -
+                  item.parcelaInicial
+                ),
+              Number(
+                item.day || 1,
+              ),
+            );
+
+          const chaveMes =
+            `${dataParcela.getFullYear()}-${String(
+              dataParcela.getMonth() + 1,
+            ).padStart(2, "0")}`;
+
+          const pagaRealmente =
+            Array.isArray(
+              item.pagamentos,
+            ) &&
+            item.pagamentos.includes(
+              chaveMes,
+            );
+
+          return `
+            <div class="transaction">
+
+              <div style="flex:1;">
+
+                <div class="desc">
+                  ${escapar(
+                    item.name ||
+                    "Parcela",
+                  )}
+                </div>
+
+                <div class="meta">
+                  📦 Fora do cartão
+                  ·
+                  ${escapar(
+                    item.category ||
+                    "Outros",
+                  )}
+                </div>
+
+                <div class="meta">
+                  Parcela
+                  ${numero}/${item.totalParcelas}
+                  ·
+                  ${
+                    pagaRealmente
+                      ? "🟢 Paga"
+                      : mesSelecionado !==
+                          "TODOS"
+                        ? "🔵 Projeção"
+                        : "🟡 Pendente"
+                  }
+                </div>
+
+                <div class="meta">
+                  Valor da parcela:
+                  ${dinheiro(
+                    item.valorParcela,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Vencimento:
+                  ${dataBR(
+                    dataParcela,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Total do parcelamento:
+                  ${dinheiro(
+                    item.valorTotal,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Já pago / projetado:
+                  ${dinheiro(
+                    resumo.valorPago,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Restante:
+                  ${dinheiro(
+                    resumo.valorRestante,
+                  )}
+                </div>
+
+                <div class="meta">
+                  Última parcela:
+                  ${dataBR(
+                    item.dataFinal,
+                  )}
+                </div>
+
+                <div
+                  style="
+                    margin-top:10px;
+                    width:100%;
+                    height:7px;
+                    background:#e5e7eb;
+                    border-radius:999px;
+                    overflow:hidden;
+                  "
+                >
+                  <div
+                    style="
+                      width:${resumo.percentual}%;
+                      height:100%;
+                      background:#16a34a;
+                      border-radius:999px;
+                    "
+                  ></div>
+                </div>
+
+                <div
+                  class="meta"
+                  style="margin-top:5px;"
+                >
+                  ${Math.round(
+                    resumo.percentual,
+                  )}% pago
+                </div>
+
+              </div>
+
+              <div class="amount expense">
+                ${dinheiro(
+                  item.valorParcela,
+                )}
+              </div>
+
+            </div>
+          `;
+        },
+      )
+      .join("");
+}
+
+
+// ==========================================
+// EVENTOS DAS PARCELAS FORA DO CARTÃO
+// ==========================================
+
+document.addEventListener(
+  "change",
+  (evento) => {
+    if (
+      evento.target?.id ===
+      "parcelasManuaisFiltroMes"
+    ) {
+      mostrarParcelasForaCartao();
+    }
+  },
+);
+
+document.addEventListener(
+  "click",
+  (evento) => {
+    if (
+      evento.target?.id ===
+      "parcelasManuaisTabAndamento"
+    ) {
+      window.parcelasManuaisStatus =
+        "ANDAMENTO";
+
+      mostrarParcelasForaCartao();
+    }
+
+    if (
+      evento.target?.id ===
+      "parcelasManuaisTabFinalizadas"
+    ) {
+      window.parcelasManuaisStatus =
+        "FINALIZADAS";
+
+      mostrarParcelasForaCartao();
+    }
+  },
+);
+
+
 // ==========================================
 // FILTROS DE PARCELAS
 // ==========================================
+
+
 
 document.addEventListener("change", (evento) => {
   if (
