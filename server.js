@@ -11,6 +11,11 @@ const supabase = createClient(
   process.env.SUPABASE_PUBLISHABLE_KEY,
 );
 
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+);
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -572,6 +577,86 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
 });
 
 // ==========================================
+// SINCRONIZAR FATURAS DO PIERRE
+// ==========================================
+
+app.post("/api/bills/sync-pierre", exigirAdmin, async (req, res) => {
+  try {
+    const { cards, periodKey } = req.body;
+
+    if (!periodKey || !/^\d{4}-\d{2}$/.test(String(periodKey))) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: "Competência inválida.",
+      });
+    }
+
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: "Nenhum cartão recebido.",
+      });
+    }
+
+    const registros = cards
+      .filter((cartao) => cartao && cartao.id)
+      .map((cartao) => ({
+        account_id: String(cartao.id),
+        competencia: String(periodKey),
+        nome_cartao: cartao.name || null,
+        final_cartao: cartao.number ? String(cartao.number) : null,
+        valor_fatura: Number(cartao.currentBillAmount) || 0,
+        pagamento_minimo: Number(cartao.minimumPayment) || 0,
+        data_vencimento: cartao.balanceDueDate
+          ? String(cartao.balanceDueDate).substring(0, 10)
+          : null,
+        dia_fechamento: Number.isFinite(Number(cartao.closingDay))
+          ? Number(cartao.closingDay)
+          : null,
+        oficial: cartao.isOfficialBillAmount === true,
+        estimada: cartao.isEstimatedFromTransactions === true,
+        origem: "pierre-dashboard",
+        atualizado_em: new Date().toISOString(),
+      }));
+
+    if (!registros.length) {
+      return res.status(400).json({
+        sucesso: false,
+        erro: "Nenhum cartão válido recebido.",
+      });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("faturas_sincronizadas")
+      .upsert(registros, {
+        onConflict: "account_id,competencia",
+      })
+      .select();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      sucesso: true,
+      competencia: periodKey,
+      quantidade: data.length,
+      faturas: data,
+    });
+  } catch (erro) {
+    console.error(
+      "Erro ao sincronizar faturas do Pierre:",
+      erro.message,
+    );
+
+    res.status(500).json({
+      sucesso: false,
+      erro: erro.message,
+    });
+  }
+});
+
+// ==========================================
 // FATURAS DOS CARTÕES
 // ==========================================
 
@@ -790,6 +875,108 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
     );
 
     const resumos = Array.isArray(dadosResumo.data) ? dadosResumo.data : [];
+
+    // ==========================================
+    // FATURAS SINCRONIZADAS DO PAINEL DO PIERRE
+    // ==========================================
+
+    let consultaSincronizadas = supabaseAdmin
+      .from("faturas_sincronizadas")
+      .select("*");
+
+    if (accountId) {
+      consultaSincronizadas = consultaSincronizadas.eq(
+        "account_id",
+        String(accountId),
+      );
+    }
+
+    const {
+      data: faturasSincronizadas,
+      error: erroFaturasSincronizadas,
+    } = await consultaSincronizadas;
+
+    if (erroFaturasSincronizadas) {
+      throw erroFaturasSincronizadas;
+    }
+
+    for (const sincronizada of faturasSincronizadas || []) {
+      if (
+        !sincronizada.account_id ||
+        !sincronizada.competencia ||
+        !sincronizada.data_vencimento
+      ) {
+        continue;
+      }
+
+      const competencia = String(sincronizada.competencia);
+
+      const diaFechamento = Math.min(
+        Math.max(Number(sincronizada.dia_fechamento) || 1, 1),
+        28,
+      );
+
+      const dataFechamento =
+        `${competencia}-${String(diaFechamento).padStart(2, "0")}` +
+        "T00:00:00.000Z";
+
+      const dataVencimento =
+        String(sincronizada.data_vencimento).substring(0, 10) +
+        "T00:00:00.000Z";
+
+      const faturaSincronizada = {
+        id:
+          `sincronizada-${sincronizada.account_id}-` +
+          competencia,
+
+        accountId: String(sincronizada.account_id),
+
+        billClosingDate: dataFechamento,
+
+        dueDate: dataVencimento,
+
+        totalAmount: String(
+          Number(sincronizada.valor_fatura) || 0,
+        ),
+
+        totalAmountCurrencyCode: "BRL",
+
+        minimumPaymentAmount: String(
+          Number(sincronizada.pagamento_minimo) || 0,
+        ),
+
+        status: "OPEN",
+
+        virtual: false,
+
+        sincronizada: true,
+
+        oficial: sincronizada.oficial === true,
+
+        estimada: sincronizada.estimada === true,
+
+        origem:
+          sincronizada.origem || "pierre-dashboard",
+      };
+
+      const indiceExistente = faturas.findIndex((fatura) => {
+        return (
+          String(fatura.accountId) ===
+            String(sincronizada.account_id) &&
+          String(fatura.dueDate || "").substring(0, 7) ===
+            competencia
+        );
+      });
+
+      if (indiceExistente >= 0) {
+        faturas[indiceExistente] = {
+          ...faturas[indiceExistente],
+          ...faturaSincronizada,
+        };
+      } else {
+        faturas.push(faturaSincronizada);
+      }
+    }
 
     // ==========================================
     // ORDENAR FATURAS
