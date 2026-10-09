@@ -4815,7 +4815,58 @@ async function abrirDashboardCaixinha(id) {
                 ? "Rendimento manual"
                 : item.origem === "AUTOMATICO"
                   ? "Automático • Pierre"
-                  : "Movimentação manual";
+                  : item.descricao?.toLowerCase().includes("saldo inicial")
+                    ? "Saldo inicial"
+                    : "Movimentação manual";
+
+            const editavel = item.origem !== "AUTOMATICO";
+
+            const acoesHTML = editavel
+              ? `
+                  <div
+                    style="
+                      display:flex;
+                      gap:6px;
+                      margin-top:6px;
+                      justify-content:flex-end;
+                    "
+                  >
+                    <button
+                      type="button"
+                      data-editar-lancamento="${item.id}"
+                      data-tipo-lancamento="${item.tipo}"
+                      style="
+                        border:0;
+                        background:#eef2ff;
+                        color:#4054c6;
+                        border-radius:8px;
+                        padding:5px 8px;
+                        cursor:pointer;
+                        font-size:12px;
+                      "
+                    >
+                      ✏️ Editar
+                    </button>
+
+                    <button
+                      type="button"
+                      data-excluir-lancamento="${item.id}"
+                      data-tipo-lancamento="${item.tipo}"
+                      style="
+                        border:0;
+                        background:#fee2e2;
+                        color:#dc2626;
+                        border-radius:8px;
+                        padding:5px 8px;
+                        cursor:pointer;
+                        font-size:12px;
+                      "
+                    >
+                      🗑️ Excluir
+                    </button>
+                  </div>
+                `
+              : "";
 
             return `
                 <div
@@ -4872,15 +4923,26 @@ async function abrirDashboardCaixinha(id) {
 
                   </div>
 
-                  <strong
+                  <div
                     style="
-                      color:${classe};
-                      white-space:nowrap;
+                      display:flex;
+                      flex-direction:column;
+                      align-items:flex-end;
+                      flex-shrink:0;
                     "
                   >
-                    ${sinal}
-                    ${dinheiro(Math.abs(Number(item.valor || 0)))}
-                  </strong>
+                    <strong
+                      style="
+                        color:${classe};
+                        white-space:nowrap;
+                      "
+                    >
+                      ${sinal}
+                      ${dinheiro(Math.abs(Number(item.valor || 0)))}
+                    </strong>
+
+                    ${acoesHTML}
+                  </div>
 
                 </div>
               `;
@@ -5194,6 +5256,38 @@ async function abrirDashboardCaixinha(id) {
 
     document.body.appendChild(modal);
 
+    modal
+      .querySelectorAll("[data-editar-lancamento]")
+      .forEach((botao) => {
+        botao.addEventListener("click", async () => {
+          const lancamentoId = botao.dataset.editarLancamento;
+          const tipo = botao.dataset.tipoLancamento;
+
+          await editarLancamentoCaixinha(
+            id,
+            lancamentoId,
+            tipo,
+            historico,
+          );
+        });
+      });
+
+    modal
+      .querySelectorAll("[data-excluir-lancamento]")
+      .forEach((botao) => {
+        botao.addEventListener("click", async () => {
+          const lancamentoId = botao.dataset.excluirLancamento;
+          const tipo = botao.dataset.tipoLancamento;
+
+          await excluirLancamentoCaixinha(
+            id,
+            lancamentoId,
+            tipo,
+            historico,
+          );
+        });
+      });
+
     // ------------------------------------------
     // FECHAR
     // ------------------------------------------
@@ -5219,6 +5313,207 @@ async function abrirDashboardCaixinha(id) {
     console.error("Erro ao abrir dashboard da caixinha:", erro);
 
     alert("Erro ao carregar dashboard: " + erro.message);
+  }
+}
+
+// ==========================================
+// EDITAR LANÇAMENTO DA CAIXINHA
+// ==========================================
+
+async function editarLancamentoCaixinha(
+  caixinhaId,
+  lancamentoId,
+  tipo,
+  historico,
+) {
+  const item = historico.find(
+    (registro) =>
+      String(registro.id) === String(lancamentoId) &&
+      registro.tipo === tipo,
+  );
+
+  if (!item) {
+    alert("Lançamento não encontrado.");
+    return;
+  }
+
+  if (item.origem === "AUTOMATICO") {
+    alert("Movimentações automáticas do Pierre não podem ser editadas.");
+    return;
+  }
+
+  let tipoAtual = "1";
+
+  if (tipo === "SAIDA") {
+    tipoAtual = "2";
+  } else if (tipo === "RENDIMENTO") {
+    tipoAtual = "3";
+  } else if (
+    String(item.descricao || "")
+      .toLowerCase()
+      .includes("saldo inicial")
+  ) {
+    tipoAtual = "4";
+  }
+
+  const tipoInformado = prompt(
+    "Tipo do lançamento:\n\n" +
+      "1 = Adição\n" +
+      "2 = Subtração\n" +
+      "3 = Rendimento\n" +
+      "4 = Saldo inicial",
+    tipoAtual,
+  );
+
+  if (tipoInformado === null) return;
+
+  const mapaTipos = {
+    "1": "ENTRADA",
+    "2": "SAIDA",
+    "3": "RENDIMENTO",
+    "4": "SALDO_INICIAL",
+  };
+
+  const tipoDestino =
+    mapaTipos[String(tipoInformado).trim()];
+
+  if (!tipoDestino) {
+    alert("Digite 1, 2, 3 ou 4.");
+    return;
+  }
+
+  const valorInformado = prompt(
+    "Valor do lançamento:",
+    Number(item.valor || 0).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }),
+  );
+
+  if (valorInformado === null) return;
+
+  const valor = converterNumeroBR(valorInformado);
+
+  if (!Number.isFinite(valor) || valor <= 0) {
+    alert("Digite um valor válido maior que zero.");
+    return;
+  }
+
+  const descricaoPadrao =
+    tipoDestino === "SALDO_INICIAL"
+      ? "Saldo inicial"
+      : tipoDestino === "RENDIMENTO"
+        ? item.descricao || "Rendimento"
+        : item.descricao || "";
+
+  const descricaoInformada = prompt(
+    "Descrição:",
+    descricaoPadrao,
+  );
+
+  if (descricaoInformada === null) return;
+
+  const origem =
+    tipo === "RENDIMENTO"
+      ? "RENDIMENTO"
+      : "MOVIMENTACAO";
+
+  try {
+    await buscarDados(
+      `/api/caixinhas/${caixinhaId}/lancamentos/${origem}/${lancamentoId}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tipoDestino,
+          valor,
+          descricao: descricaoInformada.trim(),
+        }),
+      },
+    );
+
+    const modal =
+      document.querySelector("#modalDashboardCaixinha");
+
+    if (modal) modal.remove();
+
+    await carregarCaixinhas();
+    await abrirDashboardCaixinha(caixinhaId);
+
+    alert("Lançamento atualizado com sucesso!");
+  } catch (erro) {
+    console.error("Erro ao editar lançamento:", erro);
+
+    alert(
+      "Erro ao editar lançamento: " +
+        erro.message,
+    );
+  }
+}
+
+// ==========================================
+// EXCLUIR LANÇAMENTO DA CAIXINHA
+// ==========================================
+
+async function excluirLancamentoCaixinha(
+  caixinhaId,
+  lancamentoId,
+  tipo,
+  historico,
+) {
+  const item = historico.find(
+    (registro) =>
+      String(registro.id) === String(lancamentoId) &&
+      registro.tipo === tipo,
+  );
+
+  if (!item) {
+    alert("Lançamento não encontrado.");
+    return;
+  }
+
+  if (item.origem === "AUTOMATICO") {
+    alert("Movimentações automáticas do Pierre não podem ser excluídas.");
+    return;
+  }
+
+  const confirmar = confirm(
+    `Excluir este lançamento?\n\n` +
+      `${item.descricao || "Movimentação"}\n` +
+      `${dinheiro(Math.abs(Number(item.valor || 0)))}\n\n` +
+      "O saldo da caixinha será ajustado automaticamente.",
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  try {
+    const rota =
+      tipo === "RENDIMENTO"
+        ? `/api/caixinhas/${caixinhaId}/rendimentos/${lancamentoId}`
+        : `/api/caixinhas/${caixinhaId}/movimentacoes/${lancamentoId}`;
+
+    await buscarDados(rota, {
+      method: "DELETE",
+    });
+
+    const modal = document.querySelector("#modalDashboardCaixinha");
+
+    if (modal) {
+      modal.remove();
+    }
+
+    await carregarCaixinhas();
+    await abrirDashboardCaixinha(caixinhaId);
+
+    alert("Lançamento excluído com sucesso!");
+  } catch (erro) {
+    console.error("Erro ao excluir lançamento:", erro);
+
+    alert("Erro ao excluir lançamento: " + erro.message);
   }
 }
 

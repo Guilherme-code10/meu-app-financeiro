@@ -3072,6 +3072,764 @@ app.post("/api/caixinhas/:id/rendimento", exigirAdmin, async (req, res) => {
 });
 
 // ==========================================
+// EDITAR MOVIMENTAÇÃO MANUAL DA CAIXINHA
+// ==========================================
+
+app.put(
+  "/api/caixinhas/:id/movimentacoes/:movimentacaoId",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { id, movimentacaoId } = req.params;
+      const { tipo, valor, descricao } = req.body;
+
+      const tiposPermitidos = ["ENTRADA", "SAIDA"];
+
+      if (!tiposPermitidos.includes(tipo)) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Tipo inválido. Use ENTRADA ou SAIDA.",
+        });
+      }
+
+      const valorNumerico = Number(valor);
+
+      if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "O valor deve ser maior que zero.",
+        });
+      }
+
+      const { data: movimentacao, error: erroMovimentacao } = await supabase
+        .from("movimentacoes_caixinhas")
+        .select("id, caixinha_id, tipo, valor, descricao, transacao_pierre_id")
+        .eq("id", movimentacaoId)
+        .eq("caixinha_id", id)
+        .single();
+
+      if (erroMovimentacao || !movimentacao) {
+        return res.status(404).json({
+          sucesso: false,
+          erro: "Movimentação não encontrada.",
+        });
+      }
+
+      if (movimentacao.transacao_pierre_id) {
+        return res.status(403).json({
+          sucesso: false,
+          erro: "Movimentações automáticas do Pierre não podem ser editadas.",
+        });
+      }
+
+      const { data: caixinha, error: erroCaixinha } = await supabase
+        .from("caixinhas")
+        .select("id, saldo")
+        .eq("id", id)
+        .single();
+
+      if (erroCaixinha || !caixinha) {
+        return res.status(404).json({
+          sucesso: false,
+          erro: "Caixinha não encontrada.",
+        });
+      }
+
+      const saldoAtual = Number(caixinha.saldo || 0);
+      const valorAntigo = Number(movimentacao.valor || 0);
+
+      const efeitoAntigo =
+        movimentacao.tipo === "SAIDA"
+          ? -valorAntigo
+          : valorAntigo;
+
+      const efeitoNovo =
+        tipo === "SAIDA"
+          ? -valorNumerico
+          : valorNumerico;
+
+      const novoSaldo =
+        saldoAtual - efeitoAntigo + efeitoNovo;
+
+      if (novoSaldo < 0) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Essa alteração deixaria a caixinha com saldo negativo.",
+        });
+      }
+
+      const { data: movimentacaoAtualizada, error: erroAtualizacao } =
+        await supabase
+          .from("movimentacoes_caixinhas")
+          .update({
+            tipo,
+            valor: valorNumerico,
+            descricao: descricao?.trim() || null,
+          })
+          .eq("id", movimentacaoId)
+          .eq("caixinha_id", id)
+          .select()
+          .single();
+
+      if (erroAtualizacao) {
+        throw erroAtualizacao;
+      }
+
+      const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+        .from("caixinhas")
+        .update({
+          saldo: novoSaldo,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (erroSaldo) {
+        throw erroSaldo;
+      }
+
+      res.json({
+        sucesso: true,
+        mensagem: "Movimentação atualizada com sucesso.",
+        movimentacao: movimentacaoAtualizada,
+        caixinha: caixinhaAtualizada,
+      });
+    } catch (erro) {
+      console.error("Erro ao editar movimentação:", erro.message);
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+
+// ==========================================
+// EDITAR QUALQUER LANÇAMENTO MANUAL DA CAIXINHA
+// ENTRADA / SAIDA / RENDIMENTO / SALDO INICIAL
+// ==========================================
+
+app.put(
+  "/api/caixinhas/:id/lancamentos/:origem/:lancamentoId",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { id, origem, lancamentoId } = req.params;
+      const { tipoDestino, valor, descricao } = req.body;
+
+      const tiposPermitidos = [
+        "ENTRADA",
+        "SAIDA",
+        "RENDIMENTO",
+        "SALDO_INICIAL",
+      ];
+
+      if (!tiposPermitidos.includes(tipoDestino)) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Tipo de lançamento inválido.",
+        });
+      }
+
+      const valorNumerico = Number(valor);
+
+      if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "O valor deve ser maior que zero.",
+        });
+      }
+
+      let efeitoAntigo;
+
+      if (origem === "RENDIMENTO") {
+        const { data, error } = await supabase
+          .from("rendimentos_caixinhas")
+          .select("id, caixinha_id, valor, descricao")
+          .eq("id", lancamentoId)
+          .eq("caixinha_id", id)
+          .single();
+
+        if (error || !data) {
+          return res.status(404).json({
+            sucesso: false,
+            erro: "Rendimento não encontrado.",
+          });
+        }
+
+        efeitoAntigo = Number(data.valor || 0);
+      } else if (origem === "MOVIMENTACAO") {
+        const { data, error } = await supabase
+          .from("movimentacoes_caixinhas")
+          .select(
+            "id, caixinha_id, tipo, valor, descricao, transacao_pierre_id",
+          )
+          .eq("id", lancamentoId)
+          .eq("caixinha_id", id)
+          .single();
+
+        if (error || !data) {
+          return res.status(404).json({
+            sucesso: false,
+            erro: "Movimentação não encontrada.",
+          });
+        }
+
+        if (data.transacao_pierre_id) {
+          return res.status(403).json({
+            sucesso: false,
+            erro: "Movimentações automáticas do Pierre não podem ser editadas.",
+          });
+        }
+
+        efeitoAntigo =
+          data.tipo === "SAIDA"
+            ? -Number(data.valor || 0)
+            : Number(data.valor || 0);
+      } else {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Origem inválida.",
+        });
+      }
+
+      const { data: caixinha, error: erroCaixinha } = await supabase
+        .from("caixinhas")
+        .select("id, saldo")
+        .eq("id", id)
+        .single();
+
+      if (erroCaixinha || !caixinha) {
+        return res.status(404).json({
+          sucesso: false,
+          erro: "Caixinha não encontrada.",
+        });
+      }
+
+      const efeitoNovo =
+        tipoDestino === "SAIDA"
+          ? -valorNumerico
+          : valorNumerico;
+
+      const novoSaldo =
+        Number(caixinha.saldo || 0) -
+        efeitoAntigo +
+        efeitoNovo;
+
+      if (novoSaldo < 0) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Essa alteração deixaria a caixinha com saldo negativo.",
+        });
+      }
+
+      const descricaoFinal =
+        descricao?.trim() ||
+        (tipoDestino === "RENDIMENTO"
+          ? "Rendimento"
+          : tipoDestino === "SALDO_INICIAL"
+            ? "Saldo inicial"
+            : "");
+
+      if (
+        origem === "MOVIMENTACAO" &&
+        tipoDestino !== "RENDIMENTO"
+      ) {
+        const tipoBanco =
+          tipoDestino === "SALDO_INICIAL"
+            ? "ENTRADA"
+            : tipoDestino;
+
+        const { error } = await supabase
+          .from("movimentacoes_caixinhas")
+          .update({
+            tipo: tipoBanco,
+            valor: valorNumerico,
+            descricao: descricaoFinal || null,
+          })
+          .eq("id", lancamentoId)
+          .eq("caixinha_id", id);
+
+        if (error) throw error;
+      } else if (
+        origem === "RENDIMENTO" &&
+        tipoDestino === "RENDIMENTO"
+      ) {
+        const { error } = await supabase
+          .from("rendimentos_caixinhas")
+          .update({
+            valor: valorNumerico,
+            descricao: descricaoFinal,
+          })
+          .eq("id", lancamentoId)
+          .eq("caixinha_id", id);
+
+        if (error) throw error;
+      } else if (
+        origem === "MOVIMENTACAO" &&
+        tipoDestino === "RENDIMENTO"
+      ) {
+        const { data: novoRendimento, error: erroInsercao } =
+          await supabase
+            .from("rendimentos_caixinhas")
+            .insert([
+              {
+                caixinha_id: id,
+                valor: valorNumerico,
+                descricao: descricaoFinal,
+              },
+            ])
+            .select()
+            .single();
+
+        if (erroInsercao) throw erroInsercao;
+
+        const { error: erroExclusao } = await supabase
+          .from("movimentacoes_caixinhas")
+          .delete()
+          .eq("id", lancamentoId)
+          .eq("caixinha_id", id);
+
+        if (erroExclusao) {
+          await supabase
+            .from("rendimentos_caixinhas")
+            .delete()
+            .eq("id", novoRendimento.id);
+
+          throw erroExclusao;
+        }
+      } else {
+        const tipoBanco =
+          tipoDestino === "SALDO_INICIAL"
+            ? "ENTRADA"
+            : tipoDestino;
+
+        const { data: novaMovimentacao, error: erroInsercao } =
+          await supabase
+            .from("movimentacoes_caixinhas")
+            .insert([
+              {
+                caixinha_id: id,
+                tipo: tipoBanco,
+                valor: valorNumerico,
+                descricao: descricaoFinal || null,
+              },
+            ])
+            .select()
+            .single();
+
+        if (erroInsercao) throw erroInsercao;
+
+        const { error: erroExclusao } = await supabase
+          .from("rendimentos_caixinhas")
+          .delete()
+          .eq("id", lancamentoId)
+          .eq("caixinha_id", id);
+
+        if (erroExclusao) {
+          await supabase
+            .from("movimentacoes_caixinhas")
+            .delete()
+            .eq("id", novaMovimentacao.id);
+
+          throw erroExclusao;
+        }
+      }
+
+      const { data: caixinhaAtualizada, error: erroSaldo } =
+        await supabase
+          .from("caixinhas")
+          .update({
+            saldo: novoSaldo,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id)
+          .select()
+          .single();
+
+      if (erroSaldo) throw erroSaldo;
+
+      res.json({
+        sucesso: true,
+        mensagem: "Lançamento atualizado com sucesso.",
+        caixinha: caixinhaAtualizada,
+      });
+    } catch (erro) {
+      console.error("Erro ao editar lançamento:", erro.message);
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+// ==========================================
+// EXCLUIR MOVIMENTAÇÃO MANUAL DA CAIXINHA
+// ==========================================
+
+app.delete(
+  "/api/caixinhas/:id/movimentacoes/:movimentacaoId",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { id, movimentacaoId } = req.params;
+
+      const { data: movimentacao, error: erroMovimentacao } = await supabase
+        .from("movimentacoes_caixinhas")
+        .select("id, caixinha_id, tipo, valor, transacao_pierre_id")
+        .eq("id", movimentacaoId)
+        .eq("caixinha_id", id)
+        .single();
+
+      if (erroMovimentacao || !movimentacao) {
+        return res.status(404).json({
+          sucesso: false,
+          erro: "Movimentação não encontrada.",
+        });
+      }
+
+      if (movimentacao.transacao_pierre_id) {
+        return res.status(403).json({
+          sucesso: false,
+          erro: "Movimentações automáticas do Pierre não podem ser excluídas.",
+        });
+      }
+
+      const { data: caixinha, error: erroCaixinha } = await supabase
+        .from("caixinhas")
+        .select("id, saldo")
+        .eq("id", id)
+        .single();
+
+      if (erroCaixinha || !caixinha) {
+        return res.status(404).json({
+          sucesso: false,
+          erro: "Caixinha não encontrada.",
+        });
+      }
+
+      const valor = Number(movimentacao.valor || 0);
+
+      const efeito =
+        movimentacao.tipo === "SAIDA"
+          ? -valor
+          : valor;
+
+      const novoSaldo =
+        Number(caixinha.saldo || 0) - efeito;
+
+      if (novoSaldo < 0) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Não é possível excluir pois o saldo ficaria negativo.",
+        });
+      }
+
+      const { error: erroExclusao } = await supabase
+        .from("movimentacoes_caixinhas")
+        .delete()
+        .eq("id", movimentacaoId)
+        .eq("caixinha_id", id);
+
+      if (erroExclusao) {
+        throw erroExclusao;
+      }
+
+      const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+        .from("caixinhas")
+        .update({
+          saldo: novoSaldo,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (erroSaldo) {
+        throw erroSaldo;
+      }
+
+      res.json({
+        sucesso: true,
+        mensagem: "Movimentação excluída com sucesso.",
+        caixinha: caixinhaAtualizada,
+      });
+    } catch (erro) {
+      console.error("Erro ao excluir movimentação:", erro.message);
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+// ==========================================
+// EDITAR RENDIMENTO MANUAL
+// ==========================================
+
+app.put(
+  "/api/caixinhas/:id/rendimentos/:rendimentoId",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { id, rendimentoId } = req.params;
+
+      const {
+        valor,
+        descricao,
+        converterParaSaldoInicial = false,
+      } = req.body;
+
+      const valorNumerico = Number(valor);
+
+      if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "O valor deve ser maior que zero.",
+        });
+      }
+
+      const { data: rendimento, error: erroRendimento } = await supabase
+        .from("rendimentos_caixinhas")
+        .select("id, caixinha_id, valor, descricao")
+        .eq("id", rendimentoId)
+        .eq("caixinha_id", id)
+        .single();
+
+      if (erroRendimento || !rendimento) {
+        return res.status(404).json({
+          sucesso: false,
+          erro: "Rendimento não encontrado.",
+        });
+      }
+
+      const { data: caixinha, error: erroCaixinha } = await supabase
+        .from("caixinhas")
+        .select("id, saldo")
+        .eq("id", id)
+        .single();
+
+      if (erroCaixinha || !caixinha) {
+        return res.status(404).json({
+          sucesso: false,
+          erro: "Caixinha não encontrada.",
+        });
+      }
+
+      const valorAntigo = Number(rendimento.valor || 0);
+
+      const novoSaldo =
+        Number(caixinha.saldo || 0) -
+        valorAntigo +
+        valorNumerico;
+
+      if (novoSaldo < 0) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Essa alteração deixaria a caixinha com saldo negativo.",
+        });
+      }
+
+      if (converterParaSaldoInicial === true) {
+        const { data: novaMovimentacao, error: erroInsercao } =
+          await supabase
+            .from("movimentacoes_caixinhas")
+            .insert([
+              {
+                caixinha_id: id,
+                tipo: "ENTRADA",
+                valor: valorNumerico,
+                descricao: descricao?.trim() || "Saldo inicial",
+              },
+            ])
+            .select()
+            .single();
+
+        if (erroInsercao) {
+          throw erroInsercao;
+        }
+
+        const { error: erroExcluirRendimento } = await supabase
+          .from("rendimentos_caixinhas")
+          .delete()
+          .eq("id", rendimentoId)
+          .eq("caixinha_id", id);
+
+        if (erroExcluirRendimento) {
+          await supabase
+            .from("movimentacoes_caixinhas")
+            .delete()
+            .eq("id", novaMovimentacao.id);
+
+          throw erroExcluirRendimento;
+        }
+
+        const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+          .from("caixinhas")
+          .update({
+            saldo: novoSaldo,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (erroSaldo) {
+          throw erroSaldo;
+        }
+
+        return res.json({
+          sucesso: true,
+          mensagem: "Rendimento convertido para saldo inicial.",
+          movimentacao: novaMovimentacao,
+          caixinha: caixinhaAtualizada,
+        });
+      }
+
+      const { data: rendimentoAtualizado, error: erroAtualizacao } =
+        await supabase
+          .from("rendimentos_caixinhas")
+          .update({
+            valor: valorNumerico,
+            descricao: descricao?.trim() || "Rendimento",
+          })
+          .eq("id", rendimentoId)
+          .eq("caixinha_id", id)
+          .select()
+          .single();
+
+      if (erroAtualizacao) {
+        throw erroAtualizacao;
+      }
+
+      const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+        .from("caixinhas")
+        .update({
+          saldo: novoSaldo,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (erroSaldo) {
+        throw erroSaldo;
+      }
+
+      res.json({
+        sucesso: true,
+        mensagem: "Rendimento atualizado com sucesso.",
+        rendimento: rendimentoAtualizado,
+        caixinha: caixinhaAtualizada,
+      });
+    } catch (erro) {
+      console.error("Erro ao editar rendimento:", erro.message);
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+// ==========================================
+// EXCLUIR RENDIMENTO MANUAL
+// ==========================================
+
+app.delete(
+  "/api/caixinhas/:id/rendimentos/:rendimentoId",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { id, rendimentoId } = req.params;
+
+      const { data: rendimento, error: erroRendimento } = await supabase
+        .from("rendimentos_caixinhas")
+        .select("id, caixinha_id, valor")
+        .eq("id", rendimentoId)
+        .eq("caixinha_id", id)
+        .single();
+
+      if (erroRendimento || !rendimento) {
+        return res.status(404).json({
+          sucesso: false,
+          erro: "Rendimento não encontrado.",
+        });
+      }
+
+      const { data: caixinha, error: erroCaixinha } = await supabase
+        .from("caixinhas")
+        .select("id, saldo")
+        .eq("id", id)
+        .single();
+
+      if (erroCaixinha || !caixinha) {
+        return res.status(404).json({
+          sucesso: false,
+          erro: "Caixinha não encontrada.",
+        });
+      }
+
+      const novoSaldo =
+        Number(caixinha.saldo || 0) -
+        Number(rendimento.valor || 0);
+
+      if (novoSaldo < 0) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Não é possível excluir pois o saldo ficaria negativo.",
+        });
+      }
+
+      const { error: erroExclusao } = await supabase
+        .from("rendimentos_caixinhas")
+        .delete()
+        .eq("id", rendimentoId)
+        .eq("caixinha_id", id);
+
+      if (erroExclusao) {
+        throw erroExclusao;
+      }
+
+      const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+        .from("caixinhas")
+        .update({
+          saldo: novoSaldo,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (erroSaldo) {
+        throw erroSaldo;
+      }
+
+      res.json({
+        sucesso: true,
+        mensagem: "Rendimento excluído com sucesso.",
+        caixinha: caixinhaAtualizada,
+      });
+    } catch (erro) {
+      console.error("Erro ao excluir rendimento:", erro.message);
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+// ==========================================
 // EDITAR CAIXINHA
 // ==========================================
 
