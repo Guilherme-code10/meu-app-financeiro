@@ -994,6 +994,118 @@ function salvarExternasManuais(conjunto) {
 }
 
 
+
+async function salvarClassificacaoFinanceiraServidor(
+  chave,
+  classificacao,
+) {
+  return buscarDados(
+    "/api/classificacoes-financeiras",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chave,
+        classificacao,
+      }),
+    },
+  );
+}
+
+async function excluirClassificacaoFinanceiraServidor(
+  chave,
+) {
+  return buscarDados(
+    "/api/classificacoes-financeiras",
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chave,
+      }),
+    },
+  );
+}
+
+async function sincronizarClassificacoesFinanceiras() {
+  try {
+    const internasLocais =
+      obterInternasManuais();
+
+    const externasLocais =
+      obterExternasManuais();
+
+    const dados =
+      await buscarDados(
+        "/api/classificacoes-financeiras",
+      );
+
+    const internasServidor =
+      Array.isArray(dados.internas)
+        ? dados.internas
+        : [];
+
+    const externasServidor =
+      Array.isArray(dados.externas)
+        ? dados.externas
+        : [];
+
+    const servidorVazio =
+      internasServidor.length === 0 &&
+      externasServidor.length === 0;
+
+    const possuiDadosLocais =
+      internasLocais.size > 0 ||
+      externasLocais.size > 0;
+
+    if (
+      servidorVazio &&
+      possuiDadosLocais
+    ) {
+      await buscarDados(
+        "/api/classificacoes-financeiras/importar",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            internas: [
+              ...internasLocais,
+            ],
+            externas: [
+              ...externasLocais,
+            ],
+          }),
+        },
+      );
+
+      console.log(
+        "Classificações locais migradas para o Supabase.",
+      );
+
+      return;
+    }
+
+    salvarInternasManuais(
+      new Set(internasServidor),
+    );
+
+    salvarExternasManuais(
+      new Set(externasServidor),
+    );
+  } catch (erro) {
+    console.error(
+      "Erro ao sincronizar classificações:",
+      erro,
+    );
+  }
+}
+
 function ehExternaManual(transacao) {
   return obterExternasManuais()
     .has(
@@ -1004,7 +1116,7 @@ function ehExternaManual(transacao) {
 }
 
 
-function marcarComoExterna(transacao) {
+async function marcarComoExterna(transacao) {
   const chave =
     obterChaveTransacao(
       transacao,
@@ -1028,10 +1140,21 @@ function marcarComoExterna(transacao) {
   );
 
   atualizarDashboard();
+
+  try {
+    await salvarClassificacaoFinanceiraServidor(
+      chave,
+      "EXTERNA",
+    );
+  } catch (erro) {
+    console.error(
+      "Erro ao salvar classificação externa:",
+      erro,
+    );
+  }
 }
 
-
-function marcarComoInterna(transacao) {
+async function marcarComoInterna(transacao) {
   const chave =
     obterChaveTransacao(
       transacao,
@@ -1055,10 +1178,21 @@ function marcarComoInterna(transacao) {
   );
 
   atualizarDashboard();
+
+  try {
+    await salvarClassificacaoFinanceiraServidor(
+      chave,
+      "INTERNA",
+    );
+  } catch (erro) {
+    console.error(
+      "Erro ao salvar classificação interna:",
+      erro,
+    );
+  }
 }
 
-
-function limparClassificacaoFinanceira(transacao) {
+async function limparClassificacaoFinanceira(transacao) {
   const chave =
     obterChaveTransacao(
       transacao,
@@ -1082,8 +1216,18 @@ function limparClassificacaoFinanceira(transacao) {
   );
 
   atualizarDashboard();
-}
 
+  try {
+    await excluirClassificacaoFinanceiraServidor(
+      chave,
+    );
+  } catch (erro) {
+    console.error(
+      "Erro ao limpar classificação:",
+      erro,
+    );
+  }
+}
 
 function obterInternasManuais() {
   try {
@@ -8835,6 +8979,8 @@ async function iniciarAplicacao() {
   configurarFormularioCaixinha();
 
   configurarCardTotalCaixinhas();
+
+  await sincronizarClassificacoesFinanceiras();
 
   await carregarDados();
 

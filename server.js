@@ -172,6 +172,210 @@ async function exigirAdmin(req, res, next) {
   next();
 }
 
+
+// ==========================================
+// CLASSIFICAÇÕES FINANCEIRAS SINCRONIZADAS
+// ==========================================
+
+app.get(
+  "/api/classificacoes-financeiras",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("classificacoes_financeiras")
+        .select("chave_transacao, classificacao");
+
+      if (error) throw error;
+
+      const internas = [];
+      const externas = [];
+
+      (data || []).forEach((item) => {
+        if (item.classificacao === "INTERNA") {
+          internas.push(item.chave_transacao);
+        }
+
+        if (item.classificacao === "EXTERNA") {
+          externas.push(item.chave_transacao);
+        }
+      });
+
+      res.json({
+        sucesso: true,
+        internas,
+        externas,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao carregar classificações financeiras:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/classificacoes-financeiras",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { chave, classificacao } = req.body;
+
+      if (
+        !chave ||
+        !["INTERNA", "EXTERNA"].includes(classificacao)
+      ) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Classificação financeira inválida.",
+        });
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from("classificacoes_financeiras")
+        .upsert(
+          {
+            chave_transacao: String(chave),
+            classificacao,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "chave_transacao",
+          },
+        )
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      res.json({
+        sucesso: true,
+        classificacao: data,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao salvar classificação financeira:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+app.delete(
+  "/api/classificacoes-financeiras",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { chave } = req.body;
+
+      if (!chave) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Chave não informada.",
+        });
+      }
+
+      const { error } = await supabaseAdmin
+        .from("classificacoes_financeiras")
+        .delete()
+        .eq("chave_transacao", String(chave));
+
+      if (error) throw error;
+
+      res.json({
+        sucesso: true,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao remover classificação financeira:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/classificacoes-financeiras/importar",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const internas =
+        Array.isArray(req.body.internas)
+          ? req.body.internas
+          : [];
+
+      const externas =
+        Array.isArray(req.body.externas)
+          ? req.body.externas
+          : [];
+
+      const registros = new Map();
+
+      internas.forEach((chave) => {
+        if (chave) {
+          registros.set(String(chave), "INTERNA");
+        }
+      });
+
+      externas.forEach((chave) => {
+        if (chave) {
+          registros.set(String(chave), "EXTERNA");
+        }
+      });
+
+      const linhas =
+        [...registros.entries()].map(
+          ([chave_transacao, classificacao]) => ({
+            chave_transacao,
+            classificacao,
+            updated_at: new Date().toISOString(),
+          }),
+        );
+
+      if (linhas.length) {
+        const { error } = await supabaseAdmin
+          .from("classificacoes_financeiras")
+          .upsert(linhas, {
+            onConflict: "chave_transacao",
+          });
+
+        if (error) throw error;
+      }
+
+      res.json({
+        sucesso: true,
+        quantidade: linhas.length,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao importar classificações financeiras:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
 // ==========================================
 // LOGIN
 // ==========================================
