@@ -376,6 +376,284 @@ app.post(
   },
 );
 
+
+// ==========================================
+// COMPETÊNCIA MANUAL DAS TRANSAÇÕES
+// ==========================================
+
+app.get(
+  "/api/competencias-transacoes",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("competencias_transacoes")
+        .select("chave_transacao, competencia");
+
+      if (error) throw error;
+
+      const competencias = {};
+
+      (data || []).forEach((item) => {
+        competencias[item.chave_transacao] =
+          item.competencia;
+      });
+
+      res.json({
+        sucesso: true,
+        competencias,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao carregar competências:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/competencias-transacoes",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { chave, competencia } = req.body;
+
+      if (
+        !chave ||
+        !/^\d{4}-\d{2}$/.test(
+          String(competencia || ""),
+        )
+      ) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Competência inválida.",
+        });
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from("competencias_transacoes")
+        .upsert(
+          {
+            chave_transacao: String(chave),
+            competencia: String(competencia),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "chave_transacao",
+          },
+        )
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      res.json({
+        sucesso: true,
+        competencia: data,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao salvar competência:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+app.delete(
+  "/api/competencias-transacoes",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { chave } = req.body;
+
+      if (!chave) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Chave não informada.",
+        });
+      }
+
+      const { error } = await supabaseAdmin
+        .from("competencias_transacoes")
+        .delete()
+        .eq("chave_transacao", String(chave));
+
+      if (error) throw error;
+
+      res.json({
+        sucesso: true,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao remover competência:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+
+// ==========================================
+// ORIGEM DAS ENTRADAS
+// ==========================================
+
+app.get(
+  "/api/origens-entradas",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("origens_entradas")
+        .select("chave_transacao, origem");
+
+      if (error) throw error;
+
+      const origens = {};
+
+      (data || []).forEach((item) => {
+        origens[item.chave_transacao] =
+          item.origem;
+      });
+
+      res.json({
+        sucesso: true,
+        origens,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao carregar origens das entradas:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+
+app.post(
+  "/api/origens-entradas",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { chave, origem } = req.body;
+
+      const permitidas = [
+        "SALARIO_CALVO",
+        "RAFA",
+        "OUTRAS",
+        "REEMBOLSO",
+      ];
+
+      if (
+        !chave ||
+        !permitidas.includes(
+          String(origem || ""),
+        )
+      ) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Origem inválida.",
+        });
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from("origens_entradas")
+        .upsert(
+          {
+            chave_transacao: String(chave),
+            origem: String(origem),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "chave_transacao",
+          },
+        )
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      res.json({
+        sucesso: true,
+        origem: data,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao salvar origem da entrada:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
+
+app.delete(
+  "/api/origens-entradas",
+  exigirAdmin,
+  async (req, res) => {
+    try {
+      const { chave } = req.body;
+
+      if (!chave) {
+        return res.status(400).json({
+          sucesso: false,
+          erro: "Chave não informada.",
+        });
+      }
+
+      const { error } = await supabaseAdmin
+        .from("origens_entradas")
+        .delete()
+        .eq(
+          "chave_transacao",
+          String(chave),
+        );
+
+      if (error) throw error;
+
+      res.json({
+        sucesso: true,
+      });
+    } catch (erro) {
+      console.error(
+        "Erro ao remover origem da entrada:",
+        erro.message,
+      );
+
+      res.status(500).json({
+        sucesso: false,
+        erro: erro.message,
+      });
+    }
+  },
+);
+
 // ==========================================
 // LOGIN
 // ==========================================

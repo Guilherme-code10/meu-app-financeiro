@@ -801,13 +801,35 @@ function ehMovimentacaoInterna(transacao) {
 // VERIFICAR SE TRANSAÇÃO É DO MÊS ATUAL
 // ==========================================
 
+
+let deslocamentoMesDashboard = 0;
+
+
+function alterarMesDashboard(delta) {
+  deslocamentoMesDashboard += delta;
+
+  atualizarDashboard();
+}
+
+
+function voltarMesAtualDashboard() {
+  deslocamentoMesDashboard = 0;
+
+  atualizarDashboard();
+}
+
+
 function obterCicloFinanceiroAtual() {
   const hoje = new Date();
 
-  let anoReferencia = hoje.getFullYear();
-  let mesReferencia = hoje.getMonth();
+  let anoReferencia =
+    hoje.getFullYear();
 
-  // Do dia 1 ao dia 10 ainda estamos fechando o mês anterior.
+  let mesReferencia =
+    hoje.getMonth();
+
+  // Do dia 1 ao dia 10 ainda estamos
+  // fechando o mês anterior.
   if (hoje.getDate() <= 10) {
     mesReferencia -= 1;
 
@@ -815,6 +837,19 @@ function obterCicloFinanceiroAtual() {
       mesReferencia = 11;
       anoReferencia -= 1;
     }
+  }
+
+  mesReferencia +=
+    deslocamentoMesDashboard;
+
+  while (mesReferencia < 0) {
+    mesReferencia += 12;
+    anoReferencia -= 1;
+  }
+
+  while (mesReferencia > 11) {
+    mesReferencia -= 12;
+    anoReferencia += 1;
   }
 
   const inicio = new Date(
@@ -844,7 +879,6 @@ function obterCicloFinanceiroAtual() {
     mesReferencia,
   };
 }
-
 
 function converterDataFinanceira(valor) {
   if (!valor) {
@@ -886,6 +920,34 @@ function converterDataFinanceira(valor) {
 
 
 function transacaoEhDoMesAtual(transacao) {
+  const ciclo =
+    obterCicloFinanceiroAtual();
+
+  const chaveCiclo =
+    `${ciclo.anoReferencia}-${String(
+      ciclo.mesReferencia + 1,
+    ).padStart(2, "0")}`;
+
+  const chaveTransacao =
+    obterChaveTransacao(
+      transacao,
+    );
+
+  const competenciaManual =
+    competenciasTransacoes[
+      chaveTransacao
+    ];
+
+  // Se existe competência manual,
+  // ela passa a definir em qual ciclo
+  // a movimentação deve aparecer.
+  if (competenciaManual) {
+    return (
+      competenciaManual ===
+      chaveCiclo
+    );
+  }
+
   const data =
     converterDataFinanceira(
       transacao?.data,
@@ -895,14 +957,12 @@ function transacaoEhDoMesAtual(transacao) {
     return false;
   }
 
-  const ciclo =
-    obterCicloFinanceiroAtual();
-
   return (
     data >= ciclo.inicio &&
     data <= ciclo.fim
   );
 }
+
 
 // ==========================================
 // ENTRADAS / SAÍDAS REAIS DO MÊS
@@ -962,6 +1022,630 @@ function obterChaveTransacao(transacao) {
   ].join("|");
 }
 
+
+
+
+
+let origensEntradas = {};
+
+
+async function carregarOrigensEntradas() {
+  try {
+    const dados =
+      await buscarDados(
+        "/api/origens-entradas",
+      );
+
+    origensEntradas =
+      dados.origens &&
+      typeof dados.origens === "object"
+        ? dados.origens
+        : {};
+  } catch (erro) {
+    console.error(
+      "Erro ao carregar origem das entradas:",
+      erro,
+    );
+
+    origensEntradas = {};
+  }
+}
+
+
+function nomeOrigemEntrada(origem) {
+  const nomes = {
+    SALARIO_CALVO:
+      "Salário / Calvo",
+
+    RAFA:
+      "Rafa",
+
+    REEMBOLSO:
+      "Reembolso",
+
+    OUTRAS:
+      "Outras",
+  };
+
+  return nomes[origem] || "Outras";
+}
+
+
+async function alterarOrigemEntrada(
+  transacao,
+) {
+  const chave =
+    obterChaveTransacao(
+      transacao,
+    );
+
+  const atual =
+    origensEntradas[chave] ||
+    "OUTRAS";
+
+  const resposta = prompt(
+    "Qual é a origem desta entrada?\n\n" +
+      "1 - Salário / Calvo\n" +
+      "2 - Rafa\n" +
+      "3 - Reembolso\n" +
+      "4 - Outras\n\n" +
+      "Digite 0 para remover a classificação manual.",
+    atual === "SALARIO_CALVO"
+      ? "1"
+      : atual === "RAFA"
+        ? "2"
+        : atual === "REEMBOLSO"
+          ? "3"
+          : "4",
+  );
+
+  if (resposta === null) {
+    return;
+  }
+
+  const escolha =
+    String(resposta).trim();
+
+  const mapa = {
+    "1": "SALARIO_CALVO",
+    "2": "RAFA",
+    "3": "REEMBOLSO",
+    "4": "OUTRAS",
+  };
+
+  try {
+    if (escolha === "0") {
+      await buscarDados(
+        "/api/origens-entradas",
+        {
+          method: "DELETE",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            chave,
+          }),
+        },
+      );
+
+      delete origensEntradas[
+        chave
+      ];
+
+      atualizarDashboard();
+
+      return;
+    }
+
+    const origem =
+      mapa[escolha];
+
+    if (!origem) {
+      alert(
+        "Escolha 1, 2, 3, 4 ou 0.",
+      );
+
+      return;
+    }
+
+    await buscarDados(
+      "/api/origens-entradas",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          chave,
+          origem,
+        }),
+      },
+    );
+
+    origensEntradas[chave] =
+      origem;
+
+    atualizarDashboard();
+  } catch (erro) {
+    console.error(
+      "Erro ao alterar origem da entrada:",
+      erro,
+    );
+
+    alert(
+      "Não foi possível salvar a origem da entrada.",
+    );
+  }
+}
+
+
+function mostrarResumoOrigensEntradas(
+  fluxo,
+) {
+  const container =
+    document.querySelector(
+      "#incomeOrigins",
+    );
+
+  if (!container) {
+    return;
+  }
+
+  const totais = {
+    SALARIO_CALVO: 0,
+    RAFA: 0,
+    REEMBOLSO: 0,
+    OUTRAS: 0,
+  };
+
+  const entradas =
+    fluxo.entradasLista || [];
+
+  entradas.forEach((item) => {
+    const chave =
+      obterChaveTransacao(
+        item.transacao,
+      );
+
+    const origem =
+      origensEntradas[chave] ||
+      "OUTRAS";
+
+    totais[origem] =
+      (totais[origem] || 0) +
+      Number(item.valor || 0);
+  });
+
+  const total =
+    Object.values(totais)
+      .reduce(
+        (soma, valor) =>
+          soma + valor,
+        0,
+      );
+
+  const linhasEntradas =
+    entradas.length
+      ? entradas
+          .map((item) => {
+            const transacao =
+              item.transacao;
+
+            const chave =
+              obterChaveTransacao(
+                transacao,
+              );
+
+            const chaveCodificada =
+              encodeURIComponent(
+                chave,
+              );
+
+            const origem =
+              origensEntradas[chave] ||
+              "OUTRAS";
+
+            return `
+              <div
+                class="account-flow-item"
+                style="
+                  margin-top:10px;
+                  padding-top:12px;
+                  border-top:1px solid #e5e7eb;
+                "
+              >
+
+                <div class="account-flow-name">
+
+                  <strong>
+                    ${escapar(
+                      transacao.descricao ||
+                      "Entrada",
+                    )}
+                  </strong>
+
+                  <small
+                    style="
+                      display:block;
+                      margin-top:4px;
+                      color:#64748b;
+                    "
+                  >
+                    ${dataBR(
+                      transacao.data,
+                    )}
+                    ·
+                    ${escapar(
+                      transacao.conta ||
+                      "Conta",
+                    )}
+                    ·
+                    ${nomeOrigemEntrada(
+                      origem,
+                    )}
+                  </small>
+
+                </div>
+
+                <div
+                  style="
+                    display:flex;
+                    align-items:center;
+                    gap:12px;
+                  "
+                >
+
+                  <strong class="income">
+                    + ${dinheiro(
+                      item.valor,
+                    )}
+                  </strong>
+
+                  <button
+                    type="button"
+                    class="primary"
+                    data-classificar-origem="${chaveCodificada}"
+                  >
+                    Classificar
+                  </button>
+
+                </div>
+
+              </div>
+            `;
+          })
+          .join("")
+      : `
+          <div class="empty">
+            Nenhuma entrada externa neste mês.
+          </div>
+        `;
+
+  container.innerHTML = `
+    <div class="account-flow-item">
+      <div class="account-flow-name">
+        💼 Salário / Calvo
+      </div>
+
+      <div class="account-flow-values">
+        <strong class="income">
+          ${dinheiro(
+            totais.SALARIO_CALVO,
+          )}
+        </strong>
+      </div>
+    </div>
+
+    <div class="account-flow-item">
+      <div class="account-flow-name">
+        👩 Rafa
+      </div>
+
+      <div class="account-flow-values">
+        <strong class="income">
+          ${dinheiro(
+            totais.RAFA,
+          )}
+        </strong>
+      </div>
+    </div>
+
+    <div class="account-flow-item">
+      <div class="account-flow-name">
+        ↩️ Reembolsos
+      </div>
+
+      <div class="account-flow-values">
+        <strong class="income">
+          ${dinheiro(
+            totais.REEMBOLSO,
+          )}
+        </strong>
+      </div>
+    </div>
+
+    <div class="account-flow-item">
+      <div class="account-flow-name">
+        💰 Outras / não classificadas
+      </div>
+
+      <div class="account-flow-values">
+        <strong class="income">
+          ${dinheiro(
+            totais.OUTRAS,
+          )}
+        </strong>
+      </div>
+    </div>
+
+    <div class="account-flow-item">
+      <div class="account-flow-name">
+        <strong>
+          Total das entradas
+        </strong>
+      </div>
+
+      <div class="account-flow-values">
+        <strong class="income">
+          ${dinheiro(total)}
+        </strong>
+      </div>
+    </div>
+
+    <div
+      style="
+        margin-top:22px;
+      "
+    >
+      <h3
+        style="
+          margin-bottom:8px;
+        "
+      >
+        Classificar entradas
+      </h3>
+
+      <p
+        style="
+          color:#64748b;
+          margin-bottom:10px;
+        "
+      >
+        Defina de onde veio cada entrada deste mês.
+      </p>
+
+      ${linhasEntradas}
+    </div>
+  `;
+
+  container
+    .querySelectorAll(
+      "[data-classificar-origem]",
+    )
+    .forEach((botao) => {
+      botao.addEventListener(
+        "click",
+        async () => {
+          const chave =
+            decodeURIComponent(
+              botao.dataset
+                .classificarOrigem,
+            );
+
+          const transacao =
+            obterTransacoesFinanceirasUnicas()
+              .find(
+                (item) =>
+                  obterChaveTransacao(
+                    item,
+                  ) === chave,
+              );
+
+          if (transacao) {
+            await alterarOrigemEntrada(
+              transacao,
+            );
+          }
+        },
+      );
+    });
+}
+
+async function carregarCompetenciasTransacoes() {
+  try {
+    const dados =
+      await buscarDados(
+        "/api/competencias-transacoes",
+      );
+
+    competenciasTransacoes =
+      dados.competencias &&
+      typeof dados.competencias === "object"
+        ? dados.competencias
+        : {};
+  } catch (erro) {
+    console.error(
+      "Erro ao carregar competências das transações:",
+      erro,
+    );
+
+    competenciasTransacoes = {};
+  }
+}
+
+
+function obterCompetenciaNaturalTransacao(
+  transacao,
+) {
+  const data =
+    converterDataFinanceira(
+      transacao?.data,
+    );
+
+  if (!data) {
+    return "";
+  }
+
+  let ano = data.getFullYear();
+  let mes = data.getMonth();
+
+  // O ciclo financeiro vai do dia 11
+  // até o dia 10 do mês seguinte.
+  if (data.getDate() <= 10) {
+    mes -= 1;
+
+    if (mes < 0) {
+      mes = 11;
+      ano -= 1;
+    }
+  }
+
+  return `${ano}-${String(
+    mes + 1,
+  ).padStart(2, "0")}`;
+}
+
+
+function obterCompetenciaTransacao(
+  transacao,
+) {
+  const chave =
+    obterChaveTransacao(
+      transacao,
+    );
+
+  return (
+    competenciasTransacoes[chave] ||
+    obterCompetenciaNaturalTransacao(
+      transacao,
+    )
+  );
+}
+
+
+async function alterarCompetenciaTransacao(
+  transacao,
+) {
+  const chave =
+    obterChaveTransacao(
+      transacao,
+    );
+
+  const competenciaAtual =
+    obterCompetenciaTransacao(
+      transacao,
+    );
+
+  const resposta = prompt(
+    "Mês de referência da movimentação:\n\n" +
+      "Use o formato AAAA-MM.\n" +
+      "Exemplo: 2026-09\n\n" +
+      "Deixe vazio para voltar ao mês original da transação.",
+    competenciaAtual,
+  );
+
+  if (resposta === null) {
+    return;
+  }
+
+  const competencia =
+    String(resposta).trim();
+
+  try {
+    if (!competencia) {
+      await buscarDados(
+        "/api/competencias-transacoes",
+        {
+          method: "DELETE",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            chave,
+          }),
+        },
+      );
+
+      delete competenciasTransacoes[
+        chave
+      ];
+    } else {
+      if (
+        !/^\d{4}-\d{2}$/.test(
+          competencia,
+        )
+      ) {
+        alert(
+          "Digite o mês no formato AAAA-MM.\nExemplo: 2026-09",
+        );
+
+        return;
+      }
+
+      const mes =
+        Number(
+          competencia.split("-")[1],
+        );
+
+      if (
+        mes < 1 ||
+        mes > 12
+      ) {
+        alert(
+          "Informe um mês válido entre 01 e 12.",
+        );
+
+        return;
+      }
+
+      await buscarDados(
+        "/api/competencias-transacoes",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            chave,
+            competencia,
+          }),
+        },
+      );
+
+      competenciasTransacoes[
+        chave
+      ] = competencia;
+    }
+
+    atualizarDashboard();
+
+    alert(
+      competencia
+        ? `Movimentação atribuída a ${competencia}.`
+        : "Mês de referência restaurado para o original.",
+    );
+  } catch (erro) {
+    console.error(
+      "Erro ao alterar competência:",
+      erro,
+    );
+
+    alert(
+      "Erro ao alterar o mês de referência: " +
+        erro.message,
+    );
+  }
+}
 
 
 function obterExternasManuais() {
@@ -2331,22 +3015,23 @@ function obterResumoContasFixasPorMes(
 
 
 function obterResumoContasFixasMesAtual() {
-  const referencia =
-    obterMesAutomaticoContasFixas();
+  const ciclo =
+    obterCicloFinanceiroAtual();
 
   return {
     ...obterResumoContasFixasPorMes(
-      referencia.ano,
-      referencia.mes,
+      ciclo.anoReferencia,
+      ciclo.mesReferencia,
     ),
 
     ano:
-      referencia.ano,
+      ciclo.anoReferencia,
 
     mes:
-      referencia.mes,
+      ciclo.mesReferencia,
   };
 }
+
 
 // ==========================================
 // VALOR DA FATURA
@@ -2634,6 +3319,14 @@ function atualizarCompromissosMes() {
 function mostrarDetalhesFluxo() {
   const fluxo =
     obterResumoFluxoMes();
+
+  mostrarResumoOrigensEntradas(
+    fluxo,
+  );
+
+  renderizarGraficoFluxoMensal();
+
+  renderizarResumoCaixinhasDashboard();
 
   const referencia =
     document.querySelector(
@@ -3117,6 +3810,21 @@ function mostrarDetalhesFluxo() {
                   </small>
 
                   ${
+                    entrada &&
+                    !pendente
+                      ? `
+                        <button
+                          type="button"
+                          class="flow-confirm-external"
+                          data-origem="${chave}"
+                        >
+                          Origem
+                        </button>
+                      `
+                      : ""
+                  }
+
+                  ${
                     pendente
                       ? `
                         <span class="flow-pending-label">
@@ -3157,6 +3865,13 @@ function mostrarDetalhesFluxo() {
                     )}
                   </strong>
 
+                  <button
+                    type="button"
+                    class="flow-change-competence"
+                    data-competencia="${chave}"
+                  >
+                    Alterar mês
+                  </button>
 
                   ${
                     pendente
@@ -3264,6 +3979,77 @@ function mostrarDetalhesFluxo() {
           );
         },
       );
+
+
+
+    lista
+      .querySelectorAll(
+        "[data-origem]",
+      )
+      .forEach(
+        (botao) => {
+          botao.addEventListener(
+            "click",
+            async () => {
+              const chave =
+                decodeURIComponent(
+                  botao.dataset.origem,
+                );
+
+              const transacao =
+                obterTransacoesFinanceirasUnicas()
+                  .find(
+                    (item) =>
+                      obterChaveTransacao(
+                        item,
+                      ) === chave,
+                  );
+
+              if (transacao) {
+                await alterarOrigemEntrada(
+                  transacao,
+                );
+              }
+            },
+          );
+        },
+      );
+
+
+    lista
+      .querySelectorAll(
+        "[data-competencia]",
+      )
+      .forEach(
+        (botao) => {
+          botao.addEventListener(
+            "click",
+            async () => {
+              const chave =
+                decodeURIComponent(
+                  botao.dataset.competencia,
+                );
+
+              const transacao =
+                obterTransacoesFinanceirasUnicas()
+                  .find(
+                    (item) =>
+                      obterChaveTransacao(
+                        item,
+                      ) === chave,
+                  );
+
+              if (transacao) {
+                await alterarCompetenciaTransacao(
+                  transacao,
+                );
+              }
+            },
+          );
+        },
+      );
+
+
   }
 
 
@@ -3484,6 +4270,693 @@ function mostrarFluxoPorConta() {
 }
 
 
+
+// ==========================================
+// HISTÓRICO E GRÁFICOS DO DASHBOARD
+// ==========================================
+
+let historicoCaixinhasDashboard = [];
+
+
+function executarNoMesDashboard(
+  deslocamento,
+  callback,
+) {
+  const original =
+    deslocamentoMesDashboard;
+
+  deslocamentoMesDashboard =
+    deslocamento;
+
+  try {
+    return callback();
+  } finally {
+    deslocamentoMesDashboard =
+      original;
+  }
+}
+
+
+function rotuloMesDashboard(ciclo) {
+  return new Date(
+    ciclo.anoReferencia,
+    ciclo.mesReferencia,
+    1,
+  )
+    .toLocaleDateString(
+      "pt-BR",
+      {
+        month: "short",
+        year: "2-digit",
+      },
+    )
+    .replace(".", "");
+}
+
+
+function obterFluxoHistoricoDashboard(
+  deslocamento,
+) {
+  return executarNoMesDashboard(
+    deslocamento,
+    () => {
+      const ciclo =
+        obterCicloFinanceiroAtual();
+
+      const resumo =
+        obterResumoFluxoMes();
+
+      return {
+        ciclo,
+        entradas:
+          Number(
+            resumo.entradas || 0,
+          ),
+
+        saidas:
+          Number(
+            resumo.saidas || 0,
+          ),
+
+        resultado:
+          Number(
+            resumo.resultado || 0,
+          ),
+      };
+    },
+  );
+}
+
+
+function renderizarGraficoFluxoMensal() {
+  const container =
+    document.querySelector(
+      "#monthlyFlowChart",
+    );
+
+  if (!container) {
+    return;
+  }
+
+  const meses = [];
+
+  for (
+    let indice = 5;
+    indice >= 0;
+    indice--
+  ) {
+    const deslocamento =
+      deslocamentoMesDashboard -
+      indice;
+
+    meses.push(
+      obterFluxoHistoricoDashboard(
+        deslocamento,
+      ),
+    );
+  }
+
+  const maior =
+    Math.max(
+      1,
+      ...meses.flatMap(
+        (mes) => [
+          mes.entradas,
+          mes.saidas,
+        ],
+      ),
+    );
+
+  container.innerHTML =
+    meses
+      .map((mes) => {
+        const larguraEntrada =
+          mes.entradas > 0
+            ? Math.max(
+                3,
+                (
+                  mes.entradas /
+                  maior
+                ) * 100,
+              )
+            : 0;
+
+        const larguraSaida =
+          mes.saidas > 0
+            ? Math.max(
+                3,
+                (
+                  mes.saidas /
+                  maior
+                ) * 100,
+              )
+            : 0;
+
+        return `
+          <div class="monthly-chart-row">
+
+            <div class="monthly-chart-month">
+              ${rotuloMesDashboard(
+                mes.ciclo,
+              )}
+            </div>
+
+            <div class="monthly-chart-bars">
+
+              <div class="monthly-chart-line">
+                <span>
+                  Entrou
+                </span>
+
+                <div class="monthly-chart-track">
+                  <div
+                    class="monthly-chart-bar income-bar"
+                    style="width:${larguraEntrada}%"
+                  ></div>
+                </div>
+
+                <strong class="income">
+                  ${dinheiro(
+                    mes.entradas,
+                  )}
+                </strong>
+              </div>
+
+              <div class="monthly-chart-line">
+                <span>
+                  Saiu
+                </span>
+
+                <div class="monthly-chart-track">
+                  <div
+                    class="monthly-chart-bar expense-bar"
+                    style="width:${larguraSaida}%"
+                  ></div>
+                </div>
+
+                <strong class="expense">
+                  ${dinheiro(
+                    mes.saidas,
+                  )}
+                </strong>
+              </div>
+
+            </div>
+
+          </div>
+        `;
+      })
+      .join("");
+}
+
+
+async function carregarHistoricosCaixinhasDashboard() {
+  if (
+    !Array.isArray(
+      state.caixinhas,
+    ) ||
+    !state.caixinhas.length
+  ) {
+    historicoCaixinhasDashboard =
+      [];
+
+    renderizarResumoCaixinhasDashboard();
+
+    return;
+  }
+
+  const resultados =
+    await Promise.all(
+      state.caixinhas.map(
+        async (caixinha) => {
+          try {
+            const dados =
+              await buscarDados(
+                `/api/caixinhas/${caixinha.id}/dashboard`,
+              );
+
+            const historico =
+              Array.isArray(
+                dados.historico,
+              )
+                ? dados.historico
+                : [];
+
+            return historico.map(
+              (item) => ({
+                ...item,
+
+                caixinhaId:
+                  caixinha.id,
+
+                caixinhaNome:
+                  caixinha.nome,
+              }),
+            );
+          } catch (erro) {
+            console.error(
+              "Erro ao carregar histórico da caixinha:",
+              caixinha.nome,
+              erro,
+            );
+
+            return [];
+          }
+        },
+      ),
+    );
+
+  historicoCaixinhasDashboard =
+    resultados.flat();
+
+  renderizarResumoCaixinhasDashboard();
+}
+
+
+function obterResumoCaixinhasNoDeslocamento(
+  deslocamento,
+) {
+  return executarNoMesDashboard(
+    deslocamento,
+    () => {
+      const ciclo =
+        obterCicloFinanceiroAtual();
+
+      let adicionado = 0;
+      let retirado = 0;
+      let rendimento = 0;
+
+      historicoCaixinhasDashboard
+        .forEach((item) => {
+          const data =
+            converterDataFinanceira(
+              item.data,
+            );
+
+          if (
+            !data ||
+            data < ciclo.inicio ||
+            data > ciclo.fim
+          ) {
+            return;
+          }
+
+          const tipo =
+            String(
+              item.tipo || "",
+            ).toUpperCase();
+
+          const descricao =
+            normalizarTextoFinanceiro(
+              item.descricao || "",
+            );
+
+          const valor =
+            Math.abs(
+              Number(
+                item.valor || 0,
+              ),
+            );
+
+          if (
+            tipo === "ENTRADA" &&
+            !descricao.includes(
+              "saldo inicial",
+            )
+          ) {
+            adicionado += valor;
+          }
+
+          if (
+            tipo === "SAIDA"
+          ) {
+            retirado += valor;
+          }
+
+          if (
+            tipo === "RENDIMENTO"
+          ) {
+            rendimento += valor;
+          }
+        });
+
+      return {
+        ciclo,
+        adicionado,
+        retirado,
+        rendimento,
+
+        variacao:
+          adicionado -
+          retirado +
+          rendimento,
+      };
+    },
+  );
+}
+
+
+function renderizarResumoCaixinhasDashboard() {
+  const resumoContainer =
+    document.querySelector(
+      "#caixinhasMonthSummary",
+    );
+
+  const grafico =
+    document.querySelector(
+      "#caixinhasMonthlyChart",
+    );
+
+  const titulo =
+    document.querySelector(
+      "#caixinhasMonthTitle",
+    );
+
+  if (
+    !resumoContainer ||
+    !grafico
+  ) {
+    return;
+  }
+
+  const atual =
+    obterResumoCaixinhasNoDeslocamento(
+      deslocamentoMesDashboard,
+    );
+
+  if (titulo) {
+    titulo.textContent =
+      new Date(
+        atual.ciclo.anoReferencia,
+        atual.ciclo.mesReferencia,
+        1,
+      ).toLocaleDateString(
+        "pt-BR",
+        {
+          month: "long",
+          year: "numeric",
+        },
+      );
+  }
+
+  resumoContainer.innerHTML = `
+    <article class="mini-finance-card">
+      <span>
+        ➕ Adicionado
+      </span>
+
+      <strong class="income">
+        ${dinheiro(
+          atual.adicionado,
+        )}
+      </strong>
+    </article>
+
+    <article class="mini-finance-card">
+      <span>
+        ➖ Retirado
+      </span>
+
+      <strong class="expense">
+        ${dinheiro(
+          atual.retirado,
+        )}
+      </strong>
+    </article>
+
+    <article class="mini-finance-card">
+      <span>
+        📈 Rendimentos
+      </span>
+
+      <strong class="internal">
+        ${dinheiro(
+          atual.rendimento,
+        )}
+      </strong>
+    </article>
+
+    <article class="mini-finance-card">
+      <span>
+        Variação líquida
+      </span>
+
+      <strong
+        class="${
+          atual.variacao >= 0
+            ? "income"
+            : "expense"
+        }"
+      >
+        ${dinheiro(
+          atual.variacao,
+        )}
+      </strong>
+    </article>
+  `;
+
+  const meses = [];
+
+  for (
+    let indice = 5;
+    indice >= 0;
+    indice--
+  ) {
+    meses.push(
+      obterResumoCaixinhasNoDeslocamento(
+        deslocamentoMesDashboard -
+        indice,
+      ),
+    );
+  }
+
+  const maior =
+    Math.max(
+      1,
+      ...meses.flatMap(
+        (mes) => [
+          mes.adicionado,
+          mes.retirado,
+          mes.rendimento,
+        ],
+      ),
+    );
+
+  grafico.innerHTML =
+    meses
+      .map((mes) => {
+        const entrada =
+          mes.adicionado > 0
+            ? Math.max(
+                3,
+                (
+                  mes.adicionado /
+                  maior
+                ) * 100,
+              )
+            : 0;
+
+        const saida =
+          mes.retirado > 0
+            ? Math.max(
+                3,
+                (
+                  mes.retirado /
+                  maior
+                ) * 100,
+              )
+            : 0;
+
+        const rendimento =
+          mes.rendimento > 0
+            ? Math.max(
+                3,
+                (
+                  mes.rendimento /
+                  maior
+                ) * 100,
+              )
+            : 0;
+
+        return `
+          <div class="monthly-chart-row">
+
+            <div class="monthly-chart-month">
+              ${rotuloMesDashboard(
+                mes.ciclo,
+              )}
+            </div>
+
+            <div class="monthly-chart-bars">
+
+              <div class="monthly-chart-line">
+                <span>
+                  Adicionado
+                </span>
+
+                <div class="monthly-chart-track">
+                  <div
+                    class="monthly-chart-bar income-bar"
+                    style="width:${entrada}%"
+                  ></div>
+                </div>
+
+                <strong>
+                  ${dinheiro(
+                    mes.adicionado,
+                  )}
+                </strong>
+              </div>
+
+              <div class="monthly-chart-line">
+                <span>
+                  Retirado
+                </span>
+
+                <div class="monthly-chart-track">
+                  <div
+                    class="monthly-chart-bar expense-bar"
+                    style="width:${saida}%"
+                  ></div>
+                </div>
+
+                <strong>
+                  ${dinheiro(
+                    mes.retirado,
+                  )}
+                </strong>
+              </div>
+
+              <div class="monthly-chart-line">
+                <span>
+                  Rendeu
+                </span>
+
+                <div class="monthly-chart-track">
+                  <div
+                    class="monthly-chart-bar yield-bar"
+                    style="width:${rendimento}%"
+                  ></div>
+                </div>
+
+                <strong>
+                  ${dinheiro(
+                    mes.rendimento,
+                  )}
+                </strong>
+              </div>
+
+            </div>
+
+          </div>
+        `;
+      })
+      .join("");
+}
+
+
+function mostrarRecentesDashboardSelecionado() {
+  const container =
+    document.querySelector(
+      "#recentTransactions",
+    );
+
+  if (!container) {
+    return;
+  }
+
+  const transacoes =
+    (state.transacoes || [])
+      .filter(
+        (transacao) =>
+          transacaoEhDoMesAtual(
+            transacao,
+          ),
+      )
+      .sort(
+        (a, b) =>
+          String(
+            b.data || "",
+          ).localeCompare(
+            String(
+              a.data || "",
+            ),
+          ),
+      )
+      .slice(0, 8);
+
+  if (!transacoes.length) {
+    container.innerHTML = `
+      <div class="empty">
+        Nenhuma movimentação neste mês.
+      </div>
+    `;
+
+    return;
+  }
+
+  container.innerHTML =
+    transacoes
+      .map((transacao) => {
+        const analise =
+          analisarTransacao(
+            transacao,
+          );
+
+        return `
+          <div class="transaction">
+
+            <div>
+
+              <div class="desc">
+                ${
+                  analise.ehCartao
+                    ? "💳 "
+                    : "🏦 "
+                }
+                ${escapar(
+                  transacao.descricao ||
+                  "Movimentação",
+                )}
+              </div>
+
+              <div class="meta">
+                ${dataBR(
+                  transacao.data,
+                )}
+                ·
+                ${escapar(
+                  transacao.conta ||
+                  "Conta",
+                )}
+              </div>
+
+            </div>
+
+            <div
+              class="amount ${
+                analise.ehEntrada
+                  ? "income"
+                  : "expense"
+              }"
+            >
+              ${
+                analise.ehEntrada
+                  ? "+"
+                  : "-"
+              }
+              ${dinheiro(
+                analise.valor,
+              )}
+            </div>
+
+          </div>
+        `;
+      })
+      .join("");
+}
+
+
 // ==========================================
 // DASHBOARD
 // ==========================================
@@ -3529,17 +5002,73 @@ function atualizarPeriodoFinanceiroDashboard() {
 
   if (periodo) {
     periodo.innerHTML = `
-      <strong>
-        ${nomeMes}/${ciclo.anoReferencia}
-      </strong>
+      <div class="dashboard-month-navigation">
 
-      <span>
-        Ciclo financeiro:
-        ${inicio}
-        até
-        ${fim}
-      </span>
+        <button
+          type="button"
+          id="dashboardPrevMonth"
+          class="dashboard-month-button"
+          title="Mês anterior"
+        >
+          ‹
+        </button>
+
+        <button
+          type="button"
+          id="dashboardCurrentMonth"
+          class="dashboard-month-current"
+          title="Voltar ao mês atual"
+        >
+          ${nomeMes}/${ciclo.anoReferencia}
+        </button>
+
+        <button
+          type="button"
+          id="dashboardNextMonth"
+          class="dashboard-month-button"
+          title="Próximo mês"
+        >
+          ›
+        </button>
+
+        <span>
+          Ciclo financeiro:
+          ${inicio}
+          até
+          ${fim}
+        </span>
+
+      </div>
     `;
+
+    document
+      .querySelector(
+        "#dashboardPrevMonth",
+      )
+      ?.addEventListener(
+        "click",
+        () =>
+          alterarMesDashboard(-1),
+      );
+
+    document
+      .querySelector(
+        "#dashboardNextMonth",
+      )
+      ?.addEventListener(
+        "click",
+        () =>
+          alterarMesDashboard(1),
+      );
+
+    document
+      .querySelector(
+        "#dashboardCurrentMonth",
+      )
+      ?.addEventListener(
+        "click",
+        voltarMesAtualDashboard,
+      );
   }
 
   const compromissoMes =
@@ -3552,7 +5081,6 @@ function atualizarPeriodoFinanceiroDashboard() {
       `${nomeMes}/${ciclo.anoReferencia}`;
   }
 }
-
 
 function atualizarDashboard() {
   atualizarPeriodoFinanceiroDashboard();
@@ -3568,8 +5096,14 @@ function atualizarDashboard() {
   const fluxo =
     obterResumoFluxoMes();
 
+  const cicloDashboard =
+    obterCicloFinanceiroAtual();
+
   const resumoFixas =
-    obterResumoContasFixasMes();
+    obterResumoContasFixasPorMes(
+      cicloDashboard.anoReferencia,
+      cicloDashboard.mesReferencia,
+    );
 
   const elementoFixedTotal =
     document.querySelector(
@@ -3699,7 +5233,7 @@ function atualizarDashboard() {
 
   mostrarDetalhesFluxo();
 
-  mostrarRecentes();
+  mostrarRecentesDashboardSelecionado();
 
   mostrarCategorias();
 }
@@ -3740,80 +5274,101 @@ function configurarCardTotalCaixinhas() {
 }
 
 function mostrarCategorias() {
-  const container = document.querySelector("#categoryChart");
+  const container =
+    document.querySelector(
+      "#categoryChart",
+    );
 
   if (!container) {
     return;
   }
 
+  const fluxo =
+    obterResumoFluxoMes();
+
   const categorias = {};
 
-  state.transacoes.forEach((transacao) => {
-    const analise = analisarTransacao(transacao);
+  (fluxo.saidasLista || [])
+    .forEach((item) => {
+      const categoria =
+        item.transacao?.categoria ||
+        "Sem categoria";
 
-    if (
-      !analise.ehSaida ||
-      ehMovimentacaoInterna(transacao)
-    ) {
-      return;
-    }
+      categorias[categoria] =
+        (categorias[categoria] || 0) +
+        Number(item.valor || 0);
+    });
 
-    const categoria = transacao.categoria || "Sem categoria";
-
-    categorias[categoria] = (categorias[categoria] || 0) + analise.valor;
-  });
-
-  const lista = Object.entries(categorias)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 7);
+  const lista =
+    Object.entries(categorias)
+      .sort(
+        (a, b) =>
+          b[1] - a[1],
+      )
+      .slice(0, 7);
 
   if (!lista.length) {
     container.innerHTML = `
       <div class="empty">
-        Nenhuma saída encontrada.
+        Nenhuma saída externa encontrada neste mês.
       </div>
     `;
 
     return;
   }
 
-  const maior = lista[0][1] || 1;
+  const maior =
+    lista[0][1] || 1;
 
-  container.innerHTML = lista
-    .map(([categoria, valor], indice) => {
-      const porcentagem = Math.max(5, (valor / maior) * 100);
+  container.innerHTML =
+    lista
+      .map(
+        ([categoria, valor], indice) => {
+          const porcentagem =
+            Math.max(
+              5,
+              (
+                valor /
+                maior
+              ) * 100,
+            );
 
-      const classeCor = `grafico-cor-${(indice % 7) + 1}`;
+          const classeCor =
+            `grafico-cor-${(indice % 7) + 1}`;
 
-      return `
-        <div class="bar-row">
+          return `
+            <div class="bar-row">
 
-          <div class="bar-label">
+              <div class="bar-label">
 
-            <span>
-              ${escapar(categoria)}
-            </span>
+                <span>
+                  ${escapar(
+                    categoria,
+                  )}
+                </span>
 
-            <strong>
-              ${dinheiro(valor)}
-            </strong>
+                <strong>
+                  ${dinheiro(valor)}
+                </strong>
 
-          </div>
+              </div>
 
-          <div class="bar-track">
+              <div class="bar-track">
 
-            <div
-              class="bar ${classeCor}"
-              style="width:${porcentagem}%"
-            ></div>
+                <div
+                  class="bar ${classeCor}"
+                  style="width:${porcentagem}%"
+                ></div>
 
-          </div>
+              </div>
 
-        </div>
-      `;
-    })
-    .join("");
+            </div>
+          `;
+        },
+      )
+      .join("");
 }
+
 
 // ==========================================
 // TABELA DE TRANSAÇÕES
@@ -4553,6 +6108,8 @@ async function carregarCaixinhas() {
     // Recalcula o saldo dos compromissos
     // usando a caixinha Salários já carregada.
     atualizarCompromissosMes();
+
+    await carregarHistoricosCaixinhasDashboard();
 
   } catch (erro) {
     console.error("Erro ao carregar caixinhas:", erro);
@@ -8939,7 +10496,7 @@ function configurarDatas() {
 
   const inicio = new Date(fim);
 
-  inicio.setMonth(inicio.getMonth() - 3);
+  inicio.setMonth(inicio.getMonth() - 8);
 
   const formatar = (data) => data.toISOString().slice(0, 10);
 
@@ -8981,6 +10538,10 @@ async function iniciarAplicacao() {
   configurarCardTotalCaixinhas();
 
   await sincronizarClassificacoesFinanceiras();
+
+  await carregarCompetenciasTransacoes();
+
+  await carregarOrigensEntradas();
 
   await carregarDados();
 

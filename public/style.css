@@ -3079,3 +3079,174 @@ select:focus {
   color: #6f789b;
 }
 
+
+
+/* ==========================================
+   DASHBOARD - HISTÓRICO MENSAL
+========================================== */
+
+.dashboard-history-panel,
+.dashboard-savings-panel {
+  margin-top: 24px;
+}
+
+.monthly-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.monthly-chart-row {
+  display: grid;
+  grid-template-columns: 85px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.monthly-chart-month {
+  font-weight: 700;
+  text-transform: capitalize;
+  color: #374151;
+}
+
+.monthly-chart-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.monthly-chart-line {
+  display: grid;
+  grid-template-columns: 75px minmax(100px, 1fr) 110px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.monthly-chart-line > span {
+  color: #64748b;
+}
+
+.monthly-chart-line > strong {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.monthly-chart-track {
+  height: 10px;
+  border-radius: 999px;
+  background: #eef2f7;
+  overflow: hidden;
+}
+
+.monthly-chart-bar {
+  height: 100%;
+  min-width: 0;
+  border-radius: 999px;
+}
+
+.income-bar {
+  background: #16a34a;
+}
+
+.expense-bar {
+  background: #ef4444;
+}
+
+.yield-bar {
+  background: #4054c6;
+}
+
+.mini-finance-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(150px, 1fr)
+    );
+  gap: 14px;
+}
+
+.mini-finance-card {
+  background: #f8fafc;
+  border: 1px solid #e9edf5;
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.mini-finance-card span {
+  display: block;
+  color: #64748b;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.mini-finance-card strong {
+  font-size: 21px;
+}
+
+.dashboard-chart-divider {
+  height: 1px;
+  background: #e9edf5;
+  margin: 24px 0;
+}
+
+.dashboard-chart-title {
+  margin: 0 0 18px;
+  font-size: 17px;
+}
+
+.dashboard-month-navigation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dashboard-month-button,
+.dashboard-month-current {
+  border: 1px solid #dfe3f0;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.dashboard-month-button:hover,
+.dashboard-month-current:hover {
+  background: #f3f1ff;
+}
+
+@media (max-width: 900px) {
+  .mini-finance-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(140px, 1fr)
+      );
+  }
+
+  .monthly-chart-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .mini-finance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-chart-line {
+    grid-template-columns:
+      65px 1fr;
+
+    gap: 7px;
+  }
+
+  .monthly-chart-line > strong {
+    grid-column: 2;
+    text-align: left;
+  }
+}
+

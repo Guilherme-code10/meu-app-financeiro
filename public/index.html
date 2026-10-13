@@ -176,7 +176,7 @@
 
               <strong id="totalBalance"> R$ 0,00 </strong>
 
-              <small> Somatório dos saldos retornados pelo Pierre </small>
+              <small> Saldo atual retornado pelo Pierre — não é saldo histórico </small>
             </article>
 
             <article class="card">
@@ -267,6 +267,114 @@
   </small>
 </article>  
           </div>
+
+
+          <article class="panel">
+
+            <div class="panel-head">
+
+              <div>
+
+                <p class="eyebrow">
+                  ORIGEM DAS ENTRADAS
+                </p>
+
+                <h2>
+                  De onde entrou seu dinheiro
+                </h2>
+
+                <p>
+                  Separação das entradas externas
+                  do mês selecionado.
+                </p>
+
+              </div>
+
+            </div>
+
+            <div
+              id="incomeOrigins"
+              class="account-flow"
+            ></div>
+
+          </article>
+
+
+
+          <article class="panel dashboard-history-panel">
+
+            <div class="panel-head">
+
+              <div>
+
+                <p class="eyebrow">
+                  EVOLUÇÃO FINANCEIRA
+                </p>
+
+                <h2>
+                  Entradas x saídas por mês
+                </h2>
+
+                <p>
+                  Considera somente dinheiro que
+                  realmente entrou ou saiu para terceiros.
+                  Transferências internas e compras de cartão
+                  não são duplicadas aqui.
+                </p>
+
+              </div>
+
+            </div>
+
+            <div
+              id="monthlyFlowChart"
+              class="monthly-chart"
+            ></div>
+
+          </article>
+
+
+          <article class="panel dashboard-savings-panel">
+
+            <div class="panel-head">
+
+              <div>
+
+                <p class="eyebrow">
+                  CAIXINHAS
+                </p>
+
+                <h2>
+                  Movimento das caixinhas
+                </h2>
+
+                <p>
+                  Adições, retiradas e rendimentos de
+                  <strong id="caixinhasMonthTitle">—</strong>.
+                </p>
+
+              </div>
+
+            </div>
+
+            <div
+              id="caixinhasMonthSummary"
+              class="mini-finance-grid"
+            ></div>
+
+            <div class="dashboard-chart-divider"></div>
+
+            <h3 class="dashboard-chart-title">
+              Evolução dos últimos meses
+            </h3>
+
+            <div
+              id="caixinhasMonthlyChart"
+              class="monthly-chart"
+            ></div>
+
+          </article>
+
 
           <div class="dashboard-block">
 
