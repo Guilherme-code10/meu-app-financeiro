@@ -1528,7 +1528,31 @@ const dataFim =
       format: "raw",
     });
 
-    const transacoes = Array.isArray(dados.data) ? dados.data : [];
+    const transacoesBrutas =
+      Array.isArray(dados.data) ? dados.data : [];
+
+    // O Pierre eventualmente retorna transações fora
+    // do período solicitado. Garantimos o filtro aqui
+    // antes de enviar os dados para o frontend.
+    const transacoes = transacoesBrutas.filter((transacao) => {
+      const dataTransacao =
+        String(transacao.date || "").substring(0, 10);
+
+      if (!dataTransacao) {
+        return false;
+      }
+
+      if (dataInicio && dataTransacao < dataInicio) {
+        return false;
+      }
+
+      // endDate é tratado como limite exclusivo.
+      if (dataFim && dataTransacao >= dataFim) {
+        return false;
+      }
+
+      return true;
+    });
 
     // ==========================================
     // TRANSAÇÃO DE CARTÃO - DEBUG
