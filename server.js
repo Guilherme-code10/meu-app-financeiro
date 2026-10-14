@@ -863,11 +863,6 @@ async function pierreRequest(endpoint, params = {}) {
 
   const textoResposta = await resposta.text();
 
-  console.log("PIERRE STATUS:", resposta.status);
-  console.log("PIERRE CONTENT-TYPE:", resposta.headers.get("content-type"));
-  console.log("PIERRE URL:", url.toString());
-  console.log("PIERRE RESPOSTA BRUTA:", textoResposta.slice(0, 500));
-
   let dados;
 
   try {
@@ -909,11 +904,6 @@ function normalizarTexto(texto) {
 app.get("/api/accounts", exigirAdmin, async (req, res) => {
   try {
     const dados = await pierreRequest("get-accounts");
-
-    console.log(
-      "CARTAO BRUTO DO PIERRE:",
-      dados.data?.find((item) => item.type === "CREDIT"),
-    );
 
     const registros = Array.isArray(dados.data) ? dados.data : [];
 
@@ -1246,12 +1236,6 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
           };
 
           faturas.push(faturaVirtual);
-
-          console.log("📅 Fatura virtual criada:", {
-            accountId,
-            fechamento: proximoFechamento.toISOString(),
-            vencimento: proximoVencimento.toISOString(),
-          });
         }
       }
     } else {
@@ -1336,14 +1320,6 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
         };
 
         faturas.push(faturaVirtual);
-
-        console.log("📅 Fatura virtual criada:", {
-          accountId: idCartao,
-
-          fechamento: proximoFechamento.toISOString(),
-
-          vencimento: proximoVencimento.toISOString(),
-        });
       }
     }
 
@@ -1553,19 +1529,6 @@ const dataFim =
 
       return true;
     });
-
-    // ==========================================
-    // TRANSAÇÃO DE CARTÃO - DEBUG
-    // ==========================================
-
-    const transacaoCartao = transacoes.find(
-      (transacao) => transacao.credit_card_data !== null,
-    );
-
-    console.log(
-      "TRANSAÇÃO DE CARTÃO DO PIERRE:",
-      JSON.stringify(transacaoCartao, null, 2),
-    );
 
     // ==========================================
     // FORMATAR TRANSAÇÕES

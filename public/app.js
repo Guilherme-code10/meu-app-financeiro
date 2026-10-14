@@ -1768,10 +1768,6 @@ async function sincronizarClassificacoesFinanceiras() {
         },
       );
 
-      console.log(
-        "Classificações locais migradas para o Supabase.",
-      );
-
       return;
     }
 
@@ -8521,8 +8517,6 @@ async function carregarDados() {
 
     state.cartoes = dadosContas.cartoes || [];
 
-    console.log("CARTÕES DO PIERRE:", state.cartoes);
-
     state.investimentos = dadosContas.investimentos || [];
 
     state.transacoes = dadosTransacoes.transacoes || [];
@@ -8756,8 +8750,6 @@ async function migrarContasFixas() {
       return;
     }
 
-    console.log(`Migrando ${contasParaMigrar.length} conta(s) fixa(s)...`);
-
     for (const conta of contasParaMigrar) {
       await buscarDados("/api/contas-fixas", {
         method: "POST",
@@ -8793,8 +8785,6 @@ async function migrarContasFixas() {
         }),
       });
     }
-
-    console.log("Migração das contas fixas concluída.");
 
     await carregarContasFixas();
   } catch (erro) {
