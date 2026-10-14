@@ -2157,6 +2157,26 @@ function obterConciliacaoTransferencias() {
         continue;
       }
 
+      const textoPrimeira =
+        normalizarTextoFinanceiro(
+          primeira.descricao || ""
+        );
+
+      const textoSegunda =
+        normalizarTextoFinanceiro(
+          segunda.descricao || ""
+        );
+
+      const envolveRafa =
+        textoPrimeira.includes("rafaella") ||
+        textoPrimeira.includes("rafa ") ||
+        textoSegunda.includes("rafaella") ||
+        textoSegunda.includes("rafa ");
+
+      if (envolveRafa) {
+        continue;
+      }
+
       const analiseSegunda =
         analisarTransacao(
           segunda,
