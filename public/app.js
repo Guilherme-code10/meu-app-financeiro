@@ -2051,7 +2051,20 @@ function pareceTransferencia(transacao) {
 }
 
 
+let cacheConciliacaoTransferencias = {
+  transacoesReferencia: null,
+  resultado: null,
+};
+
 function obterConciliacaoTransferencias() {
+  if (
+    cacheConciliacaoTransferencias.transacoesReferencia ===
+      state.transacoes &&
+    cacheConciliacaoTransferencias.resultado
+  ) {
+    return cacheConciliacaoTransferencias.resultado;
+  }
+
   const transacoes =
     obterTransacoesFinanceirasUnicas();
 
@@ -2388,11 +2401,18 @@ function obterConciliacaoTransferencias() {
     });
   }
 
-  return {
+  const resultado = {
     internas,
     pares,
     transacoes,
   };
+
+  cacheConciliacaoTransferencias = {
+    transacoesReferencia: state.transacoes,
+    resultado,
+  };
+
+  return resultado;
 }
 
 
