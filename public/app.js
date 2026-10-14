@@ -6109,7 +6109,17 @@ async function carregarCaixinhas() {
     // usando a caixinha Salários já carregada.
     atualizarCompromissosMes();
 
-    await carregarHistoricosCaixinhasDashboard();
+    // Não bloquear a abertura do app esperando
+    // o histórico completo de todas as caixinhas.
+    // O resumo pesado é carregado em segundo plano.
+    setTimeout(() => {
+      carregarHistoricosCaixinhasDashboard().catch((erro) => {
+        console.error(
+          "Erro ao carregar históricos das caixinhas em segundo plano:",
+          erro,
+        );
+      });
+    }, 0);
 
   } catch (erro) {
     console.error("Erro ao carregar caixinhas:", erro);
