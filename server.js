@@ -1049,6 +1049,57 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
 });
 
 // ==========================================
+// DEBUG TEMPORÁRIO - ESTRUTURA DOS CARTÕES
+// ==========================================
+
+app.get("/api/debug/cards", exigirAdmin, async (req, res) => {
+  try {
+    const dados = await pierreRequest("get-accounts");
+
+    const registros =
+      Array.isArray(dados.data)
+        ? dados.data
+        : [];
+
+    const cartoes = registros
+      .filter(
+        (conta) =>
+          conta.type === "CREDIT" &&
+          conta.itemIsActive !== false
+      )
+      .map((cartao) => ({
+        id: cartao.id,
+        name: cartao.name,
+        customName: cartao.customName,
+        connectorName: cartao.connectorName,
+        balance: cartao.balance,
+
+        creditData: cartao.creditData,
+
+        creditLimit: cartao.creditLimit,
+        availableCreditLimit:
+          cartao.availableCreditLimit,
+
+        limit: cartao.limit,
+        availableLimit:
+          cartao.availableLimit,
+
+        keys: Object.keys(cartao),
+      }));
+
+    res.json({
+      sucesso: true,
+      cartoes,
+    });
+  } catch (erro) {
+    res.status(500).json({
+      sucesso: false,
+      erro: erro.message,
+    });
+  }
+});
+
+// ==========================================
 // SINCRONIZAR FATURAS DO PIERRE
 // ==========================================
 
