@@ -8006,10 +8006,16 @@ function mostrarCartoesEFaturas() {
         );
 
       const valorFatura =
-        obterValorCorretoFatura(
-          cartao,
-          faturaAtual
-        );
+        faturaAtual
+          ? obterValorCorretoFatura(
+              cartao,
+              faturaAtual
+            )
+          : Math.abs(
+              Number(
+                cartao.saldo || 0
+              )
+            );
 
       return `
             <article
@@ -8042,7 +8048,7 @@ function mostrarCartoesEFaturas() {
                 ${
                   faturaAtual
                     ? obterNomeMesFatura(faturaAtual)
-                    : "Fatura"
+                    : "Saldo informado pelo Pierre"
                 }
               </div>
 
