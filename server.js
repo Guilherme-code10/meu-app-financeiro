@@ -1559,17 +1559,32 @@ const dataFim =
       // DADOS ORIGINAIS DO CARTÃO
       // ==========================================
 
-      creditCardData: transacao.credit_card_data || null,
+      creditCardData:
+        transacao.credit_card_data ||
+        transacao.creditCardData ||
+        null,
 
-      installmentDueDate: transacao.installment_due_date || null,
+      installmentDueDate:
+        transacao.installment_due_date ||
+        transacao.installmentDueDate ||
+        null,
 
-      originalDescription: transacao.original_description || "",
+      originalDescription:
+        transacao.original_description ||
+        transacao.originalDescription ||
+        "",
 
       merchant: transacao.merchant || null,
 
-      accountId: transacao.account_id || null,
+      accountId:
+        transacao.account_id ||
+        transacao.accountId ||
+        null,
 
-      accountSubtype: transacao.account_subtype || "",
+      accountSubtype:
+        transacao.account_subtype ||
+        transacao.accountSubtype ||
+        "",
     }));
 
     res.json({

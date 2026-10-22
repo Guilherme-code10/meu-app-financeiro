@@ -8005,17 +8005,52 @@ function mostrarCartoesEFaturas() {
           faturas,
         );
 
+      const resumoAtual =
+        (state.resumos || []).find(
+          (resumo) =>
+            String(
+              resumo.account_id ||
+              resumo.accountId ||
+              ""
+            ) === String(cartao.id)
+        );
+
+      const valorResumo =
+        Number(
+          resumoAtual?.approx_current_bill_amount ??
+          resumoAtual?.approxCurrentBillAmount ??
+          0
+        );
+
+      const limiteCartao =
+        Number(
+          resumoAtual?.credit_limit ??
+          resumoAtual?.creditLimit ??
+          cartao.limite ??
+          0
+        );
+
+      const limiteDisponivelCartao =
+        Number(
+          resumoAtual?.available_credit_limit ??
+          resumoAtual?.availableCreditLimit ??
+          cartao.limiteDisponivel ??
+          0
+        );
+
       const valorFatura =
-        faturaAtual
-          ? obterValorCorretoFatura(
-              cartao,
-              faturaAtual
-            )
-          : Math.abs(
-              Number(
-                cartao.saldo || 0
+        resumoAtual
+          ? Math.abs(valorResumo)
+          : faturaAtual
+            ? obterValorCorretoFatura(
+                cartao,
+                faturaAtual
               )
-            );
+            : Math.abs(
+                Number(
+                  cartao.saldo || 0
+                )
+              );
 
       return `
             <article
@@ -8046,9 +8081,11 @@ function mostrarCartoesEFaturas() {
 
               <div class="meta">
                 ${
-                  faturaAtual
-                    ? obterNomeMesFatura(faturaAtual)
-                    : "Saldo informado pelo Pierre"
+                  resumoAtual
+                    ? "Fatura atual (Pierre)"
+                    : faturaAtual
+                      ? obterNomeMesFatura(faturaAtual)
+                      : "Saldo informado pelo Pierre"
                 }
               </div>
 
@@ -8070,12 +8107,12 @@ function mostrarCartoesEFaturas() {
 
               <div class="meta">
                 Limite:
-                ${dinheiro(cartao.limite)}
+                ${dinheiro(limiteCartao)}
               </div>
 
               <div class="meta">
                 Disponível:
-                ${dinheiro(cartao.limiteDisponivel)}
+                ${dinheiro(limiteDisponivelCartao)}
               </div>
 
               <div class="credit-card-footer">
@@ -8243,11 +8280,44 @@ function mostrarDetalhesCartao(cartaoId) {
     dataAnterior.setMonth(dataAnterior.getMonth() - 1);
 
     const transacoes = state.transacoes.filter((transacao) => {
-      if (transacao.conta !== cartao.banco) {
+      const mesmoCartaoPorId =
+        transacao.accountId &&
+        String(transacao.accountId) ===
+          String(cartao.id);
+
+      const nomeTransacao =
+        String(transacao.conta || "")
+          .trim()
+          .toLowerCase();
+
+      const nomesDoCartao = [
+        cartao.nome,
+        cartao.banco,
+      ]
+        .map((valor) =>
+          String(valor || "")
+            .trim()
+            .toLowerCase()
+        )
+        .filter(Boolean);
+
+      const mesmoCartaoPorNome =
+        nomesDoCartao.includes(
+          nomeTransacao
+        );
+
+      if (
+        !mesmoCartaoPorId &&
+        !mesmoCartaoPorNome
+      ) {
         return false;
       }
 
-      if (transacao.tipoConta !== "CREDIT") {
+      if (
+        String(
+          transacao.tipoConta || ""
+        ).toUpperCase() !== "CREDIT"
+      ) {
         return false;
       }
 
