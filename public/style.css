@@ -3262,7 +3262,7 @@ select:focus {
   --surface: rgba(255, 255, 255, .92);
   --surface-solid: #ffffff;
   --text: #15152c;
-  --muted: #747b96;
+  --muted: #68718e;
   --border: rgba(83, 72, 182, .11);
 
   --primary: #6c4cff;
@@ -3272,11 +3272,11 @@ select:focus {
   --secondary: #22c7f0;
   --secondary-soft: #e8faff;
 
-  --green: #10b981;
+  --green: #07865e;
   --green-dark: #07865e;
   --green-soft: #e8fbf4;
 
-  --red: #ef5b78;
+  --red: #cc3f5d;
   --red-dark: #cc3f5d;
   --red-soft: #fff0f4;
 
@@ -3846,5 +3846,28 @@ tbody tr:hover {
 
   .credit-card-value {
     font-size: 28px;
+  }
+}
+
+/* Acessibilidade: respeita preferência por menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .card,
+  .account-card,
+  .credit-card-item,
+  .primary,
+  .refresh,
+  .link-btn,
+  .nav-item,
+  .transaction,
+  .fixed-item,
+  button,
+  input,
+  select {
+    transition: none;
+    animation: none;
   }
 }
