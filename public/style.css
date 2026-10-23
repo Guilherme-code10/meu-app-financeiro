@@ -3250,3 +3250,601 @@ select:focus {
   }
 }
 
+
+
+/* =========================================================
+   FINTECH JOVEM 2026
+   Camada visual segura: não altera estrutura nem lógica.
+   ========================================================= */
+
+:root {
+  --bg: #f5f7ff;
+  --surface: rgba(255, 255, 255, .92);
+  --surface-solid: #ffffff;
+  --text: #15152c;
+  --muted: #747b96;
+  --border: rgba(83, 72, 182, .11);
+
+  --primary: #6c4cff;
+  --primary-dark: #5638e8;
+  --primary-soft: #eeeaff;
+
+  --secondary: #22c7f0;
+  --secondary-soft: #e8faff;
+
+  --green: #10b981;
+  --green-dark: #07865e;
+  --green-soft: #e8fbf4;
+
+  --red: #ef5b78;
+  --red-dark: #cc3f5d;
+  --red-soft: #fff0f4;
+
+  --yellow: #f5b941;
+  --yellow-soft: #fff8e8;
+
+  --cyan: #22c7f0;
+  --pink: #ec6ad8;
+
+  --navy: #141126;
+  --navy-soft: #211a3e;
+
+  --shadow:
+    0 18px 50px rgba(38, 26, 92, .08),
+    0 2px 12px rgba(38, 26, 92, .04);
+
+  --shadow-hover:
+    0 22px 60px rgba(53, 34, 148, .14),
+    0 4px 16px rgba(53, 34, 148, .06);
+
+  --gradient-primary:
+    linear-gradient(135deg, #6c4cff 0%, #8a5cff 50%, #28bce5 100%);
+
+  --gradient-sidebar:
+    linear-gradient(180deg, #17132d 0%, #201944 48%, #12142b 100%);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at 15% 5%, rgba(108, 76, 255, .08), transparent 26%),
+    radial-gradient(circle at 88% 8%, rgba(34, 199, 240, .08), transparent 22%),
+    linear-gradient(180deg, #f8f9ff 0%, #f4f6fd 100%);
+  color: var(--text);
+}
+
+::selection {
+  background: rgba(108, 76, 255, .18);
+  color: var(--text);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(108, 76, 255, .18);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(108, 76, 255, .32);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* SIDEBAR */
+
+.sidebar {
+  background: var(--gradient-sidebar);
+  border-right: 1px solid rgba(255, 255, 255, .06);
+  box-shadow: 18px 0 50px rgba(18, 14, 48, .08);
+}
+
+.brand {
+  position: relative;
+}
+
+.brand-icon,
+.login-brand-icon {
+  background: var(--gradient-primary);
+  box-shadow: 0 12px 28px rgba(108, 76, 255, .28);
+}
+
+.brand strong {
+  font-size: 16px;
+  letter-spacing: -.02em;
+}
+
+.brand span {
+  color: #aeb5d1;
+}
+
+.logged-user,
+.connection {
+  border-color: rgba(255, 255, 255, .09);
+  background: rgba(255, 255, 255, .055);
+  backdrop-filter: blur(10px);
+}
+
+.logged-user strong,
+.connection strong {
+  color: #f7f7ff;
+}
+
+.logged-user small,
+.connection small {
+  color: #aeb5d1;
+}
+
+.logout-button {
+  border-color: rgba(255, 255, 255, .10);
+  color: #d9dcf2;
+  background: rgba(255, 255, 255, .04);
+}
+
+.logout-button:hover {
+  background: rgba(255, 255, 255, .10);
+  border-color: rgba(255, 255, 255, .18);
+}
+
+.nav-item {
+  color: #aeb5d1;
+  border: 1px solid transparent;
+  font-weight: 620;
+}
+
+.nav-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, .065);
+}
+
+.nav-item.active {
+  color: #ffffff;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(108, 76, 255, .34),
+      rgba(34, 199, 240, .12)
+    );
+  border-color: rgba(147, 122, 255, .22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .025);
+}
+
+.dot {
+  background: #35e3a9;
+  box-shadow: 0 0 0 5px rgba(53, 227, 169, .10);
+}
+
+/* CONTEÚDO */
+
+.main {
+  max-width: 1600px;
+  padding-top: 38px;
+}
+
+.eyebrow {
+  color: var(--primary);
+  letter-spacing: .16em;
+}
+
+h1 {
+  font-size: clamp(30px, 3vw, 42px);
+  letter-spacing: -.045em;
+  line-height: 1.05;
+}
+
+h2 {
+  letter-spacing: -.025em;
+}
+
+p {
+  line-height: 1.55;
+}
+
+/* BOTÕES */
+
+.refresh,
+.link-btn,
+.primary,
+button {
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    background .18s ease,
+    border-color .18s ease,
+    color .18s ease;
+}
+
+.primary,
+#loginButton {
+  background: var(--gradient-primary);
+  box-shadow: 0 10px 24px rgba(108, 76, 255, .20);
+}
+
+.primary:hover,
+#loginButton:hover {
+  background: var(--gradient-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(108, 76, 255, .28);
+}
+
+.primary:active,
+#loginButton:active {
+  transform: translateY(0) scale(.99);
+}
+
+.refresh,
+.link-btn {
+  border-color: var(--border);
+  background: rgba(255, 255, 255, .82);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 18px rgba(49, 39, 100, .05);
+}
+
+.refresh:hover,
+.link-btn:hover {
+  border-color: rgba(108, 76, 255, .24);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+
+/* CARDS / PAINÉIS */
+
+.card,
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.card {
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 72px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--gradient-primary);
+  opacity: .75;
+}
+
+.card:hover {
+  border-color: rgba(108, 76, 255, .17);
+  box-shadow: var(--shadow-hover);
+}
+
+.card.highlight {
+  border-top: 1px solid var(--border);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(108, 76, 255, .075),
+      rgba(255, 255, 255, .94) 42%
+    );
+}
+
+.card.highlight::before {
+  width: 118px;
+  height: 4px;
+}
+
+.card strong {
+  letter-spacing: -.035em;
+}
+
+.panel {
+  border-radius: 20px;
+}
+
+/* CONTAS */
+
+.account-card {
+  transition:
+    transform .2s ease,
+    box-shadow .2s ease,
+    border-color .2s ease;
+}
+
+.account-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(108, 76, 255, .18);
+  box-shadow: var(--shadow-hover);
+}
+
+.account-balance,
+.credit-card-value {
+  letter-spacing: -.04em;
+}
+
+.badge {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 750;
+  border: 1px solid rgba(108, 76, 255, .10);
+}
+
+/* CARTÕES */
+
+.credit-card-item {
+  border-radius: 22px;
+  min-height: 245px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(108, 76, 255, .09), transparent 30%),
+    linear-gradient(145deg, rgba(255, 255, 255, .98), rgba(249, 249, 255, .92));
+}
+
+.credit-card-item:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-hover);
+}
+
+.credit-card-item .card-header strong {
+  font-size: 18px;
+}
+
+.credit-card-value {
+  font-size: clamp(28px, 2.2vw, 34px);
+}
+
+.credit-card-footer strong {
+  color: var(--primary);
+}
+
+/* VALORES */
+
+.income {
+  color: var(--green);
+}
+
+.expense {
+  color: var(--red);
+}
+
+.amount {
+  letter-spacing: -.015em;
+}
+
+/* BARRAS / PROGRESSO */
+
+.bar-track {
+  height: 10px;
+  background: #eceef8;
+}
+
+.bar {
+  background: var(--gradient-primary);
+  box-shadow: 0 3px 10px rgba(108, 76, 255, .15);
+}
+
+/* INPUTS */
+
+input,
+select {
+  min-height: 44px;
+  border-color: rgba(89, 83, 138, .16);
+  background: rgba(255, 255, 255, .94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5);
+}
+
+input:hover,
+select:hover {
+  border-color: rgba(108, 76, 255, .24);
+}
+
+input:focus,
+select:focus,
+#loginForm input:focus {
+  border-color: rgba(108, 76, 255, .65);
+  box-shadow: 0 0 0 4px rgba(108, 76, 255, .09);
+}
+
+/* TABELAS */
+
+.table-wrap {
+  border-radius: 16px;
+}
+
+table {
+  background: transparent;
+}
+
+th {
+  color: #8a90a8;
+  font-weight: 800;
+  letter-spacing: .065em;
+}
+
+tbody tr {
+  transition: background .16s ease;
+}
+
+tbody tr:hover {
+  background: rgba(108, 76, 255, .035);
+}
+
+/* TRANSAÇÕES */
+
+.transaction {
+  border-color: rgba(92, 87, 142, .10);
+  border-radius: 10px;
+  padding-inline: 8px;
+  transition: background .16s ease;
+}
+
+.transaction:hover {
+  background: rgba(108, 76, 255, .035);
+}
+
+/* ITENS FIXOS */
+
+.fixed-item {
+  background: rgba(255, 255, 255, .72);
+  border-color: rgba(92, 87, 142, .12);
+  transition:
+    transform .16s ease,
+    border-color .16s ease,
+    background .16s ease;
+}
+
+.fixed-item:hover {
+  transform: translateX(2px);
+  border-color: rgba(108, 76, 255, .18);
+  background: #fff;
+}
+
+/* TOAST */
+
+.toast {
+  background: #17132d;
+  border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 18px 45px rgba(21, 16, 59, .24);
+}
+
+/* LOGIN */
+
+#loginScreen {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 16% 12%, rgba(108, 76, 255, .19), transparent 30%),
+    radial-gradient(circle at 90% 12%, rgba(34, 199, 240, .13), transparent 26%),
+    radial-gradient(circle at 74% 90%, rgba(236, 106, 216, .10), transparent 28%),
+    #f5f7ff;
+}
+
+#loginScreen::before,
+#loginScreen::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(2px);
+}
+
+#loginScreen::before {
+  width: 360px;
+  height: 360px;
+  left: -140px;
+  bottom: -140px;
+  background: rgba(108, 76, 255, .08);
+}
+
+#loginScreen::after {
+  width: 280px;
+  height: 280px;
+  right: -90px;
+  top: -90px;
+  background: rgba(34, 199, 240, .07);
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  max-width: 440px;
+  border: 1px solid rgba(108, 76, 255, .10);
+  background: rgba(255, 255, 255, .88);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 30px 80px rgba(45, 31, 111, .13),
+    0 3px 16px rgba(45, 31, 111, .05);
+}
+
+.login-brand h1 {
+  color: var(--text);
+  letter-spacing: -.045em;
+}
+
+.login-brand p {
+  color: var(--muted);
+}
+
+#loginForm label {
+  color: #313451;
+}
+
+#loginForm input {
+  border-color: rgba(82, 79, 125, .18);
+  background: rgba(255, 255, 255, .92);
+}
+
+/* EMPTY STATE */
+
+.empty {
+  border-radius: 14px;
+  color: var(--muted);
+}
+
+/* RESPONSIVO */
+
+@media (max-width: 1050px) {
+  .main {
+    padding-top: 28px;
+  }
+
+  .credit-card-item {
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 720px) {
+  body {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(108, 76, 255, .08), transparent 22%),
+      #f6f7fc;
+  }
+
+  .sidebar {
+    background: var(--gradient-sidebar);
+    border-radius: 0 0 24px 24px;
+    box-shadow: 0 14px 36px rgba(21, 16, 59, .12);
+  }
+
+  .main {
+    padding: 18px 14px 28px;
+  }
+
+  .card,
+  .panel,
+  .credit-card-item {
+    border-radius: 18px;
+  }
+
+  .credit-card-item {
+    min-height: 0;
+  }
+
+  h1 {
+    font-size: 31px;
+  }
+
+  .nav-item.active {
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 20px;
+  }
+
+  .credit-card-value {
+    font-size: 28px;
+  }
+}
