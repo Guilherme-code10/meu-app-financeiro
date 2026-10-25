@@ -2300,7 +2300,7 @@ for (const parcela of parcelas) {
 }
 
 // ==========================================
-// RECONSTRUIR PARCELAS FUTURAS AUSENTES
+// RECONSTRUIR / CORRIGIR PARCELAS FUTURAS
 // ==========================================
 
 const totalParcelasReconstrucao =
@@ -2316,29 +2316,6 @@ const totalParcelasReconstrucao =
     ),
   );
 
-const statusTransacaoAtual =
-  String(
-    primeiraTransacao?.status || "",
-  ).toUpperCase();
-
-const transacaoAtualQuitada =
-  [
-    "POSTED",
-    "PAID",
-    "SETTLED",
-  ].includes(statusTransacaoAtual);
-
-const quantidadeRestantePeloNumero =
-  numeroPrimeiraParcela &&
-  totalParcelasReconstrucao > 0
-    ? Math.max(
-        totalParcelasReconstrucao -
-          numeroPrimeiraParcela +
-          (transacaoAtualQuitada ? 0 : 1),
-        0,
-      )
-    : 0;
-
 const restantePierre =
   Math.abs(
     Number(
@@ -2346,12 +2323,14 @@ const restantePierre =
     ),
   );
 
-const valorBasePorRestante =
-  restantePierre > 0 &&
-  quantidadeRestantePeloNumero > 0
-    ? restantePierre /
-      quantidadeRestantePeloNumero
-    : 0;
+const valorTotalInformado =
+  Math.abs(
+    Number(
+      compra.totalAmount ||
+      compra.amount ||
+      0,
+    ),
+  );
 
 const valorBaseInformado =
   Math.abs(
@@ -2362,13 +2341,36 @@ const valorBaseInformado =
     ),
   );
 
-const valoresConhecidosDepoisDaPrimeira =
-  parcelasComValoresReais
+const mapaParcelasReconstrucao =
+  new Map();
+
+for (const parcela of parcelasComValoresReais) {
+  const numero =
+    Number(
+      parcela.parcelaAtual || 0,
+    );
+
+  if (numero > 0) {
+    mapaParcelasReconstrucao.set(
+      numero,
+      { ...parcela },
+    );
+  }
+}
+
+const valoresPositivos =
+  [...mapaParcelasReconstrucao.values()]
+    .filter(
+      (parcela) =>
+        Number(parcela.valor || 0) > 0,
+    );
+
+const valoresDepoisDaPrimeira =
+  valoresPositivos
     .filter(
       (parcela) =>
         Number(parcela.parcelaAtual || 0) >
-          Number(numeroPrimeiraParcela || 0) &&
-        Number(parcela.valor || 0) > 0,
+          1,
     )
     .map(
       (parcela) =>
@@ -2378,30 +2380,78 @@ const valoresConhecidosDepoisDaPrimeira =
     );
 
 const valorBaseConhecido =
-  valoresConhecidosDepoisDaPrimeira[0] || 0;
+  valoresDepoisDaPrimeira[0] || 0;
+
+const quantidadeSemValor =
+  totalParcelasReconstrucao > 0
+    ? Array.from(
+        { length: totalParcelasReconstrucao },
+        (_, indice) => indice + 1,
+      ).filter((numero) => {
+        const parcela =
+          mapaParcelasReconstrucao.get(numero);
+
+        return (
+          !parcela ||
+          Number(parcela.valor || 0) <= 0
+        );
+      }).length
+    : 0;
+
+const somaValoresConhecidos =
+  valoresPositivos.reduce(
+    (total, parcela) =>
+      total +
+      Math.abs(
+        Number(parcela.valor || 0),
+      ),
+    0,
+  );
+
+const valorBasePorTotal =
+  valorTotalInformado > somaValoresConhecidos &&
+  quantidadeSemValor > 0
+    ? (
+        valorTotalInformado -
+        somaValoresConhecidos
+      ) / quantidadeSemValor
+    : 0;
+
+const quantidadeRestantePierre =
+  totalParcelasReconstrucao > 0
+    ? Math.max(
+        totalParcelasReconstrucao -
+          valoresPositivos.length,
+        0,
+      )
+    : 0;
+
+const valorBasePorRestante =
+  restantePierre > 0 &&
+  quantidadeRestantePierre > 0
+    ? restantePierre /
+      quantidadeRestantePierre
+    : 0;
 
 const valorBaseParcelamento =
   valorBaseInformado > 0
     ? valorBaseInformado
-    : valorBasePorRestante > 0
-      ? valorBasePorRestante
-      : valorBaseConhecido > 0
-        ? valorBaseConhecido
-        : valorPrimeiraTransacao;
+    : valorBasePorTotal > 0
+      ? valorBasePorTotal
+      : valorBasePorRestante > 0
+        ? valorBasePorRestante
+        : valorBaseConhecido > 0
+          ? valorBaseConhecido
+          : valorPrimeiraTransacao;
 
 if (
   totalParcelasReconstrucao > 0 &&
-  parcelasComValoresReais.length <
-    totalParcelasReconstrucao &&
   valorBaseParcelamento > 0
 ) {
   const parcelaReferencia =
-    parcelasComValoresReais.find(
-      (parcela) =>
-        Number(parcela.parcelaAtual || 0) ===
-        Number(numeroPrimeiraParcela || 0),
-    ) ||
-    parcelasComValoresReais.at(-1);
+    valoresPositivos[0] ||
+    parcelasComValoresReais[0] ||
+    null;
 
   const numeroReferencia =
     Number(
@@ -2416,35 +2466,39 @@ if (
     compra.purchaseDate ||
     hoje.toISOString().slice(0, 10);
 
-  const maiorParcelaConhecida =
-    parcelasComValoresReais.length
-      ? Math.max(
-          ...parcelasComValoresReais.map(
-            (parcela) =>
-              Number(
-                parcela.parcelaAtual || 0,
-              ),
-          ),
-        )
-      : Number(numeroPrimeiraParcela || 0);
-
   for (
-    let i = maiorParcelaConhecida + 1;
+    let i = 1;
     i <= totalParcelasReconstrucao;
     i++
   ) {
+    const existente =
+      mapaParcelasReconstrucao.get(i);
+
     const transacaoDaParcela =
       transacoesParceladas.find(
         (item) => item.parcela === i,
       );
 
-    const valorParcela =
+    const valorReal =
       transacaoDaParcela?.valor > 0
         ? transacaoDaParcela.valor
+        : Number(existente?.valor || 0) > 0
+          ? Math.abs(
+              Number(existente.valor),
+            )
+          : 0;
+
+    const valorParcela =
+      valorReal > 0
+        ? valorReal
         : valorBaseParcelamento;
 
-    parcelasComValoresReais.push({
-      descricao: nomeCompra,
+    const parcelaCorrigida = {
+      ...(existente || {}),
+
+      descricao:
+        existente?.descricao ||
+        nomeCompra,
 
       valor:
         Math.round(
@@ -2458,6 +2512,7 @@ if (
 
       vencimento:
         transacaoDaParcela?.transacao?.date ||
+        existente?.vencimento ||
         adicionarMeses(
           vencimentoReferencia,
           i - numeroReferencia,
@@ -2465,23 +2520,40 @@ if (
 
       status: String(
         transacaoDaParcela?.transacao?.status ||
-          "PENDING",
+        existente?.status ||
+        "PENDING",
       ).toUpperCase(),
 
       categoria:
+        existente?.categoria ||
         parcelas[0]?.categoria ||
         null,
 
       accountId:
         transacaoDaParcela?.transacao?.account_id ||
         transacaoDaParcela?.transacao?.accountId ||
+        existente?.accountId ||
         cartaoId ||
         null,
 
       projetada:
-        !transacaoDaParcela,
-    });
+        !transacaoDaParcela &&
+        valorReal <= 0,
+    };
+
+    mapaParcelasReconstrucao.set(
+      i,
+      parcelaCorrigida,
+    );
   }
+
+  parcelasComValoresReais.length = 0;
+
+  parcelasComValoresReais.push(
+    ...Array.from(
+      mapaParcelasReconstrucao.values(),
+    ),
+  );
 }
 
 // ==========================================
@@ -2743,39 +2815,6 @@ for (
     compra,
   );
 }
-
-    // ==========================================
-    // DEBUG AEROVIAS
-    // ==========================================
-
-    const aerovias =
-      comprasSemDuplicacao.filter(
-        (compra) =>
-          normalizarDescricao(
-            compra.nome,
-          ).includes(
-            "aerovias",
-          ),
-      );
-
-    if (aerovias.length) {
-      console.log(
-        "==========================================",
-      );
-
-      console.log(
-        "✈️ AEROVIAS CORRIGIDA:",
-        JSON.stringify(
-          aerovias,
-          null,
-          2,
-        ),
-      );
-
-      console.log(
-        "==========================================",
-      );
-    }
 
     res.json({
       sucesso: true,
