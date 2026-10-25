@@ -4178,3 +4178,15 @@ tbody tr:hover {
     right: 11px !important;
   }
 }
+
+/* Campos legíveis no iPhone e textos longos sem ampliar a coluna. */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+
+  .transaction > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}

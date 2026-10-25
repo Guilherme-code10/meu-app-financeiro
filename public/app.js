@@ -10542,6 +10542,12 @@ function mostrarParcelas() {
     return;
   }
 
+  function parcelaEstaPaga(parcela) {
+    if (parcela.projetada) return false;
+    if (typeof parcela.paga === "boolean") return parcela.paga;
+    return ["POSTED", "PAID", "SETTLED"].includes(String(parcela.status || "").toUpperCase());
+  }
+
   const compras = Array.isArray(state.parcelamentos) ? state.parcelamentos : [];
 
   const cartoes = Array.isArray(state.cartoes) ? state.cartoes : [];
@@ -10745,9 +10751,7 @@ function mostrarParcelas() {
     // ========================================
 
     const valorJaPago = parcelas.reduce((total, parcela) => {
-      const status = String(parcela.status || "").toUpperCase();
-
-      if (status === "POSTED" || status === "PAID" || status === "SETTLED") {
+      if (parcelaEstaPaga(parcela)) {
         return total + Math.abs(Number(parcela.valor || 0));
       }
 
@@ -10758,27 +10762,13 @@ function mostrarParcelas() {
     // PARCELA ATUAL
     // ========================================
 
-    const parcelaAtual = parcelas.length
-      ? Math.max(
-          ...parcelas.map((parcela) => Number(parcela.parcelaAtual || 0)),
-        )
-      : 0;
+    const parcelaAtual = Number(
+      parcelas.find(parcela => !parcelaEstaPaga(parcela))?.parcelaAtual ||
+      parcelas.at(-1)?.parcelaAtual || 0,
+    );
 
-    // ========================================
-    // FINALIZADA
-    // ========================================
-
-    const ultimaParcela = parcelas.length
-      ? parcelas[parcelas.length - 1]
-      : null;
-
-    const finalizada =
-      totalParcelas > 0 &&
-      parcelaAtual >= totalParcelas &&
-      !!ultimaParcela &&
-      ["POSTED", "PAID", "SETTLED"].includes(
-        String(ultimaParcela.status || "").toUpperCase(),
-      );
+    const finalizada = totalParcelas > 0 &&
+      parcelas.length === totalParcelas && parcelas.every(parcelaEstaPaga);
 
     // ========================================
     // CARTÃO
@@ -11270,7 +11260,7 @@ function mostrarParcelas() {
   }
 
   if (elementoProgressoTexto) {
-    elementoProgressoTexto.textContent = `${Math.round(percentual)}% pago`;
+    elementoProgressoTexto.textContent = `${Math.round(percentual)}% ${mesSelecionado === "TODOS" ? "pago" : "projetado"}`;
   }
 
   // ==========================================
@@ -11334,9 +11324,7 @@ function mostrarParcelas() {
 
       if (!parcelaExibida) {
         parcelaExibida = compra.parcelas.find((parcela) => {
-          const statusParcela = String(parcela.status || "").toUpperCase();
-
-          return !["POSTED", "PAID", "SETTLED"].includes(statusParcela);
+          return !parcelaEstaPaga(parcela);
         });
       }
 
@@ -11369,11 +11357,9 @@ function mostrarParcelas() {
           resumoProjetado.percentual || 0
         );
 
-      const statusParcela = String(parcelaExibida?.status || "").toUpperCase();
-
-      const textoStatus = ["POSTED", "PAID", "SETTLED"].includes(statusParcela)
+      const textoStatus = parcelaEstaPaga(parcelaExibida)
         ? "🟢 Paga"
-        : "🟡 Pendente";
+        : parcelaExibida?.projetada ? "🔵 Projetada" : "🟡 Pendente";
 
       return `
             <div class="transaction">
@@ -11407,18 +11393,22 @@ function mostrarParcelas() {
                 </div>
 
                 <div class="meta">
-                  Total da compra:
+                  Total da compra${compra.valorEstimado ? " (estimado)" : ""}:
                   ${dinheiro(compra.valorTotal)}
                 </div>
 
                 <div class="meta">
-                  Já pago:
+                  ${mesSelecionado === "TODOS" ? "Já pago" : "Acumulado projetado até o mês"}:
                   ${dinheiro(resumoProjetado.valorPago)}
                 </div>
 
                 <div class="meta">
                   Restante:
                   ${dinheiro(resumoProjetado.valorRestante)}
+                </div>
+
+                <div class="meta">
+                  Última parcela: ${dataBR(compra.parcelas.at(-1)?.vencimento)}
                 </div>
 
                 <div
@@ -11445,7 +11435,7 @@ function mostrarParcelas() {
                   class="meta"
                   style="margin-top:5px;"
                 >
-                  ${Math.round(progresso)}% pago
+                  ${Math.round(progresso)}% ${mesSelecionado === "TODOS" ? "pago" : "projetado"}
                 </div>
 
               </div>
@@ -12356,7 +12346,7 @@ if (loginVisivel) {
 
         margin-left: 0 !important;
 
-        padding-top: 75px !important;
+        padding-top: calc(env(safe-area-inset-top) + 75px) !important;
       }
 
       .topbar {

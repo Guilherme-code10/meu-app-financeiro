@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const crypto = require("crypto");
+const { reconstruirParcelas, lerParcela, adicionarMeses } = require("./lib/parcelamentos");
 
 const { createClient } = require("@supabase/supabase-js");
 
@@ -1966,6 +1967,18 @@ for (const compra of compras) {
         return false;
       }
 
+      const info = lerParcela(transacao.description);
+      const totalCompra = Number(compra.totalInstallments || compra.totalParcelas || lerParcela(compra.description)?.total || 0);
+      if (info && totalCompra > 1 && info.total !== totalCompra) return false;
+      if (info && compra.purchaseDate && transacao.date) {
+        const inicioEstimado = adicionarMeses(transacao.date, 1 - info.numero);
+        const distancia = Math.min(
+          Math.abs(new Date(inicioEstimado) - new Date(compra.purchaseDate)),
+          Math.abs(new Date(transacao.date) - new Date(compra.purchaseDate)),
+        );
+        if (Number.isFinite(distancia) && distancia > 45 * 86400000) return false;
+      }
+
       // ==========================================
       // DEPOIS: DESCRIÇÃO
       // ==========================================
@@ -2012,32 +2025,6 @@ for (const compra of compras) {
 }
 
     // ==========================================
-    // ADICIONAR MESES
-    // ==========================================
-
-    function adicionarMeses(
-      dataOriginal,
-      quantidade,
-    ) {
-      if (!dataOriginal) {
-        return null;
-      }
-
-      const data = new Date(
-        dataOriginal,
-      );
-
-      data.setMonth(
-        data.getMonth() +
-          quantidade,
-      );
-
-      return data
-        .toISOString()
-        .slice(0, 10);
-    }
-
-    // ==========================================
     // FORMATAR COMPRAS
     // ==========================================
 
@@ -2067,6 +2054,8 @@ for (const compra of compras) {
                   totalParcelas:
                     Number(
                       parcela.totalInstallments ||
+                        compra.totalInstallments ||
+                        compra.totalParcelas ||
                         0,
                     ),
 
@@ -2093,7 +2082,7 @@ for (const compra of compras) {
                     parcela.isProjected === true,
 
                   paga:
-                    parcela.isPaid === true,
+                    typeof parcela.isPaid === "boolean" ? parcela.isPaid : undefined,
                 }))
                 .filter(
                   (parcela) =>
@@ -2116,8 +2105,8 @@ for (const compra of compras) {
 
         const nomeCompra =
           String(
-            parcelas[0]?.descricao ||
-              compra.description ||
+            compra.description ||
+              parcelas[0]?.descricao ||
               compra.name ||
               "Compra parcelada",
           )
@@ -2161,12 +2150,7 @@ for (const compra of compras) {
         let transacaoParcela1 =
           transacoesRelacionadas.find(
             (transacao) =>
-              /1\s*\/\s*\d+/.test(
-                String(
-                  transacao.description ||
-                    "",
-                ),
-              ),
+              lerParcela(transacao.description)?.numero === 1,
           );
 
         if (
@@ -2209,13 +2193,6 @@ for (const compra of compras) {
             /(\d+)\s*\/\s*(\d+)/,
           );
 
-        const numeroPrimeiraParcela =
-          matchParcela
-            ? Number(
-                matchParcela[1],
-              )
-            : null;
-
         const totalParcelasDaTransacao =
           matchParcela
             ? Number(
@@ -2223,351 +2200,10 @@ for (const compra of compras) {
               )
             : 0;
 
-        const valorPrimeiraTransacao =
-          primeiraTransacao
-            ? Math.abs(
-                Number(
-                  primeiraTransacao.amount ||
-                    0,
-                ),
-              )
-            : 0;
-
-      
-
-      // ==========================================
-// CORRIGIR PARCELAMENTO INCOMPLETO
-// ==========================================
-
-const transacoesParceladas = transacoesRelacionadas
-  .map((transacao) => {
-    const match = String(
-      transacao.description || "",
-    ).match(/(\d+)\s*\/\s*(\d+)/);
-
-    if (!match) {
-      return null;
-    }
-
-    return {
-      transacao,
-      parcela: Number(match[1]),
-      total: Number(match[2]),
-      valor: Math.abs(
-        Number(transacao.amount || 0),
-      ),
-    };
-  })
-  .filter(Boolean);
-
-// ==========================================
-// VALORES REAIS DAS TRANSAÇÕES
-// ==========================================
-
-const parcelasComValoresReais = [];
-
-for (const parcela of parcelas) {
-  const numeroParcela = Number(
-    parcela.parcelaAtual || 0,
-  );
-
-  const transacaoCorrespondente =
-    transacoesParceladas.find(
-      (item) =>
-        item.parcela === numeroParcela,
-    );
-
-  if (
-    transacaoCorrespondente &&
-    transacaoCorrespondente.valor > 0
-  ) {
-    parcelasComValoresReais.push({
-      ...parcela,
-      valor:
-        transacaoCorrespondente.valor,
-      vencimento:
-        transacaoCorrespondente.transacao.date ||
-        parcela.vencimento,
-      status: String(
-        transacaoCorrespondente.transacao.status ||
-          parcela.status ||
-          "PENDING",
-      ).toUpperCase(),
-    });
-  } else {
-    parcelasComValoresReais.push(parcela);
-  }
-}
-
-// ==========================================
-// RECONSTRUIR / CORRIGIR PARCELAS FUTURAS
-// ==========================================
-
-const totalParcelasReconstrucao =
-  Math.max(
-    totalParcelasDaTransacao,
-    Number(compra.totalInstallments || 0),
-    Number(compra.totalParcelas || 0),
-    ...parcelasComValoresReais.map(
-      (parcela) =>
-        Number(
-          parcela.totalParcelas || 0,
-        ),
-    ),
-  );
-
-const restantePierre =
-  Math.abs(
-    Number(
-      compra.amountRemaining || 0,
-    ),
-  );
-
-const valorTotalInformado =
-  Math.abs(
-    Number(
-      compra.totalAmount ||
-      compra.amount ||
-      0,
-    ),
-  );
-
-const valorBaseInformado =
-  Math.abs(
-    Number(
-      compra.installmentValue ||
-      compra.installmentAmount ||
-      0,
-    ),
-  );
-
-const mapaParcelasReconstrucao =
-  new Map();
-
-for (const parcela of parcelasComValoresReais) {
-  const numero =
-    Number(
-      parcela.parcelaAtual || 0,
-    );
-
-  if (numero > 0) {
-    mapaParcelasReconstrucao.set(
-      numero,
-      { ...parcela },
-    );
-  }
-}
-
-const valoresPositivos =
-  [...mapaParcelasReconstrucao.values()]
-    .filter(
-      (parcela) =>
-        Number(parcela.valor || 0) > 0,
-    );
-
-const valoresDepoisDaPrimeira =
-  valoresPositivos
-    .filter(
-      (parcela) =>
-        Number(parcela.parcelaAtual || 0) >
-          1,
-    )
-    .map(
-      (parcela) =>
-        Math.abs(
-          Number(parcela.valor || 0),
-        ),
-    );
-
-const valorBaseConhecido =
-  valoresDepoisDaPrimeira[0] || 0;
-
-const quantidadeSemValor =
-  totalParcelasReconstrucao > 0
-    ? Array.from(
-        { length: totalParcelasReconstrucao },
-        (_, indice) => indice + 1,
-      ).filter((numero) => {
-        const parcela =
-          mapaParcelasReconstrucao.get(numero);
-
-        return (
-          !parcela ||
-          Number(parcela.valor || 0) <= 0
+        const reconstrucao = reconstruirParcelas(
+          compra, parcelas, transacoesRelacionadas, nomeCompra, cartaoId,
         );
-      }).length
-    : 0;
-
-const somaValoresConhecidos =
-  valoresPositivos.reduce(
-    (total, parcela) =>
-      total +
-      Math.abs(
-        Number(parcela.valor || 0),
-      ),
-    0,
-  );
-
-const valorBasePorTotal =
-  valorTotalInformado > somaValoresConhecidos &&
-  quantidadeSemValor > 0
-    ? (
-        valorTotalInformado -
-        somaValoresConhecidos
-      ) / quantidadeSemValor
-    : 0;
-
-const quantidadeRestantePierre =
-  totalParcelasReconstrucao > 0
-    ? Math.max(
-        totalParcelasReconstrucao -
-          valoresPositivos.length,
-        0,
-      )
-    : 0;
-
-const valorBasePorRestante =
-  restantePierre > 0 &&
-  quantidadeRestantePierre > 0
-    ? restantePierre /
-      quantidadeRestantePierre
-    : 0;
-
-const valorBaseParcelamento =
-  valorBaseInformado > 0
-    ? valorBaseInformado
-    : valorBasePorTotal > 0
-      ? valorBasePorTotal
-      : valorBasePorRestante > 0
-        ? valorBasePorRestante
-        : valorBaseConhecido > 0
-          ? valorBaseConhecido
-          : valorPrimeiraTransacao;
-
-if (
-  totalParcelasReconstrucao > 0 &&
-  valorBaseParcelamento > 0
-) {
-  const parcelaReferencia =
-    valoresPositivos[0] ||
-    parcelasComValoresReais[0] ||
-    null;
-
-  const numeroReferencia =
-    Number(
-      parcelaReferencia?.parcelaAtual ||
-      numeroPrimeiraParcela ||
-      1,
-    );
-
-  const vencimentoReferencia =
-    parcelaReferencia?.vencimento ||
-    primeiraTransacao?.date ||
-    compra.purchaseDate ||
-    hoje.toISOString().slice(0, 10);
-
-  for (
-    let i = 1;
-    i <= totalParcelasReconstrucao;
-    i++
-  ) {
-    const existente =
-      mapaParcelasReconstrucao.get(i);
-
-    const transacaoDaParcela =
-      transacoesParceladas.find(
-        (item) => item.parcela === i,
-      );
-
-    const valorReal =
-      transacaoDaParcela?.valor > 0
-        ? transacaoDaParcela.valor
-        : Number(existente?.valor || 0) > 0
-          ? Math.abs(
-              Number(existente.valor),
-            )
-          : 0;
-
-    const valorParcela =
-      valorReal > 0
-        ? valorReal
-        : valorBaseParcelamento;
-
-    const parcelaCorrigida = {
-      ...(existente || {}),
-
-      descricao:
-        existente?.descricao ||
-        nomeCompra,
-
-      valor:
-        Math.round(
-          Number(valorParcela) * 100,
-        ) / 100,
-
-      parcelaAtual: i,
-
-      totalParcelas:
-        totalParcelasReconstrucao,
-
-      vencimento:
-        transacaoDaParcela?.transacao?.date ||
-        existente?.vencimento ||
-        adicionarMeses(
-          vencimentoReferencia,
-          i - numeroReferencia,
-        ),
-
-      status: String(
-        transacaoDaParcela?.transacao?.status ||
-        existente?.status ||
-        "PENDING",
-      ).toUpperCase(),
-
-      categoria:
-        existente?.categoria ||
-        parcelas[0]?.categoria ||
-        null,
-
-      accountId:
-        transacaoDaParcela?.transacao?.account_id ||
-        transacaoDaParcela?.transacao?.accountId ||
-        existente?.accountId ||
-        cartaoId ||
-        null,
-
-      projetada:
-        !transacaoDaParcela &&
-        valorReal <= 0,
-    };
-
-    mapaParcelasReconstrucao.set(
-      i,
-      parcelaCorrigida,
-    );
-  }
-
-  parcelasComValoresReais.length = 0;
-
-  parcelasComValoresReais.push(
-    ...Array.from(
-      mapaParcelasReconstrucao.values(),
-    ),
-  );
-}
-
-// ==========================================
-// ORDENAR PARCELAS
-// ==========================================
-
-parcelasComValoresReais.sort(
-  (a, b) =>
-    Number(a.parcelaAtual) -
-    Number(b.parcelaAtual),
-);
-
-parcelas = parcelasComValoresReais;
-         
+        parcelas = reconstrucao.parcelas;
 
         // ======================================
         // TOTAL DE PARCELAS
@@ -2635,7 +2271,8 @@ parcelas = parcelasComValoresReais;
 
           dataCompra,
 
-          valorTotal,
+          valorTotal: Math.round(valorTotal * 100) / 100,
+          valorEstimado: reconstrucao.valorEstimado,
 
           cartaoId:
             cartao?.id ||
@@ -2801,13 +2438,6 @@ for (
     );
 
   if (duplicada) {
-    console.log(
-      "🗑️ COMPRA DUPLICADA REMOVIDA:",
-      compra.nome,
-      "→ R$",
-      compra.valorTotal,
-    );
-
     continue;
   }
 
