@@ -1049,57 +1049,6 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
 });
 
 // ==========================================
-// DEBUG TEMPORÁRIO - ESTRUTURA DOS CARTÕES
-// ==========================================
-
-app.get("/api/debug/cards", exigirAdmin, async (req, res) => {
-  try {
-    const dados = await pierreRequest("get-accounts");
-
-    const registros =
-      Array.isArray(dados.data)
-        ? dados.data
-        : [];
-
-    const cartoes = registros
-      .filter(
-        (conta) =>
-          conta.type === "CREDIT" &&
-          conta.itemIsActive !== false
-      )
-      .map((cartao) => ({
-        id: cartao.id,
-        name: cartao.name,
-        customName: cartao.customName,
-        connectorName: cartao.connectorName,
-        balance: cartao.balance,
-
-        creditData: cartao.creditData,
-
-        creditLimit: cartao.creditLimit,
-        availableCreditLimit:
-          cartao.availableCreditLimit,
-
-        limit: cartao.limit,
-        availableLimit:
-          cartao.availableLimit,
-
-        keys: Object.keys(cartao),
-      }));
-
-    res.json({
-      sucesso: true,
-      cartoes,
-    });
-  } catch (erro) {
-    res.status(500).json({
-      sucesso: false,
-      erro: erro.message,
-    });
-  }
-});
-
-// ==========================================
 // SINCRONIZAR FATURAS DO PIERRE
 // ==========================================
 
@@ -1845,34 +1794,46 @@ for (const compra of compras) {
       ),
     );
 
-  existente.amountRemaining =
+  const restanteInformado =
+    Math.max(
+      Number(existente.amountRemaining || 0),
+      Number(compra.amountRemaining || 0),
+    );
+
+  const restanteMapeado =
     existente.installments
       .filter(
         (parcela) =>
-          !parcela.isPaid,
+          parcela.isPaid !== true,
       )
       .reduce(
         (total, parcela) =>
           total +
-          Number(
-            parcela.amount || 0,
+          Math.abs(
+            Number(
+              parcela.amount || 0,
+            ),
           ),
         0,
       );
 
-  // Se existir uma parcela real com
-  // valor diferente, usa o valor dela.
-  const primeiraReal =
-    existente.installments.find(
-      (parcela) =>
-        parcela.isProjected !== true,
+  // Preserva o saldo restante informado pelo Pierre.
+  // A lista de installments pode vir incompleta e, por isso,
+  // não deve substituir um amountRemaining maior e confiável.
+  existente.amountRemaining =
+    Math.max(
+      restanteInformado,
+      restanteMapeado,
     );
 
-  if (primeiraReal) {
+  // Preserva o valor-base do parcelamento.
+  // A primeira parcela pode ter valor diferente das demais.
+  if (
+    Number(existente.installmentValue || 0) <= 0 &&
+    Number(compra.installmentValue || 0) > 0
+  ) {
     existente.installmentValue =
-      Number(
-        primeiraReal.amount || 0,
-      );
+      Number(compra.installmentValue);
   }
 }  
 
@@ -2127,6 +2088,12 @@ for (const compra of compras) {
                     parcela.accountId ||
                     parcela.account_id ||
                     null,
+
+                  projetada:
+                    parcela.isProjected === true,
+
+                  paga:
+                    parcela.isPaid === true,
                 }))
                 .filter(
                   (parcela) =>
@@ -2333,67 +2300,171 @@ for (const parcela of parcelas) {
 }
 
 // ==========================================
-// ADICIONAR PARCELAS QUE O PIERRE NÃO ENVIOU
+// RECONSTRUIR PARCELAS FUTURAS AUSENTES
 // ==========================================
 
+const totalParcelasReconstrucao =
+  Math.max(
+    totalParcelasDaTransacao,
+    Number(compra.totalInstallments || 0),
+    Number(compra.totalParcelas || 0),
+    ...parcelasComValoresReais.map(
+      (parcela) =>
+        Number(
+          parcela.totalParcelas || 0,
+        ),
+    ),
+  );
+
+const statusTransacaoAtual =
+  String(
+    primeiraTransacao?.status || "",
+  ).toUpperCase();
+
+const transacaoAtualQuitada =
+  [
+    "POSTED",
+    "PAID",
+    "SETTLED",
+  ].includes(statusTransacaoAtual);
+
+const quantidadeRestantePeloNumero =
+  numeroPrimeiraParcela &&
+  totalParcelasReconstrucao > 0
+    ? Math.max(
+        totalParcelasReconstrucao -
+          numeroPrimeiraParcela +
+          (transacaoAtualQuitada ? 0 : 1),
+        0,
+      )
+    : 0;
+
+const restantePierre =
+  Math.abs(
+    Number(
+      compra.amountRemaining || 0,
+    ),
+  );
+
+const valorBasePorRestante =
+  restantePierre > 0 &&
+  quantidadeRestantePeloNumero > 0
+    ? restantePierre /
+      quantidadeRestantePeloNumero
+    : 0;
+
+const valorBaseInformado =
+  Math.abs(
+    Number(
+      compra.installmentValue ||
+      compra.installmentAmount ||
+      0,
+    ),
+  );
+
+const valoresConhecidosDepoisDaPrimeira =
+  parcelasComValoresReais
+    .filter(
+      (parcela) =>
+        Number(parcela.parcelaAtual || 0) >
+          Number(numeroPrimeiraParcela || 0) &&
+        Number(parcela.valor || 0) > 0,
+    )
+    .map(
+      (parcela) =>
+        Math.abs(
+          Number(parcela.valor || 0),
+        ),
+    );
+
+const valorBaseConhecido =
+  valoresConhecidosDepoisDaPrimeira[0] || 0;
+
+const valorBaseParcelamento =
+  valorBasePorRestante > 0
+    ? valorBasePorRestante
+    : valorBaseInformado > 0
+      ? valorBaseInformado
+      : valorBaseConhecido > 0
+        ? valorBaseConhecido
+        : valorPrimeiraTransacao;
+
 if (
-  totalParcelasDaTransacao > 0 &&
+  totalParcelasReconstrucao > 0 &&
   parcelasComValoresReais.length <
-    totalParcelasDaTransacao
+    totalParcelasReconstrucao &&
+  valorBaseParcelamento > 0
 ) {
-  const vencimentoInicial =
-    parcelasComValoresReais[0]?.vencimento ||
+  const parcelaReferencia =
+    parcelasComValoresReais.find(
+      (parcela) =>
+        Number(parcela.parcelaAtual || 0) ===
+        Number(numeroPrimeiraParcela || 0),
+    ) ||
+    parcelasComValoresReais.at(-1);
+
+  const numeroReferencia =
+    Number(
+      parcelaReferencia?.parcelaAtual ||
+      numeroPrimeiraParcela ||
+      1,
+    );
+
+  const vencimentoReferencia =
+    parcelaReferencia?.vencimento ||
+    primeiraTransacao?.date ||
     compra.purchaseDate ||
     hoje.toISOString().slice(0, 10);
 
+  const maiorParcelaConhecida =
+    parcelasComValoresReais.length
+      ? Math.max(
+          ...parcelasComValoresReais.map(
+            (parcela) =>
+              Number(
+                parcela.parcelaAtual || 0,
+              ),
+          ),
+        )
+      : Number(numeroPrimeiraParcela || 0);
+
   for (
-    let i = 1;
-    i <= totalParcelasDaTransacao;
+    let i = maiorParcelaConhecida + 1;
+    i <= totalParcelasReconstrucao;
     i++
   ) {
-    const jaExiste =
-      parcelasComValoresReais.some(
-        (parcela) =>
-          Number(parcela.parcelaAtual) === i,
-      );
-
-    if (jaExiste) {
-      continue;
-    }
-
     const transacaoDaParcela =
       transacoesParceladas.find(
         (item) => item.parcela === i,
       );
 
-    // Só adiciona se existir uma transação REAL
-    if (
-      !transacaoDaParcela ||
-      transacaoDaParcela.valor <= 0
-    ) {
-      continue;
-    }
+    const valorParcela =
+      transacaoDaParcela?.valor > 0
+        ? transacaoDaParcela.valor
+        : valorBaseParcelamento;
 
     parcelasComValoresReais.push({
       descricao: nomeCompra,
 
       valor:
-        transacaoDaParcela.valor,
+        Math.round(
+          Number(valorParcela) * 100,
+        ) / 100,
 
       parcelaAtual: i,
 
       totalParcelas:
-        totalParcelasDaTransacao,
+        totalParcelasReconstrucao,
 
       vencimento:
-        transacaoDaParcela.transacao.date ||
+        transacaoDaParcela?.transacao?.date ||
         adicionarMeses(
-          vencimentoInicial,
-          i - 1,
+          vencimentoReferencia,
+          i - numeroReferencia,
         ),
 
       status: String(
-        transacaoDaParcela.transacao.status ||
+        transacaoDaParcela?.transacao?.status ||
           "PENDING",
       ).toUpperCase(),
 
@@ -2402,9 +2473,13 @@ if (
         null,
 
       accountId:
-        transacaoDaParcela.transacao.account_id ||
-        transacaoDaParcela.transacao.accountId ||
+        transacaoDaParcela?.transacao?.account_id ||
+        transacaoDaParcela?.transacao?.accountId ||
+        cartaoId ||
         null,
+
+      projetada:
+        !transacaoDaParcela,
     });
   }
 }
@@ -2429,6 +2504,7 @@ parcelas = parcelasComValoresReais;
         const totalParcelas =
           Math.max(
             Number(
+              compra.totalInstallments ||
               compra.totalParcelas ||
                 0,
             ),
