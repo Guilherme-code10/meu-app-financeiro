@@ -10,13 +10,13 @@ const appSource = fs.readFileSync(require.resolve('../public/app.js'), 'utf8');
 const uiStart = appSource.indexOf('function mostrarParcelas()');
 const uiEnd = appSource.indexOf('function mostrarParcelasForaCartao()', uiStart);
 
-async function executar(compra, transacoes = []) {
+async function executar(compra, transacoes = [], todas = false) {
   let handler;
   const context = {
     ...helpers, console, exigirAdmin() {},
     app: { get: (_path, _auth, callback) => { handler = callback; } },
     pierreRequest: async endpoint => {
-      if (endpoint === 'get-installments') return { data: { purchases: [compra] } };
+      if (endpoint === 'get-installments') return { data: { purchases: compra == null ? [] : [compra] } };
       if (endpoint === 'get-transactions') return { data: transacoes };
       return { data: [{ id: 'card', type: 'CREDIT', name: 'Cartão teste' }] };
     },
@@ -25,7 +25,7 @@ async function executar(compra, transacoes = []) {
   let resultado;
   await handler({ query: {} }, { json: value => { resultado = value; }, status: code => { throw Error(`HTTP ${code}`); } });
   assert.equal(resultado.sucesso, true);
-  return resultado.compras[0];
+  return todas ? resultado.compras : resultado.compras[0];
 }
 function render(compra, status = 'ANDAMENTO') {
   const elementos = new Map();
@@ -126,4 +126,39 @@ test('totalInstallments 1 malformado é recuperado da descrição 1/10', async (
   const raw = compra(); raw.totalInstallments = 1; raw.installmentValue = 346.5;
   const c = await executar(raw, [tx(1, 803.03)]);
   assert.equal(c.parcelas.length, 10); assert.equal(c.totalParcelas, 10); assert.equal(c.valorTotal, 3921.53);
+});
+
+test('compra ausente de purchases é recuperada das transações do cartão', async () => {
+  const c = await executar(null, [tx(1, 803.03), tx(2, 346.50)]);
+  assert.ok(c, 'Aerovias não pode desaparecer quando só existe em get-transactions');
+  assert.equal(c.totalParcelas, 10); assert.equal(c.valorTotal, 3921.53);
+  assert.match(render(c).html, /Aerovias/);
+});
+
+test('descrição sem espaço AEROVIAS1/10 não vira compra finalizada de uma parcela', async () => {
+  const raw = compra('AEROVIAS', 1);
+  raw.installments = [{ installmentNumber: 1, totalInstallments: 1, amount: 803.03, status: 'POSTED' }];
+  const c = await executar(raw, [ { ...tx(1, 803.03), description: 'AEROVIAS1/10' }, { ...tx(2, 346.50), description: 'AEROVIAS2/10' } ]);
+  assert.equal(c.parcelas.length, 10); assert.equal(c.valorTotal, 3921.53);
+  assert.match(render(c).html, /AEROVIAS/);
+});
+
+test('recuperação não duplica a compra já retornada pelo Pierre', async () => {
+  const compras = await executar(compra(), [tx(1, 803.03), tx(2, 346.50)], true);
+  assert.equal(compras.length, 1);
+});
+
+test('recuperação exclui estornos, contas não identificadas e datas inválidas', async () => {
+  const compras = await executar(null, [
+    { ...tx(1, 100), type: 'CREDIT' },
+    { ...tx(1, 100), account_id: 'conta-corrente' },
+    { ...tx(1, 100), date: null },
+  ], true);
+  assert.equal(compras.length, 0);
+});
+
+test('reconhece descrição colada sem interpretar uma data como parcela', () => {
+  assert.deepEqual(helpers.lerParcela('AEROVIAS01/10BR'), { numero: 1, total: 10 });
+  assert.equal(helpers.lerParcela('COMPRA 10/12/2026'), null);
+  assert.equal(helpers.lerParcela('COMPRA 11/10'), null);
 });

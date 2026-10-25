@@ -2024,6 +2024,37 @@ for (const compra of compras) {
     });
 }
 
+    // get-installments pode omitir compras presentes no histórico bruto.
+    // Recupera somente lançamentos parcelados de cartões identificados.
+    const transacoesOrdenadas = [...transacoes].sort((a, b) =>
+      (lerParcela(a.description)?.numero || 999) -
+      (lerParcela(b.description)?.numero || 999),
+    );
+    for (const transacao of transacoesOrdenadas) {
+      const info = lerParcela(transacao.description);
+      const accountId = transacao.account_id || transacao.accountId;
+      if (!info || info.total <= 1 || !mapaCartoes.has(String(accountId))) continue;
+      if (String(transacao.type || "").toUpperCase() === "CREDIT") continue;
+      if (!Number.isFinite(Number(transacao.amount)) || Number(transacao.amount) === 0) continue;
+      const dataInicioCompra = adicionarMeses(transacao.date, 1 - info.numero);
+      if (!dataInicioCompra) continue;
+
+      const jaRepresentada = comprasMescladas.some(compra =>
+        encontrarTransacoes(compra, compra.description || compra.name ||
+          compra.installments?.[0]?.description || "").includes(transacao),
+      );
+      if (jaRepresentada) continue;
+
+      comprasMescladas.push({
+        id: `recuperada-${accountId}-${transacao.id || normalizarDescricao(transacao.description)}-${dataInicioCompra}`,
+        description: String(transacao.description).replace(/\d+\s*\/\s*\d+/g, "").trim(),
+        accountId,
+        purchaseDate: dataInicioCompra,
+        totalInstallments: info.total,
+        installments: [],
+      });
+    }
+
     // ==========================================
     // FORMATAR COMPRAS
     // ==========================================
