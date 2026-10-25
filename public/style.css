@@ -3871,3 +3871,310 @@ tbody tr:hover {
     animation: none;
   }
 }
+
+
+/* =========================================================
+   MOBILE FINTECH - AJUSTES FINAIS
+   ========================================================= */
+
+@media (max-width: 768px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    padding:
+      env(safe-area-inset-top)
+      env(safe-area-inset-right)
+      env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+  }
+
+  #mobileMenuButton {
+    top: calc(env(safe-area-inset-top) + 12px) !important;
+    right: 14px !important;
+    left: auto !important;
+
+    width: 44px !important;
+    height: 44px !important;
+
+    border-radius: 14px !important;
+
+    background:
+      linear-gradient(
+        135deg,
+        #6c4cff,
+        #28bce5
+      ) !important;
+
+    font-size: 22px !important;
+
+    box-shadow:
+      0 12px 30px
+      rgba(79, 55, 190, .28) !important;
+  }
+
+  #mobileMenuButton.menu-aberto {
+    right: 14px !important;
+    left: auto !important;
+  }
+
+  #mobileMenuOverlay {
+    background:
+      rgba(16, 13, 39, .58) !important;
+    backdrop-filter: blur(4px);
+  }
+
+  .sidebar {
+    width: min(320px, 86vw) !important;
+    max-width: 86vw !important;
+
+    padding:
+      calc(env(safe-area-inset-top) + 22px)
+      18px
+      calc(env(safe-area-inset-bottom) + 22px) !important;
+
+    border-radius: 0 24px 24px 0 !important;
+  }
+
+  .sidebar nav {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+
+  .nav-item {
+    justify-content: flex-start !important;
+    min-height: 48px;
+    padding: 12px 14px !important;
+    border-radius: 13px !important;
+    text-align: left !important;
+  }
+
+  .nav-item span {
+    display: inline !important;
+  }
+
+  .main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    margin-left: 0 !important;
+
+    padding:
+      calc(env(safe-area-inset-top) + 72px)
+      14px
+      calc(env(safe-area-inset-bottom) + 30px) !important;
+  }
+
+  .topbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding-top: 0 !important;
+  }
+
+  .topbar .refresh {
+    align-self: flex-start;
+    min-height: 44px;
+  }
+
+  h1 {
+    max-width: calc(100% - 56px);
+    font-size: clamp(29px, 8vw, 36px);
+    line-height: 1.08;
+  }
+
+  h2 {
+    line-height: 1.2;
+  }
+
+  .section {
+    margin-top: 20px;
+  }
+
+  .cards,
+  .accounts-grid,
+  .grid-2,
+  .fixed-layout,
+  .mini-finance-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .card,
+  .panel,
+  .account-card,
+  .credit-card-item {
+    width: 100%;
+    min-width: 0;
+    border-radius: 20px !important;
+  }
+
+  .card,
+  .panel {
+    padding: 18px !important;
+  }
+
+  .card strong {
+    font-size: clamp(23px, 7vw, 29px);
+  }
+
+  .credit-card-item {
+    min-height: 0 !important;
+  }
+
+  .credit-card-value {
+    font-size: 30px;
+  }
+
+  .filters,
+  .section-title,
+  .panel-head {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .filters {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .filters label,
+  .filters input,
+  .filters select,
+  .filters button {
+    width: 100% !important;
+  }
+
+  input,
+  select,
+  textarea,
+  .primary,
+  .refresh,
+  .link-btn {
+    min-height: 46px;
+  }
+
+  .table-wrap {
+    width: calc(100vw - 28px);
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    min-width: 680px;
+  }
+
+  .transaction {
+    min-width: 0;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .transaction .amount {
+    justify-self: start !important;
+  }
+
+  #parcelasLista {
+    display: grid;
+    gap: 12px;
+  }
+
+  #parcelasLista .transaction {
+    padding: 18px !important;
+    margin: 0 !important;
+
+    border: 1px solid
+      rgba(83, 72, 182, .11) !important;
+
+    border-radius: 20px !important;
+
+    background:
+      linear-gradient(
+        145deg,
+        rgba(255, 255, 255, .98),
+        rgba(248, 249, 255, .96)
+      );
+
+    box-shadow:
+      0 12px 32px
+      rgba(38, 26, 92, .07);
+  }
+
+  #parcelasLista .transaction .desc {
+    font-size: 18px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  #parcelasLista .transaction .meta {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  #parcelasLista .transaction .amount {
+    margin-top: 2px;
+    font-size: 20px;
+  }
+
+  .financial-period {
+    padding-right: 52px;
+    line-height: 1.45;
+  }
+
+  .monthly-chart-row,
+  .monthly-chart-line {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+
+  .monthly-chart-line > strong {
+    text-align: left !important;
+  }
+
+  .account-flow-values {
+    grid-template-columns: 1fr !important;
+  }
+
+  .planning-item,
+  .planning-commitment-item,
+  .fixed-item {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  .planning-item > div:last-child,
+  .planning-commitment-item > div:last-child,
+  .fixed-item > div:last-child {
+    width: 100%;
+    text-align: left !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .main {
+    padding-left: 11px !important;
+    padding-right: 11px !important;
+  }
+
+  .card,
+  .panel {
+    padding: 16px !important;
+  }
+
+  .login-card {
+    padding: 26px 18px !important;
+  }
+
+  #mobileMenuButton {
+    right: 11px !important;
+  }
+}
