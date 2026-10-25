@@ -1049,57 +1049,6 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
 });
 
 // ==========================================
-// DEBUG TEMPORÁRIO - ESTRUTURA DOS CARTÕES
-// ==========================================
-
-app.get("/api/debug/cards", exigirAdmin, async (req, res) => {
-  try {
-    const dados = await pierreRequest("get-accounts");
-
-    const registros =
-      Array.isArray(dados.data)
-        ? dados.data
-        : [];
-
-    const cartoes = registros
-      .filter(
-        (conta) =>
-          conta.type === "CREDIT" &&
-          conta.itemIsActive !== false
-      )
-      .map((cartao) => ({
-        id: cartao.id,
-        name: cartao.name,
-        customName: cartao.customName,
-        connectorName: cartao.connectorName,
-        balance: cartao.balance,
-
-        creditData: cartao.creditData,
-
-        creditLimit: cartao.creditLimit,
-        availableCreditLimit:
-          cartao.availableCreditLimit,
-
-        limit: cartao.limit,
-        availableLimit:
-          cartao.availableLimit,
-
-        keys: Object.keys(cartao),
-      }));
-
-    res.json({
-      sucesso: true,
-      cartoes,
-    });
-  } catch (erro) {
-    res.status(500).json({
-      sucesso: false,
-      erro: erro.message,
-    });
-  }
-});
-
-// ==========================================
 // SINCRONIZAR FATURAS DO PIERRE
 // ==========================================
 
@@ -1860,19 +1809,49 @@ for (const compra of compras) {
         0,
       );
 
-  // Se existir uma parcela real com
-  // valor diferente, usa o valor dela.
-  const primeiraReal =
-    existente.installments.find(
-      (parcela) =>
-        parcela.isProjected !== true,
+  // Preserva o valor-base informado pelo Pierre.
+  // A primeira parcela real pode ser diferente das demais
+  // (ex.: entrada/ajuste), então ela não deve substituir
+  // o valor padrão das parcelas futuras.
+  const valorBaseExistente =
+    Math.abs(
+      Number(
+        existente.installmentValue || 0,
+      ),
     );
 
-  if (primeiraReal) {
-    existente.installmentValue =
+  const valorBaseCompra =
+    Math.abs(
       Number(
-        primeiraReal.amount || 0,
-      );
+        compra.installmentValue || 0,
+      ),
+    );
+
+  const parcelaProjetada =
+    existente.installments.find(
+      (parcela) =>
+        parcela.isProjected === true &&
+        Math.abs(
+          Number(parcela.amount || 0),
+        ) > 0,
+    );
+
+  const valorBaseProjetado =
+    Math.abs(
+      Number(
+        parcelaProjetada?.amount || 0,
+      ),
+    );
+
+  if (valorBaseExistente > 0) {
+    existente.installmentValue =
+      valorBaseExistente;
+  } else if (valorBaseCompra > 0) {
+    existente.installmentValue =
+      valorBaseCompra;
+  } else if (valorBaseProjetado > 0) {
+    existente.installmentValue =
+      valorBaseProjetado;
   }
 }  
 
@@ -2123,6 +2102,9 @@ for (const compra of compras) {
                     parcela.category ||
                     null,
 
+                  isProjected:
+                    parcela.isProjected === true,
+
                   accountId:
                     parcela.accountId ||
                     parcela.account_id ||
@@ -2341,10 +2323,94 @@ if (
   parcelasComValoresReais.length <
     totalParcelasDaTransacao
 ) {
-  const vencimentoInicial =
-    parcelasComValoresReais[0]?.vencimento ||
+  const parcelaReferencia =
+    parcelasComValoresReais.find(
+      (parcela) =>
+        parcela.vencimento &&
+        Number(parcela.parcelaAtual || 0) > 0,
+    );
+
+  const vencimentoReferencia =
+    parcelaReferencia?.vencimento ||
     compra.purchaseDate ||
     hoje.toISOString().slice(0, 10);
+
+  const numeroReferencia =
+    Number(
+      parcelaReferencia?.parcelaAtual ||
+      numeroPrimeiraParcela ||
+      1,
+    );
+
+  const valorBaseDireto =
+    Math.abs(
+      Number(
+        compra.installmentValue || 0,
+      ),
+    );
+
+  const parcelaProjetadaBase =
+    parcelasComValoresReais.find(
+      (parcela) =>
+        parcela.isProjected === true &&
+        Math.abs(
+          Number(parcela.valor || 0),
+        ) > 0,
+    );
+
+  const valorBaseProjetado =
+    Math.abs(
+      Number(
+        parcelaProjetadaBase?.valor || 0,
+      ),
+    );
+
+  const valoresReaisPosteriores =
+    transacoesParceladas
+      .filter(
+        (item) =>
+          item.parcela !==
+            numeroPrimeiraParcela &&
+          item.valor > 0,
+      )
+      .map((item) => item.valor);
+
+  const valorBaseRealPosterior =
+    valoresReaisPosteriores.length
+      ? valoresReaisPosteriores.sort(
+          (a, b) => a - b,
+        )[
+          Math.floor(
+            valoresReaisPosteriores.length /
+              2,
+          )
+        ]
+      : 0;
+
+  const valorTotalInformado =
+    Math.abs(
+      Number(
+        compra.totalAmount || 0,
+      ),
+    );
+
+  const valorBasePorTotal =
+    valorTotalInformado > 0 &&
+    totalParcelasDaTransacao > 0
+      ? valorTotalInformado /
+        totalParcelasDaTransacao
+      : 0;
+
+  const valorParcelaBase =
+    valorBaseDireto > 0
+      ? valorBaseDireto
+      : valorBaseProjetado > 0
+        ? valorBaseProjetado
+        : valorBaseRealPosterior > 0
+          ? valorBaseRealPosterior
+          : valorBasePorTotal > 0
+            ? valorBasePorTotal
+            : 0;
 
   for (
     let i = 1;
@@ -2366,19 +2432,19 @@ if (
         (item) => item.parcela === i,
       );
 
-    // Só adiciona se existir uma transação REAL
-    if (
-      !transacaoDaParcela ||
-      transacaoDaParcela.valor <= 0
-    ) {
+    const valorParcela =
+      transacaoDaParcela?.valor > 0
+        ? transacaoDaParcela.valor
+        : valorParcelaBase;
+
+    if (valorParcela <= 0) {
       continue;
     }
 
     parcelasComValoresReais.push({
       descricao: nomeCompra,
 
-      valor:
-        transacaoDaParcela.valor,
+      valor: valorParcela,
 
       parcelaAtual: i,
 
@@ -2386,24 +2452,35 @@ if (
         totalParcelasDaTransacao,
 
       vencimento:
-        transacaoDaParcela.transacao.date ||
+        transacaoDaParcela?.transacao
+          ?.date ||
         adicionarMeses(
-          vencimentoInicial,
-          i - 1,
+          vencimentoReferencia,
+          i - numeroReferencia,
         ),
 
-      status: String(
-        transacaoDaParcela.transacao.status ||
-          "PENDING",
-      ).toUpperCase(),
+      status:
+        transacaoDaParcela
+          ? String(
+              transacaoDaParcela
+                .transacao.status ||
+                "PENDING",
+            ).toUpperCase()
+          : "PENDING",
 
       categoria:
         parcelas[0]?.categoria ||
         null,
 
+      isProjected:
+        !transacaoDaParcela,
+
       accountId:
-        transacaoDaParcela.transacao.account_id ||
-        transacaoDaParcela.transacao.accountId ||
+        transacaoDaParcela?.transacao
+          ?.account_id ||
+        transacaoDaParcela?.transacao
+          ?.accountId ||
+        cartaoId ||
         null,
     });
   }
@@ -2668,39 +2745,6 @@ for (
   );
 }
 
-    // ==========================================
-    // DEBUG AEROVIAS
-    // ==========================================
-
-    const aerovias =
-      comprasSemDuplicacao.filter(
-        (compra) =>
-          normalizarDescricao(
-            compra.nome,
-          ).includes(
-            "aerovias",
-          ),
-      );
-
-    if (aerovias.length) {
-      console.log(
-        "==========================================",
-      );
-
-      console.log(
-        "✈️ AEROVIAS CORRIGIDA:",
-        JSON.stringify(
-          aerovias,
-          null,
-          2,
-        ),
-      );
-
-      console.log(
-        "==========================================",
-      );
-    }
-
     res.json({
       sucesso: true,
 
@@ -2730,45 +2774,6 @@ for (
       erro:
         erro.message ||
         "Erro ao buscar parcelamentos",
-    });
-  }
-});
-
-app.get("/api/debug/transacoes", exigirAdmin, async (req, res) => {
-  try {
-    const hoje = new Date();
-
-    const tresMesesAtras = new Date(hoje);
-
-    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
-
-    const dados = await pierreRequest("get-transactions", {
-      startDate: tresMesesAtras.toISOString().slice(0, 10),
-
-     endDate:
-  new Date(
-    hoje.getTime() +
-      24 * 60 * 60 * 1000
-  )
-    .toISOString()
-    .slice(0, 10),
-
-      format: "raw",
-    });
-
-    res.json({
-      sucesso: true,
-
-      quantidade: Array.isArray(dados.data) ? dados.data.length : 0,
-
-      transacoes: Array.isArray(dados.data) ? dados.data : [],
-    });
-  } catch (erro) {
-    console.error("Erro ao buscar transações brutas:", erro.message);
-
-    res.status(500).json({
-      sucesso: false,
-      erro: erro.message,
     });
   }
 });
