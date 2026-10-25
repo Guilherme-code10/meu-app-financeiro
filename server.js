@@ -2810,45 +2810,6 @@ for (
   }
 });
 
-app.get("/api/debug/transacoes", exigirAdmin, async (req, res) => {
-  try {
-    const hoje = new Date();
-
-    const tresMesesAtras = new Date(hoje);
-
-    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
-
-    const dados = await pierreRequest("get-transactions", {
-      startDate: tresMesesAtras.toISOString().slice(0, 10),
-
-     endDate:
-  new Date(
-    hoje.getTime() +
-      24 * 60 * 60 * 1000
-  )
-    .toISOString()
-    .slice(0, 10),
-
-      format: "raw",
-    });
-
-    res.json({
-      sucesso: true,
-
-      quantidade: Array.isArray(dados.data) ? dados.data.length : 0,
-
-      transacoes: Array.isArray(dados.data) ? dados.data : [],
-    });
-  } catch (erro) {
-    console.error("Erro ao buscar transações brutas:", erro.message);
-
-    res.status(500).json({
-      sucesso: false,
-      erro: erro.message,
-    });
-  }
-});
-
 // ==========================================
 // HEALTH
 // ==========================================
