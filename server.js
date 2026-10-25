@@ -2381,10 +2381,10 @@ const valorBaseConhecido =
   valoresConhecidosDepoisDaPrimeira[0] || 0;
 
 const valorBaseParcelamento =
-  valorBasePorRestante > 0
-    ? valorBasePorRestante
-    : valorBaseInformado > 0
-      ? valorBaseInformado
+  valorBaseInformado > 0
+    ? valorBaseInformado
+    : valorBasePorRestante > 0
+      ? valorBasePorRestante
       : valorBaseConhecido > 0
         ? valorBaseConhecido
         : valorPrimeiraTransacao;
