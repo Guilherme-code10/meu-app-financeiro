@@ -4804,6 +4804,17 @@ app.delete("/api/contas-fixas/:id", exigirAdmin, async (req, res) => {
 });
 
 // ==========================================
+// HEALTH CHECK
+// ==========================================
+
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({
+    sucesso: true,
+    status: "ok",
+  });
+});
+
+// ==========================================
 // ABRIR O SITE
 // ==========================================
 
@@ -4814,13 +4825,6 @@ app.use((req, res) => {
 // ==========================================
 // INICIAR SERVIDOR
 // ==========================================
-
-app.get("/api/health", (_req, res) => {
-  res.status(200).json({
-    sucesso: true,
-    status: "ok",
-  });
-});
 
 const servidor = app.listen(PORT, HOST, () => {
   console.log("");
