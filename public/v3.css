@@ -856,3 +856,61 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
     width: 100%;
   }
 }
+
+
+/* Compra manual de dólar */
+#v3FxMovementForm label small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.v3-fx-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(39, 209, 127, .14);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(39, 209, 127, .07), rgba(39, 209, 127, .025));
+}
+
+.v3-fx-preview.is-secondary {
+  border-color: rgba(139, 92, 246, .14);
+  background:
+    linear-gradient(180deg, rgba(124, 58, 237, .06), rgba(124, 58, 237, .02));
+}
+
+.v3-fx-preview > div {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .15);
+}
+
+.v3-fx-preview span,
+.v3-fx-preview strong {
+  display: block;
+}
+
+.v3-fx-preview span {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.v3-fx-preview strong {
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .v3-fx-preview {
+    grid-template-columns: 1fr;
+  }
+}
