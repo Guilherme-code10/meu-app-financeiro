@@ -490,7 +490,8 @@ async function v3BuscarMercado(ticker = v3State.mercado.ticker, periodo = v3Stat
     }
     if (meta) {
       const data = dados.atualizadoEm ? new Date(dados.atualizadoEm).toLocaleString("pt-BR") : "horário não informado";
-      meta.textContent = `${dados.fonte} · atualização ${data} · atraso informado ~${dados.atrasoMinutos} min`;
+      const aviso = dados.avisoPlano ? ` · ${dados.avisoPlano}` : "";
+      meta.textContent = `${dados.fonte} · atualização ${data} · atraso informado ~${dados.atrasoMinutos} min${aviso}`;
     }
     v3RenderizarGrafico(dados);
     v3RenderizarInvestimentos();
@@ -658,6 +659,7 @@ function v3RenderizarHistoricoInvestimentos() {
         </table></div>`
       : '<div class="v3-history-empty">Nenhum dividendo manual registrado.</div>';
 
+    const avisoMercado = v3State.mercado.dados?.avisoPlano || "";
     const mercadoHtml = eventosMercado.length
       ? `<div class="v3-subtitle">Eventos retornados pela Brapi · ${v3Escapar(v3State.mercado.ticker)}</div>
         <div class="v3-scroll"><table class="v3-mini-table">
@@ -669,7 +671,10 @@ function v3RenderizarHistoricoInvestimentos() {
             return `<tr><td>${v3DataCurta(data)}</td><td>${valor ? v3Dinheiro(valor) : "Não informado"}</td><td>${v3Escapar(nota)}</td></tr>`;
           }).join("")}</tbody>
         </table></div>`
-      : '<div class="v3-note" style="margin-top:12px">A fonte de mercado não retornou eventos de dividendos para o ticker/período atual, ou esse dado não está disponível no plano consultado.</div>';
+      : `<div class="v3-note" style="margin-top:12px">${v3Escapar(
+          avisoMercado ||
+          "Dividendos automáticos não estão disponíveis na fonte/plano atual. Você ainda pode registrar os dividendos manualmente."
+        )}</div>`;
 
     dividendosAlvo.innerHTML = manualHtml + mercadoHtml;
   }
