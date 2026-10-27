@@ -516,6 +516,197 @@ async function v3CarregarInvestimentos() {
   }
 }
 
+
+function v3DataCurta(valor) {
+  if (!valor) return "—";
+  const data = new Date(String(valor).length === 10 ? \`${valor}T12:00:00\` : valor);
+  return Number.isNaN(data.getTime()) ? String(valor) : data.toLocaleDateString("pt-BR");
+}
+
+function v3RenderizarDistribuicaoInvestimentos() {
+  const alvo = document.querySelector("#v3PortfolioDistribution");
+  const meta = document.querySelector("#v3AllocationMeta");
+  if (!alvo) return;
+
+  const posicoes = v3State.investimentos.posicoes || [];
+  if (!posicoes.length) {
+    alvo.innerHTML = '<div class="v3-history-empty">Nenhuma posição para distribuir.</div>';
+    if (meta) meta.textContent = "Cadastre posições para visualizar a distribuição.";
+    return;
+  }
+
+  const todasComCotacao = posicoes.every(p =>
+    Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0) > 0
+  );
+
+  const itens = posicoes.map(p => {
+    const quantidade = Number(p.quantidade || 0);
+    const cotacao = Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0);
+    const precoBase = todasComCotacao ? cotacao : Number(p.preco_medio || 0);
+    return {
+      ticker: p.ticker,
+      classe: p.classe || "OUTRO",
+      valor: Math.max(0, quantidade * precoBase),
+    };
+  });
+
+  const total = itens.reduce((soma, item) => soma + item.valor, 0);
+  const classes = new Map();
+  itens.forEach(item => classes.set(item.classe, (classes.get(item.classe) || 0) + item.valor));
+
+  const linha = (nome, valor) => {
+    const percentual = total > 0 ? (valor / total) * 100 : 0;
+    return \`<div class="v3-allocation-row">
+      <strong>${v3Escapar(nome)}</strong>
+      <div class="v3-allocation-track"><div class="v3-allocation-fill" style="width:${percentual.toFixed(2)}%"></div></div>
+      <span class="meta">${percentual.toFixed(1)}% · ${v3Dinheiro(valor)}</span>
+    </div>\`;
+  };
+
+  alvo.innerHTML =
+    '<div class="v3-subtitle">Por classe</div>' +
+    [...classes.entries()].sort((a,b) => b[1]-a[1]).map(([nome,valor]) => linha(nome,valor)).join("") +
+    '<div class="v3-subtitle">Por ativo</div>' +
+    itens.sort((a,b) => b.valor-a.valor).map(item => linha(item.ticker,item.valor)).join("");
+
+  if (meta) {
+    meta.textContent = todasComCotacao
+      ? "Distribuição pelo valor de mercado disponível."
+      : "Nem todos os ativos têm cotação disponível; distribuição usando custo cadastrado para manter consistência.";
+  }
+}
+
+function v3RenderizarHistoricoInvestimentos() {
+  const operacoesAlvo = document.querySelector("#v3OperationHistory");
+  const dividendosAlvo = document.querySelector("#v3DividendHistory");
+
+  const operacoes = [...(v3State.investimentos.operacoes || [])]
+    .sort((a,b) => String(b.data || "").localeCompare(String(a.data || "")))
+    .slice(0, 30);
+
+  if (operacoesAlvo) {
+    operacoesAlvo.innerHTML = operacoes.length
+      ? \`<table class="v3-mini-table">
+          <thead><tr><th>Data</th><th>Ticker</th><th>Tipo</th><th>Quantidade</th><th>Preço</th><th>Taxas</th><th>Total</th></tr></thead>
+          <tbody>${operacoes.map(op => {
+            const qtd = Number(op.quantidade || 0);
+            const preco = Number(op.preco_unitario || 0);
+            const taxas = Number(op.taxas || 0);
+            const total = qtd * preco + (String(op.tipo).toUpperCase() === "COMPRA" ? taxas : -taxas);
+            return \`<tr>
+              <td>${v3DataCurta(op.data)}</td>
+              <td><strong>${v3Escapar(op.ticker)}</strong></td>
+              <td>${v3Escapar(op.tipo)}</td>
+              <td>${v3Numero(qtd,4)}</td>
+              <td>${v3Dinheiro(preco)}</td>
+              <td>${v3Dinheiro(taxas)}</td>
+              <td>${v3Dinheiro(total)}</td>
+            </tr>\`;
+          }).join("")}</tbody>
+        </table>\`
+      : '<div class="v3-history-empty">Nenhuma compra ou venda registrada ainda.</div>';
+  }
+
+  if (dividendosAlvo) {
+    const manuais = [...(v3State.investimentos.dividendos || [])]
+      .sort((a,b) => String(b.data_pagamento || "").localeCompare(String(a.data_pagamento || "")))
+      .slice(0, 20);
+
+    const eventosMercado = Array.isArray(v3State.mercado.dados?.dividendos)
+      ? v3State.mercado.dados.dividendos.slice(0, 8)
+      : [];
+
+    const manualHtml = manuais.length
+      ? \`<div class="v3-subtitle">Registrados no Meu Financeiro</div>
+        <div class="v3-scroll"><table class="v3-mini-table">
+          <thead><tr><th>Data</th><th>Ticker</th><th>Valor</th><th>Status</th></tr></thead>
+          <tbody>${manuais.map(d => {
+            const recebido = d.recebido !== false;
+            const status = recebido ? "Recebido" : "Anunciado";
+            return \`<tr>
+              <td>${v3DataCurta(d.data_pagamento)}</td>
+              <td><strong>${v3Escapar(d.ticker)}</strong></td>
+              <td>${v3Dinheiro(d.valor)}</td>
+              <td><span class="v3-status-pill ${recebido ? "received" : "announced"}">${status}</span></td>
+            </tr>\`;
+          }).join("")}</tbody>
+        </table></div>\`
+      : '<div class="v3-history-empty">Nenhum dividendo manual registrado.</div>';
+
+    const mercadoHtml = eventosMercado.length
+      ? \`<div class="v3-subtitle">Eventos retornados pela Brapi · ${v3Escapar(v3State.mercado.ticker)}</div>
+        <div class="v3-scroll"><table class="v3-mini-table">
+          <thead><tr><th>Data</th><th>Valor por cota/ação</th><th>Observação</th></tr></thead>
+          <tbody>${eventosMercado.map(e => {
+            const data = e.paymentDate || e.lastDatePrior || e.approvedOn || e.date || null;
+            const valor = Number(e.rate ?? e.value ?? e.cashAmount ?? e.dividend ?? 0);
+            const nota = e.label || e.type || e.relatedTo || "Evento de provento";
+            return \`<tr><td>${v3DataCurta(data)}</td><td>${valor ? v3Dinheiro(valor) : "Não informado"}</td><td>${v3Escapar(nota)}</td></tr>\`;
+          }).join("")}</tbody>
+        </table></div>\`
+      : '<div class="v3-note" style="margin-top:12px">A fonte de mercado não retornou eventos de dividendos para o ticker/período atual, ou esse dado não está disponível no plano consultado.</div>';
+
+    dividendosAlvo.innerHTML = manualHtml + mercadoHtml;
+  }
+}
+
+function v3RenderizarEvolucaoAportes() {
+  const alvo = document.querySelector("#v3ContributionEvolution");
+  if (!alvo) return;
+
+  const operacoes = [...(v3State.investimentos.operacoes || [])]
+    .sort((a,b) => String(a.data || "").localeCompare(String(b.data || "")));
+
+  if (!operacoes.length) {
+    alvo.innerHTML = '<div class="v3-history-empty">Sem operações suficientes para calcular a evolução dos aportes.</div>';
+    return;
+  }
+
+  let acumulado = 0;
+  const pontos = operacoes.map(op => {
+    const bruto = Number(op.quantidade || 0) * Number(op.preco_unitario || 0);
+    const taxas = Number(op.taxas || 0);
+    if (String(op.tipo).toUpperCase() === "COMPRA") acumulado += bruto + taxas;
+    if (String(op.tipo).toUpperCase() === "VENDA") acumulado -= Math.max(0, bruto - taxas);
+    return { data: op.data, valor: acumulado };
+  });
+
+  const max = Math.max(1, ...pontos.map(p => Math.max(0,p.valor)));
+  alvo.innerHTML = \`
+    <div class="v3-row-between"><span class="meta">Capital líquido registrado</span><strong>${v3Dinheiro(acumulado)}</strong></div>
+    <div class="v3-contribution-bars" aria-label="Evolução dos aportes">
+      ${pontos.map(p => \`<span title="${v3DataCurta(p.data)} · ${v3Dinheiro(p.valor)}" style="height:${Math.max(3,(Math.max(0,p.valor)/max)*100)}%"></span>\`).join("")}
+    </div>\`;
+}
+
+function v3RenderizarHistoricoMoedas() {
+  const alvo = document.querySelector("#v3FxHistory");
+  if (!alvo) return;
+
+  const linhas = [];
+  for (const conta of v3State.moedas.contas || []) {
+    for (const tx of conta.transacoes || []) {
+      linhas.push({ ...tx, contaNome: conta.nome || conta.instituicao });
+    }
+  }
+
+  linhas.sort((a,b) => String(b.data || "").localeCompare(String(a.data || "")));
+  alvo.innerHTML = linhas.length
+    ? \`<table class="v3-mini-table">
+        <thead><tr><th>Data</th><th>Conta</th><th>Tipo</th><th>USD</th><th>R$ histórico</th><th>Cotação efetiva</th><th>IOF + tarifas</th></tr></thead>
+        <tbody>${linhas.slice(0,40).map(tx => \`<tr>
+          <td>${v3DataCurta(tx.data)}</td>
+          <td>${v3Escapar(tx.contaNome)}</td>
+          <td>${v3Escapar(String(tx.tipo || "").replaceAll("_"," "))}</td>
+          <td>${v3Dinheiro(tx.quantidade_usd || 0,"USD")}</td>
+          <td>${v3Dinheiro(tx.total_brl || 0)}</td>
+          <td>${tx.cotacao_efetiva ? \`R$ ${v3Numero(tx.cotacao_efetiva,4)}\` : "—"}</td>
+          <td>${v3Dinheiro(Number(tx.iof || 0)+Number(tx.tarifas || 0))}</td>
+        </tr>\`).join("")}</tbody>
+      </table>\`
+    : '<div class="v3-history-empty">Nenhuma movimentação em dólar registrada.</div>';
+}
+
 function v3RenderizarInvestimentos() {
   const posicoes = v3State.investimentos.posicoes || [];
   let custo = 0;
@@ -581,6 +772,10 @@ function v3RenderizarInvestimentos() {
     returnEl.className = v3ClasseVariacao(retorno);
   }
   if (divEl) divEl.textContent = v3Dinheiro(dividendos);
+
+  v3RenderizarDistribuicaoInvestimentos();
+  v3RenderizarHistoricoInvestimentos();
+  v3RenderizarEvolucaoAportes();
 }
 
 async function v3CarregarMoedas() {
@@ -669,6 +864,8 @@ function v3RenderizarMoedas() {
     const el = document.querySelector(sel);
     if (el) el.innerHTML = options;
   });
+
+  v3RenderizarHistoricoMoedas();
 }
 
 function v3Simular() {
