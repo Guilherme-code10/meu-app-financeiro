@@ -4,6 +4,12 @@ const {
   calcularLedgerDolar,
   configuracaoPeriodo,
 } = require("../lib/v3-finance");
+const {
+  wiseConfigurada,
+  belvoConfigurada,
+  buscarSaldosWise,
+  buscarInvestimentosBelvo,
+} = require("../lib/v3-integrations");
 
 const BRAPI_URL = "https://brapi.dev/api/quote";
 const BCB_PTAX_URL =
@@ -473,9 +479,29 @@ function criarRouterV3({ supabaseAdmin }) {
     const todas = movimentos.data || [];
     const resultado = (contas.data || []).map((conta) => {
       const transacoes = todas.filter((tx) => String(tx.conta_id) === String(conta.id));
+      const ledger = calcularLedgerDolar(transacoes);
+      const saldoSincronizado =
+        conta.saldo_sincronizado == null
+          ? null
+          : Number(conta.saldo_sincronizado);
+      const temSaldoSincronizado =
+        Number.isFinite(saldoSincronizado);
+      const saldoEfetivo =
+        temSaldoSincronizado
+          ? saldoSincronizado
+          : ledger.saldoUsd;
+      const custoHistoricoCompleto =
+        !temSaldoSincronizado ||
+        Math.abs(Number(ledger.saldoUsd || 0) - saldoSincronizado) < 0.01;
+
       return {
         ...conta,
-        ...calcularLedgerDolar(transacoes),
+        ...ledger,
+        saldoLedgerUsd: ledger.saldoUsd,
+        saldoSincronizadoUsd: temSaldoSincronizado ? saldoSincronizado : null,
+        saldoUsd: saldoEfetivo,
+        modoSaldo: temSaldoSincronizado ? "SINCRONIZADO" : "MANUAL",
+        custoHistoricoCompleto,
         transacoes: transacoes.slice().reverse(),
       };
     });
@@ -662,12 +688,224 @@ function criarRouterV3({ supabaseAdmin }) {
     }
   });
 
+  router.get("/integracoes/wise/preview", async (_req, res) => {
+    try {
+      const dados = await buscarSaldosWise();
+      res.json({ sucesso: true, ...dados });
+    } catch (erro) {
+      res.status(erro.status || 502).json({
+        sucesso: false,
+        codigo: erro.codigo || "WISE_ERROR",
+        erro: erro.message,
+      });
+    }
+  });
+
+  router.post("/integracoes/wise/sincronizar", async (req, res) => {
+    try {
+      const dados = await buscarSaldosWise();
+      const usd = dados.saldos.filter((item) => item.moeda === "USD");
+
+      if (!usd.length) {
+        return res.status(404).json({
+          sucesso: false,
+          codigo: "WISE_USD_NOT_FOUND",
+          erro: "A Wise não retornou saldo em USD para o perfil configurado.",
+        });
+      }
+
+      const sincronizados = [];
+
+      for (const saldo of usd) {
+        const { data: existentes, error: erroBusca } = await supabaseAdmin
+          .from("moedas_contas")
+          .select("*")
+          .eq("user_id", req.usuario.id)
+          .eq("moeda", "USD")
+          .order("created_at", { ascending: true });
+
+        if (erroBusca) return responderErroBanco(res, erroBusca);
+
+        const existente =
+          (existentes || []).find(
+            (conta) =>
+              String(conta.external_id || "") === String(saldo.id),
+          ) ||
+          (existentes || []).find(
+            (conta) =>
+              String(conta.instituicao || "").trim().toLowerCase() === "wise" &&
+              !conta.external_id,
+          );
+
+        const payload = {
+          user_id: req.usuario.id,
+          instituicao: "Wise",
+          nome: existente?.nome || saldo.nome || "Wise · Dólares",
+          moeda: "USD",
+          fonte: "WISE_API",
+          external_id: String(saldo.id),
+          saldo_sincronizado: saldo.saldo,
+          sincronizado_em: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        let respostaBanco;
+
+        if (existente?.id) {
+          respostaBanco = await supabaseAdmin
+            .from("moedas_contas")
+            .update(payload)
+            .eq("id", existente.id)
+            .eq("user_id", req.usuario.id)
+            .select()
+            .single();
+        } else {
+          respostaBanco = await supabaseAdmin
+            .from("moedas_contas")
+            .insert(payload)
+            .select()
+            .single();
+        }
+
+        if (respostaBanco.error) {
+          return responderErroBanco(res, respostaBanco.error);
+        }
+
+        sincronizados.push(respostaBanco.data);
+      }
+
+      res.json({
+        sucesso: true,
+        contas: sincronizados,
+        profileId: dados.profileId,
+        sincronizadoEm: new Date().toISOString(),
+      });
+    } catch (erro) {
+      res.status(erro.status || 502).json({
+        sucesso: false,
+        codigo: erro.codigo || "WISE_SYNC_ERROR",
+        erro: erro.message,
+      });
+    }
+  });
+
+  router.get("/integracoes/belvo/investimentos/preview", async (_req, res) => {
+    try {
+      const dados = await buscarInvestimentosBelvo();
+      res.json({ sucesso: true, ...dados });
+    } catch (erro) {
+      res.status(erro.status || 502).json({
+        sucesso: false,
+        codigo: erro.codigo || "BELVO_ERROR",
+        erro: erro.message,
+      });
+    }
+  });
+
+  router.post("/integracoes/belvo/investimentos/sincronizar", async (req, res) => {
+    try {
+      const dados = await buscarInvestimentosBelvo();
+      const sincronizados = [];
+      const ignorados = [];
+
+      for (const item of dados.reconhecidos) {
+        if (
+          item.moeda !== "BRL" ||
+          !item.ticker ||
+          !Number.isFinite(item.quantidade) ||
+          item.quantidade <= 0
+        ) {
+          ignorados.push(item);
+          continue;
+        }
+
+        const { data: existente, error: erroAtual } = await supabaseAdmin
+          .from("investimentos_posicoes")
+          .select("*")
+          .eq("user_id", req.usuario.id)
+          .eq("ticker", item.ticker)
+          .maybeSingle();
+
+        if (erroAtual) return responderErroBanco(res, erroAtual);
+
+        const precoMedioBelvo =
+          Number.isFinite(item.precoCompra) && item.precoCompra > 0
+            ? item.precoCompra
+            : null;
+
+        if (!existente && !precoMedioBelvo) {
+          ignorados.push({
+            ...item,
+            motivo: "Preço médio não informado pela fonte e não existe posição manual para preservar.",
+          });
+          continue;
+        }
+
+        const payload = {
+          user_id: req.usuario.id,
+          ticker: item.ticker,
+          classe: existente?.classe || item.classe || "OUTRO",
+          quantidade: item.quantidade,
+          preco_medio: existente
+            ? Number(existente.preco_medio || 0)
+            : precoMedioBelvo,
+          fonte: "BELVO",
+          external_id: item.externalId || existente?.external_id || null,
+          nome_produto: item.nomeProduto || existente?.nome_produto || null,
+          preco_referencia_sincronizado:
+            item.precoReferencia > 0 ? item.precoReferencia : null,
+          valor_bruto_sincronizado:
+            item.valorBruto > 0 ? item.valorBruto : null,
+          sincronizado_em: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data: posicao, error } = await supabaseAdmin
+          .from("investimentos_posicoes")
+          .upsert(payload, { onConflict: "user_id,ticker" })
+          .select()
+          .single();
+
+        if (error) return responderErroBanco(res, error);
+        sincronizados.push(posicao);
+      }
+
+      res.json({
+        sucesso: true,
+        sincronizados,
+        ignorados,
+        pendentesMapeamento: dados.pendentesMapeamento,
+        sincronizadoEm: new Date().toISOString(),
+      });
+    } catch (erro) {
+      res.status(erro.status || 502).json({
+        sucesso: false,
+        codigo: erro.codigo || "BELVO_SYNC_ERROR",
+        erro: erro.message,
+      });
+    }
+  });
+
   router.get("/integracoes", (_req, res) => {
     res.json({
       sucesso: true,
       pierre: {
-        contasInvestimento: "O app já reconhece contas Pierre do tipo INVESTMENT.",
-        moedas: "Não há sincronização automática de saldos USD implementada no Pierre neste projeto.",
+        contasInvestimento: "O app reconhece contas Pierre do tipo INVESTMENT, mas não depende dele para posições detalhadas.",
+        moedas: "Não há sincronização automática de saldos USD implementada pelo Pierre neste projeto.",
+      },
+      wise: {
+        configurada: wiseConfigurada(),
+        modo: wiseConfigurada() ? "API" : "MANUAL",
+        observacao: wiseConfigurada()
+          ? "Credencial Wise disponível no servidor. A sincronização depende das permissões do token/perfil."
+          : "Sem credencial Wise compatível. Conta pessoal comum pode permanecer em modo manual/importação.",
+      },
+      belvo: {
+        configurada: belvoConfigurada(),
+        modo: belvoConfigurada() ? "OPEN_FINANCE" : "MANUAL",
+        observacao: belvoConfigurada()
+          ? "Conector Belvo preparado para investimentos do link Nubank configurado."
+          : "Sem credenciais/link Belvo. A carteira Nubank continua manual com cotações pela Brapi.",
       },
       brapi: {
         configurada: Boolean(String(process.env.BRAPI_TOKEN || "").trim()),

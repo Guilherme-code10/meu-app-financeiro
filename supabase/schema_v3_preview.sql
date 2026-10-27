@@ -129,3 +129,29 @@ create index if not exists investimentos_dividendos_user_ticker_data_idx
   on public.investimentos_dividendos(user_id, ticker, data_pagamento desc);
 create index if not exists moedas_movimentacoes_user_conta_data_idx
   on public.moedas_movimentacoes(user_id, conta_id, data desc);
+
+
+-- =========================================================
+-- V3.1 — Metadados de sincronização externa
+-- =========================================================
+
+alter table public.moedas_contas
+  add column if not exists fonte text not null default 'MANUAL',
+  add column if not exists external_id text,
+  add column if not exists saldo_sincronizado numeric,
+  add column if not exists sincronizado_em timestamptz;
+
+create unique index if not exists moedas_contas_user_fonte_external_idx
+  on public.moedas_contas(user_id, fonte, external_id, moeda)
+  where external_id is not null;
+
+alter table public.investimentos_posicoes
+  add column if not exists fonte text not null default 'MANUAL',
+  add column if not exists external_id text,
+  add column if not exists nome_produto text,
+  add column if not exists preco_referencia_sincronizado numeric,
+  add column if not exists valor_bruto_sincronizado numeric,
+  add column if not exists sincronizado_em timestamptz;
+
+create index if not exists investimentos_posicoes_user_fonte_idx
+  on public.investimentos_posicoes(user_id, fonte);
