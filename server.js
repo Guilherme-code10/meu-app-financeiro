@@ -3,7 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const crypto = require("crypto");
-const { reconstruirParcelas, lerParcela, adicionarMeses } = require("./lib/parcelamentos");\nconst { criarRouterV3 } = require("./routes/v3");
+const { reconstruirParcelas, lerParcela, adicionarMeses } = require("./lib/parcelamentos");
+const { criarRouterV3 } = require("./routes/v3");
 
 const { createClient } = require("@supabase/supabase-js");
 
@@ -173,6 +174,12 @@ async function exigirAdmin(req, res, next) {
   next();
 }
 
+
+// ==========================================
+// MEU FINANCEIRO V3
+// ==========================================
+
+app.use("/api/v3", exigirAdmin, criarRouterV3({ supabaseAdmin }));
 
 // ==========================================
 // CLASSIFICAÇÕES FINANCEIRAS SINCRONIZADAS
