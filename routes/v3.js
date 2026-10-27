@@ -1,0 +1,690 @@
+const express = require("express");
+const {
+  aplicarOperacaoInvestimento,
+  calcularLedgerDolar,
+  configuracaoPeriodo,
+} = require("../lib/v3-finance");
+
+const BRAPI_URL = "https://brapi.dev/api/quote";
+const BCB_PTAX_URL =
+  "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo";
+
+function erroTabelaAusente(erro) {
+  return ["42P01", "PGRST205"].includes(String(erro?.code || ""));
+}
+
+function responderErroBanco(res, erro) {
+  if (erroTabelaAusente(erro)) {
+    return res.status(503).json({
+      sucesso: false,
+      codigo: "V3_SCHEMA_REQUIRED",
+      erro: "O schema V3 ainda não foi aplicado no Supabase.",
+    });
+  }
+
+  console.error("Erro V3 no Supabase:", erro);
+  return res.status(500).json({
+    sucesso: false,
+    erro: "Não foi possível acessar os dados do Meu Financeiro V3.",
+  });
+}
+
+function tickerSeguro(valor) {
+  const ticker = String(valor || "")
+    .toUpperCase()
+    .trim()
+    .replace(/[^A-Z0-9^.]/g, "");
+
+  if (!ticker || ticker.length > 16) {
+    throw new Error("Ticker inválido.");
+  }
+
+  return ticker;
+}
+
+function textoSeguro(valor, limite = 80) {
+  return String(valor || "").trim().slice(0, limite);
+}
+
+function numeroPositivo(valor, nome) {
+  const n = Number(valor);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`${nome} deve ser maior que zero.`);
+  }
+  return n;
+}
+
+function dataIsoOuHoje(valor) {
+  if (!valor) return new Date().toISOString().slice(0, 10);
+  const data = new Date(`${String(valor).slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(data.getTime())) throw new Error("Data inválida.");
+  return data.toISOString().slice(0, 10);
+}
+
+function formatarDataPtax(data) {
+  const mm = String(data.getMonth() + 1).padStart(2, "0");
+  const dd = String(data.getDate()).padStart(2, "0");
+  return `${mm}-${dd}-${data.getFullYear()}`;
+}
+
+async function buscarPtaxUsdBrl() {
+  const fim = new Date();
+  const inicio = new Date();
+  inicio.setDate(inicio.getDate() - 10);
+
+  const query = new URLSearchParams({
+    "@dataInicial": `'${formatarDataPtax(inicio)}'`,
+    "@dataFinalCotacao": `'${formatarDataPtax(fim)}'`,
+    "$format": "json",
+    "$orderby": "dataHoraCotacao desc",
+  });
+
+  const resposta = await fetch(`${BCB_PTAX_URL}(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?${query.toString()}`, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!resposta.ok) {
+    throw new Error(`BCB PTAX respondeu HTTP ${resposta.status}.`);
+  }
+
+  const json = await resposta.json();
+  const registros = Array.isArray(json?.value) ? json.value : [];
+
+  if (!registros.length) {
+    throw new Error("Banco Central não retornou cotação USD/BRL.");
+  }
+
+  const ultimo = registros[0];
+  const compra = Number(ultimo.cotacaoCompra || 0);
+  const venda = Number(ultimo.cotacaoVenda || 0);
+  const meio = compra && venda ? (compra + venda) / 2 : compra || venda;
+
+  return {
+    par: "USD/BRL",
+    compra,
+    venda,
+    meio,
+    atualizadoEm: ultimo.dataHoraCotacao || null,
+    fonte: "Banco Central do Brasil - PTAX",
+    frequencia: "diária",
+    atrasada: true,
+  };
+}
+
+async function buscarMercado(ticker, periodo) {
+  const simbolo = tickerSeguro(ticker);
+  const cfg = configuracaoPeriodo(periodo);
+  const token = String(process.env.BRAPI_TOKEN || "").trim();
+  const liberadosSemToken = new Set(["PETR4", "MGLU3", "VALE3", "ITUB4"]);
+
+  if (!token && !liberadosSemToken.has(simbolo)) {
+    const erro = new Error("Configure BRAPI_TOKEN no servidor para consultar este ativo.");
+    erro.status = 503;
+    erro.codigo = "BRAPI_TOKEN_REQUIRED";
+    throw erro;
+  }
+
+  const params = new URLSearchParams({
+    range: cfg.range,
+    interval: cfg.interval,
+    fundamental: "false",
+    dividends: "true",
+  });
+
+  const headers = { Accept: "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const resposta = await fetch(
+    `${BRAPI_URL}/${encodeURIComponent(simbolo)}?${params.toString()}`,
+    { headers },
+  );
+
+  const texto = await resposta.text();
+  let json = {};
+  try {
+    json = texto ? JSON.parse(texto) : {};
+  } catch {
+    json = {};
+  }
+
+  if (!resposta.ok) {
+    const erro = new Error(
+      json?.message ||
+        json?.error ||
+        `Brapi respondeu HTTP ${resposta.status}.`,
+    );
+    erro.status = resposta.status;
+    erro.codigo = json?.code || "BRAPI_ERROR";
+    throw erro;
+  }
+
+  const item = Array.isArray(json?.results) ? json.results[0] : null;
+  if (!item) {
+    const erro = new Error("Ativo não encontrado na Brapi.");
+    erro.status = 404;
+    erro.codigo = "ASSET_NOT_FOUND";
+    throw erro;
+  }
+
+  const agora = Date.now();
+  const limiteMs = cfg.dias ? cfg.dias * 24 * 60 * 60 * 1000 : null;
+
+  const historico = (Array.isArray(item.historicalDataPrice)
+    ? item.historicalDataPrice
+    : [])
+    .map((ponto) => ({
+      timestamp: Number(ponto.date || ponto.timestamp || 0),
+      abertura: Number(ponto.open || 0),
+      maxima: Number(ponto.high || 0),
+      minima: Number(ponto.low || 0),
+      fechamento: Number(ponto.close || 0),
+      volume: Number(ponto.volume || 0),
+    }))
+    .filter((ponto) => {
+      if (!ponto.timestamp || !Number.isFinite(ponto.fechamento)) return false;
+      if (!limiteMs) return true;
+      return agora - ponto.timestamp * 1000 <= limiteMs;
+    });
+
+  const dividendos = item?.dividendsData?.cashDividends ||
+    item?.dividendsData?.dividends ||
+    [];
+
+  return {
+    ticker: item.symbol || simbolo,
+    nome: item.longName || item.shortName || simbolo,
+    moeda: item.currency || "BRL",
+    precoAtual: Number(item.regularMarketPrice || 0),
+    variacaoPercentual: Number(item.regularMarketChangePercent || 0),
+    atualizadoEm:
+      item.regularMarketTime ||
+      item.updatedAt ||
+      null,
+    historico,
+    dividendos: Array.isArray(dividendos) ? dividendos : [],
+    fonte: "Brapi",
+    atrasoMinutos: Number(process.env.BRAPI_DELAY_MINUTES || 30),
+    atrasada: true,
+    periodo: String(periodo || "1M").toUpperCase(),
+  };
+}
+
+function criarRouterV3({ supabaseAdmin }) {
+  if (!supabaseAdmin) throw new Error("supabaseAdmin é obrigatório.");
+
+  const router = express.Router();
+
+  router.get("/status", async (req, res) => {
+    const { error } = await supabaseAdmin
+      .from("investimentos_posicoes")
+      .select("id")
+      .eq("user_id", req.usuario.id)
+      .limit(1);
+
+    res.json({
+      sucesso: true,
+      schemaPronto: !error,
+      schemaErro: erroTabelaAusente(error) ? "V3_SCHEMA_REQUIRED" : error?.code || null,
+      integracoes: {
+        pierreContasInvestimento: true,
+        pierreSincronizacaoUsdAutomatica: false,
+        mercado: "Brapi",
+        cambio: "Banco Central do Brasil - PTAX",
+      },
+    });
+  });
+
+  router.post("/investimentos/bootstrap", async (req, res) => {
+    const iniciais = [
+      {
+        user_id: req.usuario.id,
+        ticker: "MXRF11",
+        classe: "FII",
+        quantidade: 15,
+        preco_medio: 9.38,
+      },
+      {
+        user_id: req.usuario.id,
+        ticker: "XPML11",
+        classe: "FII",
+        quantidade: 1,
+        preco_medio: 109.27,
+      },
+    ];
+
+    const { data, error } = await supabaseAdmin
+      .from("investimentos_posicoes")
+      .upsert(iniciais, {
+        onConflict: "user_id,ticker",
+        ignoreDuplicates: true,
+      })
+      .select();
+
+    if (error) return responderErroBanco(res, error);
+
+    res.json({ sucesso: true, inseridos: data || [] });
+  });
+
+  router.get("/investimentos", async (req, res) => {
+    const [posicoes, operacoes, dividendos] = await Promise.all([
+      supabaseAdmin
+        .from("investimentos_posicoes")
+        .select("*")
+        .eq("user_id", req.usuario.id)
+        .order("ticker"),
+      supabaseAdmin
+        .from("investimentos_operacoes")
+        .select("*")
+        .eq("user_id", req.usuario.id)
+        .order("data", { ascending: false }),
+      supabaseAdmin
+        .from("investimentos_dividendos")
+        .select("*")
+        .eq("user_id", req.usuario.id)
+        .order("data_pagamento", { ascending: false }),
+    ]);
+
+    const erro = posicoes.error || operacoes.error || dividendos.error;
+    if (erro) return responderErroBanco(res, erro);
+
+    res.json({
+      sucesso: true,
+      posicoes: posicoes.data || [],
+      operacoes: operacoes.data || [],
+      dividendos: dividendos.data || [],
+    });
+  });
+
+  router.post("/investimentos/posicoes", async (req, res) => {
+    try {
+      const ticker = tickerSeguro(req.body.ticker);
+      const quantidade = numeroPositivo(req.body.quantidade, "Quantidade");
+      const precoMedio = numeroPositivo(req.body.precoMedio, "Preço médio");
+      const classe = textoSeguro(req.body.classe || "OUTRO", 24).toUpperCase();
+
+      const { data, error } = await supabaseAdmin
+        .from("investimentos_posicoes")
+        .upsert(
+          {
+            user_id: req.usuario.id,
+            ticker,
+            classe,
+            quantidade,
+            preco_medio: precoMedio,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,ticker" },
+        )
+        .select()
+        .single();
+
+      if (error) return responderErroBanco(res, error);
+      res.json({ sucesso: true, posicao: data });
+    } catch (erro) {
+      res.status(400).json({ sucesso: false, erro: erro.message });
+    }
+  });
+
+  router.post("/investimentos/operacoes", async (req, res) => {
+    try {
+      const ticker = tickerSeguro(req.body.ticker);
+      const tipo = String(req.body.tipo || "").toUpperCase();
+      const quantidade = numeroPositivo(req.body.quantidade, "Quantidade");
+      const precoUnitario = numeroPositivo(req.body.precoUnitario, "Preço unitário");
+      const taxas = Math.max(0, Number(req.body.taxas || 0));
+      const data = dataIsoOuHoje(req.body.data);
+
+      if (!["COMPRA", "VENDA"].includes(tipo)) {
+        return res.status(400).json({ sucesso: false, erro: "Tipo de operação inválido." });
+      }
+
+      const { data: atual, error: erroAtual } = await supabaseAdmin
+        .from("investimentos_posicoes")
+        .select("*")
+        .eq("user_id", req.usuario.id)
+        .eq("ticker", ticker)
+        .maybeSingle();
+
+      if (erroAtual) return responderErroBanco(res, erroAtual);
+
+      const nova = aplicarOperacaoInvestimento(
+        {
+          quantidade: atual?.quantidade || 0,
+          precoMedio: atual?.preco_medio || 0,
+        },
+        { tipo, quantidade, precoUnitario, taxas },
+      );
+
+      const { data: operacao, error: erroOperacao } = await supabaseAdmin
+        .from("investimentos_operacoes")
+        .insert({
+          user_id: req.usuario.id,
+          ticker,
+          tipo,
+          quantidade,
+          preco_unitario: precoUnitario,
+          taxas,
+          data,
+        })
+        .select()
+        .single();
+
+      if (erroOperacao) return responderErroBanco(res, erroOperacao);
+
+      const { data: posicao, error: erroPosicao } = await supabaseAdmin
+        .from("investimentos_posicoes")
+        .upsert(
+          {
+            user_id: req.usuario.id,
+            ticker,
+            classe: atual?.classe || textoSeguro(req.body.classe || "OUTRO", 24).toUpperCase(),
+            quantidade: nova.quantidade,
+            preco_medio: nova.precoMedio,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,ticker" },
+        )
+        .select()
+        .single();
+
+      if (erroPosicao) {
+        await supabaseAdmin
+          .from("investimentos_operacoes")
+          .delete()
+          .eq("id", operacao.id)
+          .eq("user_id", req.usuario.id);
+        return responderErroBanco(res, erroPosicao);
+      }
+
+      res.json({ sucesso: true, operacao, posicao });
+    } catch (erro) {
+      res.status(400).json({ sucesso: false, erro: erro.message });
+    }
+  });
+
+  router.post("/investimentos/dividendos", async (req, res) => {
+    try {
+      const ticker = tickerSeguro(req.body.ticker);
+      const valor = numeroPositivo(req.body.valor, "Valor");
+      const dataPagamento = dataIsoOuHoje(req.body.dataPagamento);
+
+      const { data, error } = await supabaseAdmin
+        .from("investimentos_dividendos")
+        .insert({
+          user_id: req.usuario.id,
+          ticker,
+          valor,
+          data_pagamento: dataPagamento,
+          anunciado: req.body.anunciado === true,
+          recebido: req.body.recebido !== false,
+          origem: textoSeguro(req.body.origem || "MANUAL", 24).toUpperCase(),
+        })
+        .select()
+        .single();
+
+      if (error) return responderErroBanco(res, error);
+      res.json({ sucesso: true, dividendo: data });
+    } catch (erro) {
+      res.status(400).json({ sucesso: false, erro: erro.message });
+    }
+  });
+
+  router.get("/mercado/:ticker", async (req, res) => {
+    try {
+      const dados = await buscarMercado(req.params.ticker, req.query.periodo || "1M");
+      res.json({ sucesso: true, ...dados });
+    } catch (erro) {
+      res.status(erro.status || 502).json({
+        sucesso: false,
+        codigo: erro.codigo || "MARKET_DATA_ERROR",
+        erro: erro.message,
+      });
+    }
+  });
+
+  router.get("/moedas/usdbrl", async (_req, res) => {
+    try {
+      const cotacao = await buscarPtaxUsdBrl();
+      res.json({ sucesso: true, cotacao });
+    } catch (erro) {
+      res.status(502).json({ sucesso: false, erro: erro.message });
+    }
+  });
+
+  router.get("/moedas/contas", async (req, res) => {
+    const [contas, movimentos] = await Promise.all([
+      supabaseAdmin
+        .from("moedas_contas")
+        .select("*")
+        .eq("user_id", req.usuario.id)
+        .eq("moeda", "USD")
+        .order("instituicao"),
+      supabaseAdmin
+        .from("moedas_movimentacoes")
+        .select("*")
+        .eq("user_id", req.usuario.id)
+        .eq("moeda", "USD")
+        .order("data", { ascending: true }),
+    ]);
+
+    const erro = contas.error || movimentos.error;
+    if (erro) return responderErroBanco(res, erro);
+
+    const todas = movimentos.data || [];
+    const resultado = (contas.data || []).map((conta) => {
+      const transacoes = todas.filter((tx) => String(tx.conta_id) === String(conta.id));
+      return {
+        ...conta,
+        ...calcularLedgerDolar(transacoes),
+        transacoes: transacoes.slice().reverse(),
+      };
+    });
+
+    res.json({ sucesso: true, contas: resultado });
+  });
+
+  router.post("/moedas/contas", async (req, res) => {
+    const instituicao = textoSeguro(req.body.instituicao, 80);
+    const nome = textoSeguro(req.body.nome || req.body.instituicao, 80);
+
+    if (!instituicao) {
+      return res.status(400).json({ sucesso: false, erro: "Informe a instituição." });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("moedas_contas")
+      .insert({
+        user_id: req.usuario.id,
+        instituicao,
+        nome,
+        moeda: "USD",
+      })
+      .select()
+      .single();
+
+    if (error) return responderErroBanco(res, error);
+    res.json({ sucesso: true, conta: data });
+  });
+
+  router.post("/moedas/movimentacoes", async (req, res) => {
+    try {
+      const contaId = textoSeguro(req.body.contaId, 64);
+      const tipo = String(req.body.tipo || "").toUpperCase();
+      const tipos = ["COMPRA", "VENDA", "GASTO"];
+
+      if (!tipos.includes(tipo)) {
+        return res.status(400).json({ sucesso: false, erro: "Tipo de movimentação inválido." });
+      }
+
+      const quantidadeUsd = numeroPositivo(req.body.quantidadeUsd, "Quantidade em USD");
+      const totalBrl = Math.max(0, Number(req.body.totalBrl || 0));
+      const iof = Math.max(0, Number(req.body.iof || 0));
+      const tarifas = Math.max(0, Number(req.body.tarifas || 0));
+      const data = dataIsoOuHoje(req.body.data);
+
+      const { data: conta, error: erroConta } = await supabaseAdmin
+        .from("moedas_contas")
+        .select("id")
+        .eq("id", contaId)
+        .eq("user_id", req.usuario.id)
+        .maybeSingle();
+
+      if (erroConta) return responderErroBanco(res, erroConta);
+      if (!conta) return res.status(404).json({ sucesso: false, erro: "Conta não encontrada." });
+
+      if (tipo === "COMPRA" && totalBrl <= 0) {
+        return res.status(400).json({ sucesso: false, erro: "Informe o total pago em reais." });
+      }
+
+      const { data: atual, error: erroAtual } = await supabaseAdmin
+        .from("moedas_movimentacoes")
+        .select("*")
+        .eq("conta_id", contaId)
+        .eq("user_id", req.usuario.id)
+        .order("data", { ascending: true });
+
+      if (erroAtual) return responderErroBanco(res, erroAtual);
+
+      const ledger = calcularLedgerDolar(atual || []);
+      if (["VENDA", "GASTO"].includes(tipo) && quantidadeUsd > ledger.saldoUsd) {
+        return res.status(400).json({ sucesso: false, erro: "Saldo em USD insuficiente." });
+      }
+
+      const cotacaoEfetiva =
+        tipo === "COMPRA"
+          ? (totalBrl + iof + tarifas) / quantidadeUsd
+          : totalBrl > 0
+            ? totalBrl / quantidadeUsd
+            : null;
+
+      const { data: movimento, error } = await supabaseAdmin
+        .from("moedas_movimentacoes")
+        .insert({
+          user_id: req.usuario.id,
+          conta_id: contaId,
+          moeda: "USD",
+          tipo,
+          data,
+          quantidade_usd: quantidadeUsd,
+          total_brl: totalBrl,
+          iof,
+          tarifas,
+          cotacao_efetiva: cotacaoEfetiva,
+          observacao: textoSeguro(req.body.observacao, 160) || null,
+        })
+        .select()
+        .single();
+
+      if (error) return responderErroBanco(res, error);
+      res.json({ sucesso: true, movimentacao: movimento });
+    } catch (erro) {
+      res.status(400).json({ sucesso: false, erro: erro.message });
+    }
+  });
+
+  router.post("/moedas/transferencias", async (req, res) => {
+    try {
+      const origemId = textoSeguro(req.body.origemId, 64);
+      const destinoId = textoSeguro(req.body.destinoId, 64);
+      const quantidadeUsd = numeroPositivo(req.body.quantidadeUsd, "Quantidade em USD");
+      const data = dataIsoOuHoje(req.body.data);
+
+      if (!origemId || !destinoId || origemId === destinoId) {
+        return res.status(400).json({ sucesso: false, erro: "Contas de origem e destino inválidas." });
+      }
+
+      const { data: contas, error: erroContas } = await supabaseAdmin
+        .from("moedas_contas")
+        .select("id")
+        .eq("user_id", req.usuario.id)
+        .in("id", [origemId, destinoId]);
+
+      if (erroContas) return responderErroBanco(res, erroContas);
+      if ((contas || []).length !== 2) {
+        return res.status(404).json({ sucesso: false, erro: "Conta de origem ou destino não encontrada." });
+      }
+
+      const { data: origemMovs, error: erroMovs } = await supabaseAdmin
+        .from("moedas_movimentacoes")
+        .select("*")
+        .eq("conta_id", origemId)
+        .eq("user_id", req.usuario.id)
+        .order("data", { ascending: true });
+
+      if (erroMovs) return responderErroBanco(res, erroMovs);
+
+      const ledger = calcularLedgerDolar(origemMovs || []);
+      if (quantidadeUsd > ledger.saldoUsd) {
+        return res.status(400).json({ sucesso: false, erro: "Saldo em USD insuficiente para transferir." });
+      }
+
+      const custoTransferido = quantidadeUsd * ledger.custoMedio;
+      const transferenciaId = require("crypto").randomUUID();
+
+      const base = {
+        user_id: req.usuario.id,
+        moeda: "USD",
+        data,
+        quantidade_usd: quantidadeUsd,
+        total_brl: custoTransferido,
+        iof: 0,
+        tarifas: 0,
+        cotacao_efetiva: ledger.custoMedio || null,
+        transferencia_id: transferenciaId,
+      };
+
+      const { data: saida, error: erroSaida } = await supabaseAdmin
+        .from("moedas_movimentacoes")
+        .insert({ ...base, conta_id: origemId, tipo: "TRANSFERENCIA_SAIDA" })
+        .select()
+        .single();
+
+      if (erroSaida) return responderErroBanco(res, erroSaida);
+
+      const { data: entrada, error: erroEntrada } = await supabaseAdmin
+        .from("moedas_movimentacoes")
+        .insert({ ...base, conta_id: destinoId, tipo: "TRANSFERENCIA_ENTRADA" })
+        .select()
+        .single();
+
+      if (erroEntrada) {
+        await supabaseAdmin
+          .from("moedas_movimentacoes")
+          .delete()
+          .eq("id", saida.id)
+          .eq("user_id", req.usuario.id);
+        return responderErroBanco(res, erroEntrada);
+      }
+
+      res.json({ sucesso: true, saida, entrada });
+    } catch (erro) {
+      res.status(400).json({ sucesso: false, erro: erro.message });
+    }
+  });
+
+  router.get("/integracoes", (_req, res) => {
+    res.json({
+      sucesso: true,
+      pierre: {
+        contasInvestimento: "O app já reconhece contas Pierre do tipo INVESTMENT.",
+        moedas: "Não há sincronização automática de saldos USD implementada no Pierre neste projeto.",
+      },
+      brapi: {
+        configurada: Boolean(String(process.env.BRAPI_TOKEN || "").trim()),
+        atrasoMinutosEstimado: Number(process.env.BRAPI_DELAY_MINUTES || 30),
+      },
+      cambio: {
+        fonte: "Banco Central do Brasil - PTAX",
+        frequencia: "diária",
+      },
+    });
+  });
+
+  return router;
+}
+
+module.exports = {
+  criarRouterV3,
+  buscarPtaxUsdBrl,
+  buscarMercado,
+};
