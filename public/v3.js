@@ -1411,10 +1411,6 @@ function v3ConfigurarEventos() {
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       evento.currentTarget.reset();
-      evento.currentTarget.elements.tipo.value = "COMPRA";
-      const campoData = evento.currentTarget.querySelector("input[name='data']");
-      if (campoData) campoData.value = new Date().toISOString().slice(0, 10);
-      v3AtualizarFormularioMoeda();
       await v3CarregarMoedas();
     } catch (erro) {
       alert(erro.message);
@@ -1431,6 +1427,10 @@ function v3ConfigurarEventos() {
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       evento.currentTarget.reset();
+      evento.currentTarget.elements.tipo.value = "COMPRA";
+      const campoData = evento.currentTarget.querySelector("input[name='data']");
+      if (campoData) campoData.value = new Date().toISOString().slice(0, 10);
+      v3AtualizarFormularioMoeda();
       await v3CarregarMoedas();
     } catch (erro) {
       alert(erro.message);
