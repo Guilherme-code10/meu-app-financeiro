@@ -7,6 +7,7 @@ const v3State = {
   investimentos: { posicoes: [], operacoes: [], dividendos: [], cotacoes: new Map() },
   moedas: { contas: [], ptax: null },
   mercado: { ticker: "MXRF11", periodo: "1M", dados: null },
+  integracoes: null,
 };
 
 function v3Dinheiro(valor, moeda = "BRL") {
@@ -85,6 +86,15 @@ function v3InjetarSecoes() {
     </div>
 
     <div id="v3InvestStatus" class="v3-note">Carregando carteira Nubank...</div>
+
+    <div class="v3-integration-strip" id="v3InvestIntegration">
+      <div>
+        <span class="v3-integration-label">Open Finance · Nubank</span>
+        <strong id="v3BelvoStatus">Verificando integração...</strong>
+        <small id="v3BelvoDetail">A carteira manual continua funcionando mesmo sem conector.</small>
+      </div>
+      <button type="button" id="v3SyncBelvo" class="v3-sync-btn" disabled>Sincronizar Nubank</button>
+    </div>
 
     <div class="v3-kpis" style="margin-top:18px">
       <div class="v3-kpi"><span>Patrimônio investido</span><strong id="v3InvestTotal">—</strong></div>
@@ -220,6 +230,15 @@ function v3InjetarSecoes() {
     </div>
 
     <div id="v3FxStatus" class="v3-note">Carregando PTAX e bancos internacionais...</div>
+
+    <div class="v3-integration-strip" id="v3WiseIntegration">
+      <div>
+        <span class="v3-integration-label">Wise</span>
+        <strong id="v3WiseStatus">Verificando integração...</strong>
+        <small id="v3WiseDetail">Se não houver credencial compatível, a conta permanece manual.</small>
+      </div>
+      <button type="button" id="v3SyncWise" class="v3-sync-btn" disabled>Sincronizar Wise</button>
+    </div>
 
     <div class="v3-kpis" style="margin-top:18px">
       <div class="v3-kpi"><span>Saldo total</span><strong id="v3UsdTotal">—</strong></div>
@@ -784,6 +803,132 @@ function v3RenderizarInvestimentos() {
   v3RenderizarEvolucaoAportes();
 }
 
+async function v3CarregarIntegracoes() {
+  try {
+    v3State.integracoes = await v3Api("/api/v3/integracoes");
+  } catch (erro) {
+    v3State.integracoes = {
+      erro: erro.message,
+      wise: { configurada: false, modo: "MANUAL" },
+      belvo: { configurada: false, modo: "MANUAL" },
+    };
+  }
+
+  v3RenderizarIntegracoes();
+}
+
+function v3RenderizarIntegracoes() {
+  const dados = v3State.integracoes || {};
+  const wise = dados.wise || {};
+  const belvo = dados.belvo || {};
+
+  const wiseStatus = document.querySelector("#v3WiseStatus");
+  const wiseDetail = document.querySelector("#v3WiseDetail");
+  const wiseBtn = document.querySelector("#v3SyncWise");
+
+  if (wiseStatus) {
+    wiseStatus.textContent = wise.configurada
+      ? "API configurada"
+      : "Modo manual";
+    wiseStatus.className = wise.configurada ? "v3-positive" : "";
+  }
+  if (wiseDetail) {
+    wiseDetail.textContent = wise.observacao ||
+      "Sem credencial compatível; o saldo pode ser controlado manualmente.";
+  }
+  if (wiseBtn) {
+    wiseBtn.disabled = !wise.configurada;
+    wiseBtn.textContent = wise.configurada ? "Sincronizar Wise" : "Wise manual";
+  }
+
+  const belvoStatus = document.querySelector("#v3BelvoStatus");
+  const belvoDetail = document.querySelector("#v3BelvoDetail");
+  const belvoBtn = document.querySelector("#v3SyncBelvo");
+
+  if (belvoStatus) {
+    belvoStatus.textContent = belvo.configurada
+      ? "Belvo configurada"
+      : "Carteira manual";
+    belvoStatus.className = belvo.configurada ? "v3-positive" : "";
+  }
+  if (belvoDetail) {
+    belvoDetail.textContent = belvo.observacao ||
+      "Sem conector Open Finance; posições continuam no Supabase e cotações na Brapi.";
+  }
+  if (belvoBtn) {
+    belvoBtn.disabled = !belvo.configurada;
+    belvoBtn.textContent = belvo.configurada ? "Sincronizar Nubank" : "Nubank manual";
+  }
+}
+
+async function v3SincronizarWise() {
+  const botao = document.querySelector("#v3SyncWise");
+  if (!botao || botao.disabled) return;
+
+  const texto = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = "Sincronizando...";
+
+  try {
+    const resultado = await v3Api("/api/v3/integracoes/wise/sincronizar", {
+      method: "POST",
+    });
+
+    const quantidade = Array.isArray(resultado.contas) ? resultado.contas.length : 0;
+    const status = document.querySelector("#v3FxStatus");
+    if (status) {
+      status.className = "v3-note";
+      status.textContent = `Wise sincronizada: ${quantidade} saldo(s) USD atualizado(s) sem alterar o custo histórico.`;
+    }
+
+    await v3CarregarMoedas();
+  } catch (erro) {
+    alert(`Não foi possível sincronizar a Wise:\n\n${erro.message}`);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = texto;
+    v3RenderizarIntegracoes();
+  }
+}
+
+async function v3SincronizarBelvo() {
+  const botao = document.querySelector("#v3SyncBelvo");
+  if (!botao || botao.disabled) return;
+
+  const texto = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = "Sincronizando...";
+
+  try {
+    const resultado = await v3Api("/api/v3/integracoes/belvo/investimentos/sincronizar", {
+      method: "POST",
+    });
+
+    const sincronizados = Array.isArray(resultado.sincronizados)
+      ? resultado.sincronizados.length
+      : 0;
+    const pendentes = Array.isArray(resultado.pendentesMapeamento)
+      ? resultado.pendentesMapeamento.length
+      : 0;
+
+    const status = document.querySelector("#v3InvestStatus");
+    if (status) {
+      status.className = pendentes ? "v3-note v3-warning" : "v3-note";
+      status.textContent =
+        `Belvo: ${sincronizados} posição(ões) sincronizada(s)` +
+        (pendentes ? ` · ${pendentes} investimento(s) aguardando identificação segura do ticker.` : ".");
+    }
+
+    await v3CarregarInvestimentos();
+  } catch (erro) {
+    alert(`Não foi possível sincronizar os investimentos da Nubank:\n\n${erro.message}`);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = texto;
+    v3RenderizarIntegracoes();
+  }
+}
+
 async function v3CarregarMoedas() {
   const status = document.querySelector("#v3FxStatus");
   const [ptax, contas] = await Promise.allSettled([
@@ -825,13 +970,16 @@ function v3RenderizarMoedas() {
 
   let usd = 0;
   let custo = 0;
+  let custoCompleto = true;
+
   contas.forEach(c => {
     usd += Number(c.saldoUsd || 0);
     custo += Number(c.custoBaseBrl || 0);
+    if (c.custoHistoricoCompleto === false) custoCompleto = false;
   });
 
   const hoje = usd * cotacao;
-  const variacao = cotacao ? hoje - custo : 0;
+  const variacao = cotacao && custoCompleto ? hoje - custo : null;
 
   const total = document.querySelector("#v3UsdTotal");
   const hojeEl = document.querySelector("#v3UsdBrlToday");
@@ -842,10 +990,10 @@ function v3RenderizarMoedas() {
 
   if (total) total.textContent = v3Dinheiro(usd, "USD");
   if (hojeEl) hojeEl.textContent = cotacao ? v3Dinheiro(hoje) : "—";
-  if (custoEl) custoEl.textContent = v3Dinheiro(custo);
+  if (custoEl) custoEl.textContent = custoCompleto ? v3Dinheiro(custo) : "Parcial";
   if (varEl) {
-    varEl.textContent = cotacao ? v3Dinheiro(variacao) : "—";
-    varEl.className = v3ClasseVariacao(variacao);
+    varEl.textContent = variacao == null ? "—" : v3Dinheiro(variacao);
+    varEl.className = variacao == null ? "" : v3ClasseVariacao(variacao);
   }
   if (ptaxValue) ptaxValue.textContent = cotacao ? `R$ ${v3Numero(cotacao, 4)}` : "—";
   if (ptaxMeta) {
@@ -860,14 +1008,36 @@ function v3RenderizarMoedas() {
           const saldo = Number(conta.saldoUsd || 0);
           const valor = saldo * cotacao;
           const custoConta = Number(conta.custoBaseBrl || 0);
-          const variacaoConta = cotacao ? valor - custoConta : 0;
+          const custoConhecido = conta.custoHistoricoCompleto !== false;
+          const variacaoConta = cotacao && custoConhecido ? valor - custoConta : null;
+          const sincronizada = String(conta.modoSaldo || "") === "SINCRONIZADO";
+          const sincronizadoEm = conta.sincronizado_em
+            ? new Date(conta.sincronizado_em).toLocaleString("pt-BR")
+            : null;
+
           return `
             <div class="v3-fx-account ${v3ClasseBancoInternacional(conta.instituicao)}">
               <div class="v3-fx-head">
-                <div><strong>${v3Escapar(conta.nome || conta.instituicao)}</strong><div class="meta">${v3Escapar(conta.instituicao)} · USD</div></div>
-                <div style="text-align:right"><strong>${v3Dinheiro(saldo, "USD")}</strong><div class="meta">${cotacao ? v3Dinheiro(valor) : ""}</div></div>
+                <div>
+                  <strong>${v3Escapar(conta.nome || conta.instituicao)}</strong>
+                  <div class="meta">
+                    ${v3Escapar(conta.instituicao)} · USD
+                    <span class="v3-source-pill ${sincronizada ? "synced" : "manual"}">
+                      ${sincronizada ? "Sincronizado" : "Manual"}
+                    </span>
+                  </div>
+                </div>
+                <div style="text-align:right">
+                  <strong>${v3Dinheiro(saldo, "USD")}</strong>
+                  <div class="meta">${cotacao ? v3Dinheiro(valor) : ""}</div>
+                </div>
               </div>
-              <div class="meta" style="margin-top:8px">Custo médio: R$ ${v3Numero(conta.custoMedio || 0, 4)} · Custo histórico: ${v3Dinheiro(custoConta)} · <span class="${v3ClasseVariacao(variacaoConta)}">Variação: ${cotacao ? v3Dinheiro(variacaoConta) : "—"}</span></div>
+              <div class="meta" style="margin-top:8px">
+                ${custoConhecido
+                  ? `Custo médio: R$ ${v3Numero(conta.custoMedio || 0, 4)} · Custo histórico: ${v3Dinheiro(custoConta)} · <span class="${variacaoConta == null ? "" : v3ClasseVariacao(variacaoConta)}">Variação: ${variacaoConta == null ? "—" : v3Dinheiro(variacaoConta)}</span>`
+                  : "Saldo sincronizado pela instituição · custo histórico parcial, portanto a variação não é estimada."}
+                ${sincronizadoEm ? ` · Atualizado ${v3Escapar(sincronizadoEm)}` : ""}
+              </div>
             </div>`;
         }).join("")
       : '<div class="v3-note">Nenhuma conta em dólar cadastrada.</div>';
@@ -1038,6 +1208,9 @@ function v3ConfigurarEventos() {
   document.querySelectorAll("#v3SimulatorForm input").forEach(input => input.addEventListener("input", v3Simular));
   document.querySelector("#v3SimReinvest")?.addEventListener("change", v3Simular);
 
+  document.querySelector("#v3SyncWise")?.addEventListener("click", v3SincronizarWise);
+  document.querySelector("#v3SyncBelvo")?.addEventListener("click", v3SincronizarBelvo);
+
   document.querySelectorAll("[data-v3-bank]").forEach(btn => btn.addEventListener("click", () => {
     const form = document.querySelector("#v3FxAccountForm");
     const instituicao = form?.querySelector('input[name="instituicao"]');
@@ -1100,6 +1273,8 @@ function v3ConfigurarEventos() {
 async function v3CarregarTudo() {
   v3DecorarCartoes();
   v3Simular();
+
+  await v3CarregarIntegracoes();
 
   await Promise.allSettled([
     v3CarregarInvestimentos(),
