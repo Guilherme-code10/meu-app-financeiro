@@ -24,8 +24,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Syntax server
-        run: node --check server.js
+      - name: Syntax server e frontend principal
+        run: node --check server.js && node --check public/app.js
       - name: Syntax V3 backend
         run: node --check routes/v3.js && node --check lib/v3-finance.js
       - name: Tests

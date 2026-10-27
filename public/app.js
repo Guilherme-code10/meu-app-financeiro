@@ -3050,14 +3050,146 @@ function obterResumoContasFixasPorMes(
 }
 
 
+function obterResumoContasFixasPorCiclo(ciclo) {
+  const contas = pegarContasFixas();
+
+  let fixasTotal = 0;
+  let fixasPago = 0;
+  let fixasPendente = 0;
+  let parcelasTotal = 0;
+  let parcelasPago = 0;
+  let parcelasPendente = 0;
+  let quantidade = 0;
+
+  const pendentes = [];
+
+  contas.forEach((conta) => {
+    if (conta.finalizada === true) {
+      return;
+    }
+
+    const diaVencimento = Math.max(
+      1,
+      Math.min(31, Number(conta.day || 1)),
+    );
+
+    // O ciclo financeiro vai do dia 11 até o dia 10 do mês seguinte.
+    // Logo, vencimentos de 1 a 10 pertencem ao mês seguinte do ciclo.
+    let anoCompetencia = ciclo.anoReferencia;
+    let mesCompetencia = ciclo.mesReferencia;
+
+    if (diaVencimento <= 10) {
+      mesCompetencia += 1;
+
+      if (mesCompetencia > 11) {
+        mesCompetencia = 0;
+        anoCompetencia += 1;
+      }
+    }
+
+    const ehParcelada =
+      conta.tipo === "parcelada" ||
+      Number(conta.totalParcelas || 0) > 0;
+
+    if (ehParcelada) {
+      const totalParcelas = Number(conta.totalParcelas || 0);
+      const parcelaInicial = Number(conta.parcelaAtual || 1);
+      const anoInicial = Number(conta.anoInicioParcela || anoCompetencia);
+      const mesInicial = Number(conta.mesInicioParcela ?? mesCompetencia);
+      const diferencaMeses =
+        (anoCompetencia - anoInicial) * 12 +
+        (mesCompetencia - mesInicial);
+      const parcelaDoMes =
+        parcelaInicial + diferencaMeses;
+
+      if (
+        parcelaDoMes < parcelaInicial ||
+        parcelaDoMes > totalParcelas
+      ) {
+        return;
+      }
+    } else {
+      const anoInicio = Number(conta.anoInicioParcela || 0);
+      const mesInicio = Number(conta.mesInicioParcela);
+
+      if (anoInicio && Number.isFinite(mesInicio)) {
+        const competencia =
+          anoCompetencia * 12 + mesCompetencia;
+        const inicio =
+          anoInicio * 12 + mesInicio;
+
+        if (competencia < inicio) {
+          return;
+        }
+      }
+    }
+
+    const valor = Math.abs(Number(conta.amount || 0));
+    const chaveMes =
+      `${anoCompetencia}-${String(
+        mesCompetencia + 1,
+      ).padStart(2, "0")}`;
+
+    const foiPaga =
+      Array.isArray(conta.pagamentos) &&
+      conta.pagamentos.includes(chaveMes);
+
+    quantidade += 1;
+
+    if (ehParcelada) {
+      parcelasTotal += valor;
+
+      if (foiPaga) {
+        parcelasPago += valor;
+      } else {
+        parcelasPendente += valor;
+        pendentes.push({
+          nome: conta.name || "Parcela",
+          valor,
+          vencimento: chaveMes,
+        });
+      }
+
+      return;
+    }
+
+    fixasTotal += valor;
+
+    if (foiPaga) {
+      fixasPago += valor;
+    } else {
+      fixasPendente += valor;
+      pendentes.push({
+        nome: conta.name || "Conta fixa",
+        valor,
+        vencimento: chaveMes,
+      });
+    }
+  });
+
+  return {
+    total: fixasTotal + parcelasTotal,
+    pago: fixasPago + parcelasPago,
+    pendente: fixasPendente + parcelasPendente,
+    fixasTotal,
+    fixasPago,
+    fixasPendente,
+    parcelasTotal,
+    parcelasPago,
+    parcelasPendente,
+    quantidade,
+    pendentes,
+  };
+}
+
+
 function obterResumoContasFixasMesAtual() {
   const ciclo =
     obterCicloFinanceiroAtual();
 
   return {
-    ...obterResumoContasFixasPorMes(
-      ciclo.anoReferencia,
-      ciclo.mesReferencia,
+    ...obterResumoContasFixasPorCiclo(
+      ciclo,
     ),
 
     ano:
@@ -5136,14 +5268,18 @@ function atualizarDashboard() {
     obterCicloFinanceiroAtual();
 
   const resumoFixas =
-    obterResumoContasFixasPorMes(
-      cicloDashboard.anoReferencia,
-      cicloDashboard.mesReferencia,
+    obterResumoContasFixasPorCiclo(
+      cicloDashboard,
     );
 
   const elementoFixedTotal =
     document.querySelector(
       "#fixedTotal",
+    );
+
+  const elementoFixedCount =
+    document.querySelector(
+      "#fixedCount",
     );
 
   const elementoFixedPaid =
@@ -5161,6 +5297,13 @@ function atualizarDashboard() {
       dinheiro(
         resumoFixas.total,
       );
+  }
+
+  if (elementoFixedCount) {
+    elementoFixedCount.textContent =
+      `${resumoFixas.quantidade} cadastrada${
+        resumoFixas.quantidade === 1 ? "" : "s"
+      }`;
   }
 
   if (elementoFixedPaid) {
@@ -5903,35 +6046,9 @@ function mostrarContasFixas() {
 
   const totalPendente = total - totalPago;
 
-  // ==========================================
-  // ATUALIZAR RESUMO
-  // ==========================================
-
-  const elementoTotal = document.querySelector("#fixedTotal");
-
-  const elementoQuantidade = document.querySelector("#fixedCount");
-
-  const elementoPago = document.querySelector("#fixedPaid");
-
-  const elementoPendente = document.querySelector("#fixedPending");
-
-  if (elementoTotal) {
-    elementoTotal.textContent = dinheiro(total);
-  }
-
-  if (elementoQuantidade) {
-    elementoQuantidade.textContent = `${quantidade} cadastrada${
-      quantidade === 1 ? "" : "s"
-    }`;
-  }
-
-  if (elementoPago) {
-    elementoPago.textContent = dinheiro(totalPago);
-  }
-
-  if (elementoPendente) {
-    elementoPendente.textContent = dinheiro(totalPendente);
-  }
+  // O resumo do Dashboard é calculado pelo ciclo financeiro
+  // (dia 11 ao dia 10) e não deve ser sobrescrito pelo mês
+  // selecionado nesta tela de Contas Fixas.
 
   // ==========================================
   // LISTA
