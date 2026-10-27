@@ -846,7 +846,9 @@ function criarRouterV3({ supabaseAdmin }) {
           ticker: item.ticker,
           classe: existente?.classe || item.classe || "OUTRO",
           quantidade: item.quantidade,
-          preco_medio: precoMedioBelvo || Number(existente?.preco_medio || 0),
+          preco_medio: existente
+            ? Number(existente.preco_medio || 0)
+            : precoMedioBelvo,
           fonte: "BELVO",
           external_id: item.externalId || existente?.external_id || null,
           nome_produto: item.nomeProduto || existente?.nome_produto || null,
