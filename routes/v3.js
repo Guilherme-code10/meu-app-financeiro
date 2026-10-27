@@ -510,7 +510,7 @@ function criarRouterV3({ supabaseAdmin }) {
     try {
       const contaId = textoSeguro(req.body.contaId, 64);
       const tipo = String(req.body.tipo || "").toUpperCase();
-      const tipos = ["COMPRA", "VENDA", "GASTO"];
+      const tipos = ["COMPRA", "VENDA", "GASTO", "AJUSTE_ENTRADA", "AJUSTE_SAIDA"];
 
       if (!tipos.includes(tipo)) {
         return res.status(400).json({ sucesso: false, erro: "Tipo de movimentação inválido." });
@@ -532,7 +532,7 @@ function criarRouterV3({ supabaseAdmin }) {
       if (erroConta) return responderErroBanco(res, erroConta);
       if (!conta) return res.status(404).json({ sucesso: false, erro: "Conta não encontrada." });
 
-      if (tipo === "COMPRA" && totalBrl <= 0) {
+      if (["COMPRA", "AJUSTE_ENTRADA"].includes(tipo) && totalBrl <= 0) {
         return res.status(400).json({ sucesso: false, erro: "Informe o total pago em reais." });
       }
 
@@ -546,7 +546,7 @@ function criarRouterV3({ supabaseAdmin }) {
       if (erroAtual) return responderErroBanco(res, erroAtual);
 
       const ledger = calcularLedgerDolar(atual || []);
-      if (["VENDA", "GASTO"].includes(tipo) && quantidadeUsd > ledger.saldoUsd) {
+      if (["VENDA", "GASTO", "AJUSTE_SAIDA"].includes(tipo) && quantidadeUsd > ledger.saldoUsd) {
         return res.status(400).json({ sucesso: false, erro: "Saldo em USD insuficiente." });
       }
 
