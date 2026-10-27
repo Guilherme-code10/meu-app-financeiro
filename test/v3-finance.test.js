@@ -60,3 +60,14 @@ test("períodos de gráfico mapeiam para janelas válidas", () => {
   assert.equal(configuracaoPeriodo("5A").range, "5y");
   assert.equal(configuracaoPeriodo("MAX").dias, null);
 });
+
+test("ajuste manual de dólar exige base histórica explícita e preserva custo na saída", () => {
+  const ledger = calcularLedgerDolar([
+    { tipo: "AJUSTE_ENTRADA", data: "2026-04-01", quantidade_usd: 200, total_brl: 1100, iof: 0, tarifas: 0 },
+    { tipo: "AJUSTE_SAIDA", data: "2026-04-02", quantidade_usd: 50, total_brl: 0, iof: 0, tarifas: 0 },
+  ]);
+
+  assert.equal(ledger.saldoUsd, 150);
+  assert.equal(ledger.custoMedio, 5.5);
+  assert.equal(ledger.custoBaseBrl, 825);
+});
