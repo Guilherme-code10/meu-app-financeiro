@@ -272,16 +272,58 @@ function v3InjetarSecoes() {
       </div>
 
       <div class="v3-panel v3-span-6">
-        <h3>Registrar compra, venda ou gasto</h3>
+        <div class="v3-row-between">
+          <div>
+            <h3 id="v3FxMovementTitle">Registrar compra de dólar</h3>
+            <p id="v3FxMovementHelp">Informe exatamente os valores da compra. O app calcula o custo efetivo e o novo preço médio.</p>
+          </div>
+          <span class="v3-source-pill manual">Manual</span>
+        </div>
+
         <form id="v3FxMovementForm" class="v3-form-grid">
-          <label class="full"><span>Conta</span><select name="contaId" id="v3FxMovementAccount" required></select></label>
-          <label><span>Tipo</span><select name="tipo"><option>COMPRA</option><option>VENDA</option><option>GASTO</option><option value="AJUSTE_ENTRADA">AJUSTE ENTRADA</option><option value="AJUSTE_SAIDA">AJUSTE SAÍDA</option></select></label>
+          <label class="full"><span>Banco</span><select name="contaId" id="v3FxMovementAccount" required></select></label>
+
+          <label>
+            <span>Movimentação</span>
+            <select name="tipo" id="v3FxMovementType">
+              <option value="COMPRA">Compra de dólar</option>
+              <option value="VENDA">Venda de dólar</option>
+              <option value="GASTO">Gasto em dólar</option>
+              <option value="AJUSTE_ENTRADA">Ajuste de entrada</option>
+              <option value="AJUSTE_SAIDA">Ajuste de saída</option>
+            </select>
+          </label>
+
           <label><span>Data</span><input name="data" type="date"></label>
-          <label><span>USD</span><input name="quantidadeUsd" type="number" step="0.01" min="0.01" required></label>
-          <label><span>Total pago/recebido em R$</span><input name="totalBrl" type="number" step="0.01" min="0" value="0"></label>
-          <label><span>IOF</span><input name="iof" type="number" step="0.01" min="0" value="0"></label>
-          <label><span>Tarifas</span><input name="tarifas" type="number" step="0.01" min="0" value="0"></label>
-          <button class="full" type="submit">Registrar movimentação</button>
+
+          <label>
+            <span>Quantidade em USD</span>
+            <input name="quantidadeUsd" type="number" step="0.01" min="0.01" placeholder="Ex.: 1000,00" required>
+          </label>
+
+          <label id="v3FxBrlField">
+            <span id="v3FxBrlLabel">Valor convertido em R$</span>
+            <input name="totalBrl" type="number" step="0.01" min="0" value="0">
+            <small id="v3FxBrlHint">Valor da conversão antes de IOF e tarifas.</small>
+          </label>
+
+          <label>
+            <span>IOF (R$)</span>
+            <input name="iof" type="number" step="0.01" min="0" value="0">
+          </label>
+
+          <label>
+            <span>Tarifas (R$)</span>
+            <input name="tarifas" type="number" step="0.01" min="0" value="0">
+          </label>
+
+          <div class="v3-fx-preview full" id="v3FxPurchasePreview">
+            <div><span>Custo total</span><strong id="v3FxPreviewTotal">R$ 0,00</strong></div>
+            <div><span>Cotação efetiva</span><strong id="v3FxPreviewRate">—</strong></div>
+            <div><span>Novo custo médio estimado</span><strong id="v3FxPreviewAverage">—</strong></div>
+          </div>
+
+          <button class="full" type="submit" id="v3FxMovementSubmit">Registrar compra de dólar</button>
         </form>
       </div>
 
@@ -968,6 +1010,130 @@ function v3ClasseBancoInternacional(instituicao) {
   return "v3-bank-generic";
 }
 
+function v3ContaMoedaSelecionada() {
+  const contaId = document.querySelector("#v3FxMovementAccount")?.value;
+  return (v3State.moedas.contas || []).find(
+    (conta) => String(conta.id) === String(contaId),
+  ) || null;
+}
+
+function v3AtualizarFormularioMoeda() {
+  const form = document.querySelector("#v3FxMovementForm");
+  if (!form) return;
+
+  const tipo = String(form.elements.tipo?.value || "COMPRA").toUpperCase();
+  const titulo = document.querySelector("#v3FxMovementTitle");
+  const ajuda = document.querySelector("#v3FxMovementHelp");
+  const labelBrl = document.querySelector("#v3FxBrlLabel");
+  const hintBrl = document.querySelector("#v3FxBrlHint");
+  const botao = document.querySelector("#v3FxMovementSubmit");
+
+  const textos = {
+    COMPRA: {
+      titulo: "Registrar compra de dólar",
+      ajuda: "Informe exatamente os valores da compra. O app calcula o custo efetivo e o novo preço médio.",
+      label: "Valor convertido em R$",
+      hint: "Valor da conversão antes de IOF e tarifas.",
+      botao: "Registrar compra de dólar",
+    },
+    VENDA: {
+      titulo: "Registrar venda de dólar",
+      ajuda: "Informe quantos dólares vendeu e quanto recebeu em reais.",
+      label: "Valor recebido em R$",
+      hint: "Valor recebido pela venda. IOF/tarifas podem ser informados separadamente.",
+      botao: "Registrar venda",
+    },
+    GASTO: {
+      titulo: "Registrar gasto em dólar",
+      ajuda: "Informe apenas os dólares gastos. O saldo e o custo histórico são reduzidos pelo custo médio atual.",
+      label: "Valor de referência em R$",
+      hint: "Opcional para gastos. Pode deixar R$ 0,00.",
+      botao: "Registrar gasto",
+    },
+    AJUSTE_ENTRADA: {
+      titulo: "Ajustar saldo para cima",
+      ajuda: "Use somente para corrigir um saldo que não veio de uma compra registrada.",
+      label: "Custo histórico em R$",
+      hint: "Informe o custo histórico correspondente aos dólares adicionados.",
+      botao: "Adicionar ajuste",
+    },
+    AJUSTE_SAIDA: {
+      titulo: "Ajustar saldo para baixo",
+      ajuda: "Use somente para corrigir uma diferença de saldo.",
+      label: "Valor de referência em R$",
+      hint: "Opcional para ajuste de saída.",
+      botao: "Remover ajuste",
+    },
+  };
+
+  const texto = textos[tipo] || textos.COMPRA;
+  if (titulo) titulo.textContent = texto.titulo;
+  if (ajuda) ajuda.textContent = texto.ajuda;
+  if (labelBrl) labelBrl.textContent = texto.label;
+  if (hintBrl) hintBrl.textContent = texto.hint;
+  if (botao) botao.textContent = texto.botao;
+
+  v3AtualizarPreviewCompraDolar();
+}
+
+function v3AtualizarPreviewCompraDolar() {
+  const form = document.querySelector("#v3FxMovementForm");
+  const preview = document.querySelector("#v3FxPurchasePreview");
+  if (!form || !preview) return;
+
+  const tipo = String(form.elements.tipo?.value || "COMPRA").toUpperCase();
+  const quantidadeUsd = Math.max(0, Number(form.elements.quantidadeUsd?.value || 0));
+  const totalBrl = Math.max(0, Number(form.elements.totalBrl?.value || 0));
+  const iof = Math.max(0, Number(form.elements.iof?.value || 0));
+  const tarifas = Math.max(0, Number(form.elements.tarifas?.value || 0));
+
+  const totalEl = document.querySelector("#v3FxPreviewTotal");
+  const rateEl = document.querySelector("#v3FxPreviewRate");
+  const averageEl = document.querySelector("#v3FxPreviewAverage");
+
+  const conta = v3ContaMoedaSelecionada();
+  const saldoAtual = Number(conta?.saldoUsd || 0);
+  const custoAtual = Number(conta?.custoBaseBrl || 0);
+
+  if (tipo !== "COMPRA" && tipo !== "AJUSTE_ENTRADA") {
+    preview.classList.add("is-secondary");
+
+    if (totalEl) totalEl.textContent =
+      totalBrl > 0 ? v3Dinheiro(totalBrl) : "—";
+    if (rateEl) rateEl.textContent =
+      quantidadeUsd > 0 && totalBrl > 0
+        ? `R$ ${v3Numero(totalBrl / quantidadeUsd, 4)}/USD`
+        : "—";
+    if (averageEl) averageEl.textContent =
+      conta ? `Atual: R$ ${v3Numero(conta.custoMedio || 0, 4)}/USD` : "—";
+    return;
+  }
+
+  preview.classList.remove("is-secondary");
+
+  const custoCompra = totalBrl + iof + tarifas;
+  const cotacaoEfetiva =
+    quantidadeUsd > 0 && custoCompra > 0
+      ? custoCompra / quantidadeUsd
+      : 0;
+  const novoSaldo = saldoAtual + quantidadeUsd;
+  const novoCusto = custoAtual + custoCompra;
+  const novoCustoMedio =
+    novoSaldo > 0 && novoCusto > 0
+      ? novoCusto / novoSaldo
+      : 0;
+
+  if (totalEl) totalEl.textContent = v3Dinheiro(custoCompra);
+  if (rateEl) rateEl.textContent =
+    cotacaoEfetiva > 0
+      ? `R$ ${v3Numero(cotacaoEfetiva, 4)}/USD`
+      : "—";
+  if (averageEl) averageEl.textContent =
+    novoCustoMedio > 0
+      ? `R$ ${v3Numero(novoCustoMedio, 4)}/USD`
+      : "—";
+}
+
 function v3RenderizarMoedas() {
   const contas = v3State.moedas.contas || [];
   const ptax = v3State.moedas.ptax;
@@ -1054,6 +1220,7 @@ function v3RenderizarMoedas() {
     if (el) el.innerHTML = options;
   });
 
+  v3AtualizarPreviewCompraDolar();
   v3RenderizarHistoricoMoedas();
 }
 
@@ -1216,6 +1383,14 @@ function v3ConfigurarEventos() {
   document.querySelector("#v3SyncWise")?.addEventListener("click", v3SincronizarWise);
   document.querySelector("#v3SyncBelvo")?.addEventListener("click", v3SincronizarBelvo);
 
+  const fxMovementForm = document.querySelector("#v3FxMovementForm");
+  fxMovementForm?.querySelector("[name='tipo']")?.addEventListener("change", v3AtualizarFormularioMoeda);
+  fxMovementForm?.querySelector("[name='contaId']")?.addEventListener("change", v3AtualizarPreviewCompraDolar);
+  ["quantidadeUsd", "totalBrl", "iof", "tarifas"].forEach((nome) => {
+    fxMovementForm?.querySelector(`[name='${nome}']`)?.addEventListener("input", v3AtualizarPreviewCompraDolar);
+  });
+  v3AtualizarFormularioMoeda();
+
   document.querySelectorAll("[data-v3-bank]").forEach(btn => btn.addEventListener("click", () => {
     const form = document.querySelector("#v3FxAccountForm");
     const instituicao = form?.querySelector('input[name="instituicao"]');
@@ -1252,6 +1427,10 @@ function v3ConfigurarEventos() {
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       evento.currentTarget.reset();
+      evento.currentTarget.elements.tipo.value = "COMPRA";
+      const campoData = evento.currentTarget.querySelector("input[name='data']");
+      if (campoData) campoData.value = new Date().toISOString().slice(0, 10);
+      v3AtualizarFormularioMoeda();
       await v3CarregarMoedas();
     } catch (erro) {
       alert(erro.message);
