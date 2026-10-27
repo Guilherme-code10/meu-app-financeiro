@@ -941,6 +941,11 @@ async function v3AtualizarDashboard() {
 }
 
 function v3ConfigurarEventos() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  ["#v3OperationForm input[name='data']", "#v3DividendForm input[name='dataPagamento']", "#v3FxMovementForm input[name='data']", "#v3FxTransferForm input[name='data']"].forEach(seletor => {
+    const campo = document.querySelector(seletor);
+    if (campo && !campo.value) campo.value = hoje;
+  });
   document.querySelector("#v3TickerSearch")?.addEventListener("click", () => {
     v3BuscarMercado(document.querySelector("#v3TickerInput")?.value, v3State.mercado.periodo);
   });
@@ -982,6 +987,32 @@ function v3ConfigurarEventos() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
+      });
+      evento.currentTarget.reset();
+      await v3CarregarInvestimentos();
+    } catch (erro) {
+      alert(erro.message);
+    }
+  });
+
+  document.querySelector("#v3DividendForm")?.addEventListener("submit", async evento => {
+    evento.preventDefault();
+    const form = new FormData(evento.currentTarget);
+    const bruto = Object.fromEntries(form.entries());
+    const status = String(bruto.status || "RECEBIDO").toUpperCase();
+
+    try {
+      await v3Api("/api/v3/investimentos/dividendos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker: bruto.ticker,
+          valor: bruto.valor,
+          dataPagamento: bruto.dataPagamento,
+          anunciado: status === "ANUNCIADO",
+          recebido: status === "RECEBIDO",
+          origem: "MANUAL",
+        }),
       });
       evento.currentTarget.reset();
       await v3CarregarInvestimentos();
