@@ -154,6 +154,39 @@ function v3InjetarSecoes() {
         </form>
       </div>
 
+
+      <div class="v3-panel v3-span-6">
+        <h3>Distribuição da carteira</h3>
+        <p id="v3AllocationMeta">Aguardando posições.</p>
+        <div id="v3PortfolioDistribution" class="v3-allocation"></div>
+      </div>
+
+      <div class="v3-panel v3-span-6">
+        <h3>Dividendos</h3>
+        <p>Registre recebidos ou anunciados. Eventos da Brapi aparecem separados quando disponíveis.</p>
+        <form id="v3DividendForm" class="v3-form-grid">
+          <label><span>Ticker</span><input name="ticker" required placeholder="MXRF11"></label>
+          <label><span>Valor total (R$)</span><input name="valor" type="number" step="0.01" min="0.01" required></label>
+          <label><span>Data de pagamento</span><input name="dataPagamento" type="date" required></label>
+          <label><span>Status</span>
+            <select name="status"><option value="RECEBIDO">Recebido</option><option value="ANUNCIADO">Anunciado</option></select>
+          </label>
+          <button class="full" type="submit">Registrar dividendo</button>
+        </form>
+        <div id="v3DividendHistory" style="margin-top:16px"></div>
+      </div>
+
+      <div class="v3-panel v3-span-12">
+        <h3>Histórico de compras e vendas</h3>
+        <div id="v3OperationHistory" class="v3-scroll"></div>
+      </div>
+
+      <div class="v3-panel v3-span-12">
+        <h3>Evolução dos aportes registrados</h3>
+        <p>Mostra capital líquido aportado a partir das operações salvas. O patrimônio histórico só será exibido quando houver snapshots reais.</p>
+        <div id="v3ContributionEvolution"></div>
+      </div>
+
       <div class="v3-panel v3-span-12">
         <h3>Simulador de investimentos</h3>
         <p>Projeção hipotética. A taxa não é promessa de rentabilidade.</p>
@@ -217,7 +250,7 @@ function v3InjetarSecoes() {
         <h3>Registrar compra, venda ou gasto</h3>
         <form id="v3FxMovementForm" class="v3-form-grid">
           <label class="full"><span>Conta</span><select name="contaId" id="v3FxMovementAccount" required></select></label>
-          <label><span>Tipo</span><select name="tipo"><option>COMPRA</option><option>VENDA</option><option>GASTO</option></select></label>
+          <label><span>Tipo</span><select name="tipo"><option>COMPRA</option><option>VENDA</option><option>GASTO</option><option value="AJUSTE_ENTRADA">AJUSTE ENTRADA</option><option value="AJUSTE_SAIDA">AJUSTE SAÍDA</option></select></label>
           <label><span>Data</span><input name="data" type="date"></label>
           <label><span>USD</span><input name="quantidadeUsd" type="number" step="0.01" min="0.01" required></label>
           <label><span>Total pago/recebido em R$</span><input name="totalBrl" type="number" step="0.01" min="0" value="0"></label>
@@ -237,6 +270,11 @@ function v3InjetarSecoes() {
           <label><span>Data</span><input name="data" type="date"></label>
           <button class="full" type="submit">Transferir USD</button>
         </form>
+      </div>
+      <div class="v3-panel v3-span-12">
+        <h3>Histórico em dólar</h3>
+        <p>Compras, vendas, gastos, ajustes e transferências por instituição.</p>
+        <div id="v3FxHistory" class="v3-scroll"></div>
       </div>
     </div>
   `;
