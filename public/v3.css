@@ -447,3 +447,58 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
   .v3-allocation-row { grid-template-columns: 90px 1fr; }
   .v3-allocation-row > :last-child { grid-column: 2; }
 }
+
+
+/* Identidade Nubank + bancos internacionais */
+.v3-bank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  border: 1px solid rgba(255,255,255,.10);
+}
+.v3-bank-nubank {
+  background: linear-gradient(135deg, rgba(130,10,209,.34), rgba(77,8,123,.28));
+  color: #ead7ff;
+  border-color: rgba(164,74,255,.28);
+}
+.v3-bank-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 14px;
+}
+.v3-bank-preset {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 999px;
+  background: rgba(255,255,255,.035);
+  color: var(--text);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.v3-bank-preset:hover {
+  border-color: rgba(139,92,246,.45);
+  background: rgba(124,58,237,.12);
+}
+.v3-fx-account {
+  position: relative;
+  overflow: hidden;
+}
+.v3-fx-account::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: rgba(255,255,255,.14);
+}
+.v3-fx-account.v3-bank-revolut::before { background: #7c3aed; }
+.v3-fx-account.v3-bank-wise::before { background: #27d17f; }
+.v3-fx-account.v3-bank-nomad::before { background: #9b5cff; }
+.v3-fx-account.v3-bank-generic::before { background: rgba(255,255,255,.25); }
