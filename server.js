@@ -976,6 +976,36 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
         fechamento: credito.balanceCloseDate || null,
 
         ativa: cartao.itemIsActive !== false,
+
+        // V3: expõe somente metadados não sensíveis.
+        // Mesmo que a origem forneça um número, nunca devolvemos mais que os 4 finais.
+        ultimos4: (() => {
+          const bruto =
+            credito.lastFourDigits ||
+            credito.last4 ||
+            credito.number ||
+            credito.cardNumber ||
+            cartao.number ||
+            "";
+
+          const digitos = String(bruto).replace(/\D/g, "");
+
+          return digitos.length >= 4
+            ? digitos.slice(-4)
+            : null;
+        })(),
+
+        bandeira:
+          credito.brand ||
+          credito.network ||
+          credito.cardBrand ||
+          null,
+
+        modalidade:
+          credito.level ||
+          credito.productType ||
+          credito.cardType ||
+          null,
       };
     });
 
