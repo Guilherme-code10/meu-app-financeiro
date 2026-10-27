@@ -27,6 +27,6 @@ jobs:
       - name: Syntax server e frontend principal
         run: node --check server.js && node --check public/app.js
       - name: Syntax V3 backend
-        run: node --check routes/v3.js && node --check lib/v3-finance.js
+        run: node --check routes/v3.js && node --check lib/v3-finance.js && node --check lib/v3-integrations.js && node --check public/v3.js
       - name: Tests
         run: npm test
