@@ -424,3 +424,26 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
   .v3-chart svg { height: 230px; }
   .v3-toolbar { align-items: stretch; }
 }
+
+
+/* Histórico, alocação e dados auxiliares V3 */
+.v3-allocation { display: grid; gap: 12px; margin-top: 14px; }
+.v3-allocation-row { display: grid; grid-template-columns: minmax(80px, 130px) 1fr auto; gap: 10px; align-items: center; }
+.v3-allocation-track { height: 9px; border-radius: 999px; overflow: hidden; background: #09090d; }
+.v3-allocation-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #7c3aed, #27d17f); }
+.v3-scroll { overflow-x: auto; }
+.v3-scroll .v3-mini-table { min-width: 680px; }
+.v3-subtitle { margin: 18px 0 8px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.v3-history-empty { color: var(--muted); padding: 14px 0; font-size: 13px; }
+.v3-status-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-size: 11px; border: 1px solid var(--border); }
+.v3-status-pill.received { color: var(--green); background: var(--green-soft); }
+.v3-status-pill.announced { color: var(--yellow); background: var(--yellow-soft); }
+.v3-contribution-bars { display: flex; align-items: end; gap: 5px; height: 150px; margin-top: 16px; padding-top: 10px; border-bottom: 1px solid var(--border); }
+.v3-contribution-bars span { flex: 1; min-width: 5px; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, #8b5cf6, #5b21b6); opacity: .9; }
+.v3-fx-transactions { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.v3-fx-transactions details summary { cursor: pointer; color: #b9b5c9; font-size: 12px; }
+
+@media (max-width: 640px) {
+  .v3-allocation-row { grid-template-columns: 90px 1fr; }
+  .v3-allocation-row > :last-child { grid-column: 2; }
+}
