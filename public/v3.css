@@ -502,3 +502,275 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 .v3-fx-account.v3-bank-wise::before { background: #27d17f; }
 .v3-fx-account.v3-bank-nomad::before { background: #9b5cff; }
 .v3-fx-account.v3-bank-generic::before { background: rgba(255,255,255,.25); }
+
+
+/* =========================================================
+   LOGIN BLACK PREMIUM
+   Corrige o markup atual (.login-logo) sem alterar autenticação.
+   ========================================================= */
+#loginScreen.login-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(18px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom))
+    max(18px, env(safe-area-inset-left));
+  background:
+    radial-gradient(circle at 18% 16%, rgba(124, 58, 237, .28), transparent 34rem),
+    radial-gradient(circle at 88% 78%, rgba(39, 209, 127, .10), transparent 28rem),
+    linear-gradient(145deg, #07070b 0%, #0b0b12 48%, #09080f 100%) !important;
+}
+
+#loginScreen.login-screen::before,
+#loginScreen.login-screen::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(10px);
+}
+
+#loginScreen.login-screen::before {
+  width: 380px;
+  height: 380px;
+  left: -180px;
+  bottom: -180px;
+  background: rgba(124, 58, 237, .12);
+}
+
+#loginScreen.login-screen::after {
+  width: 320px;
+  height: 320px;
+  right: -150px;
+  top: -130px;
+  background: rgba(39, 209, 127, .07);
+}
+
+#loginScreen .login-card {
+  width: min(100%, 440px);
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  padding: 34px;
+  border-radius: 26px;
+  border: 1px solid rgba(255,255,255,.09);
+  background:
+    linear-gradient(180deg, rgba(20,20,29,.97), rgba(11,11,17,.99)) !important;
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  box-shadow:
+    0 32px 90px rgba(0,0,0,.48),
+    0 0 0 1px rgba(124,58,237,.04),
+    0 0 60px rgba(124,58,237,.10);
+}
+
+.login-brand-v3 {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+#loginScreen .login-logo {
+  flex: 0 0 auto;
+  width: 58px !important;
+  height: 58px !important;
+  min-width: 58px;
+  border-radius: 17px;
+  display: grid !important;
+  place-items: center;
+  margin: 0 !important;
+  padding: 0 !important;
+  background:
+    linear-gradient(145deg, #8b5cf6, #5b21b6) !important;
+  color: #fff !important;
+  font-size: 21px !important;
+  line-height: 1 !important;
+  font-weight: 850;
+  letter-spacing: -.04em;
+  box-shadow:
+    0 12px 30px rgba(124,58,237,.30),
+    inset 0 1px 0 rgba(255,255,255,.20);
+}
+
+.login-brand-copy {
+  min-width: 0;
+}
+
+#loginScreen .login-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: #a78bfa;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .15em;
+}
+
+#loginScreen .login-card h1 {
+  margin: 0;
+  color: #fff !important;
+  font-size: clamp(28px, 6vw, 36px);
+  line-height: 1.04;
+  letter-spacing: -.045em;
+}
+
+#loginScreen .login-subtitle {
+  margin: 7px 0 0;
+  color: #a7a4b7 !important;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.login-security-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 22px;
+  padding: 10px 12px;
+  border: 1px solid rgba(39,209,127,.12);
+  border-radius: 12px;
+  background: rgba(39,209,127,.055);
+  color: #b9c4bd;
+  font-size: 12px;
+}
+
+.login-security-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 14px rgba(39,209,127,.55);
+}
+
+#loginScreen #loginForm {
+  gap: 10px;
+}
+
+#loginScreen #loginForm label {
+  display: block;
+  margin-top: 5px;
+  color: #d8d5e3 !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#loginScreen #loginForm input {
+  width: 100%;
+  height: 56px;
+  margin: 0 0 9px;
+  padding: 0 16px;
+  border-radius: 14px !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  background: #0a0a10 !important;
+  color: #fff !important;
+  font-size: 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+#loginScreen #loginForm input::placeholder {
+  color: #747181;
+}
+
+#loginScreen #loginForm input:focus {
+  border-color: rgba(139,92,246,.78) !important;
+  box-shadow:
+    0 0 0 4px rgba(124,58,237,.12),
+    inset 0 1px 0 rgba(255,255,255,.025) !important;
+}
+
+#loginScreen #loginButton {
+  width: 100%;
+  height: 57px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 15px;
+  background:
+    linear-gradient(135deg, #7c3aed 0%, #8b5cf6 52%, #27d17f 145%) !important;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: .01em;
+  box-shadow:
+    0 14px 34px rgba(124,58,237,.26),
+    inset 0 1px 0 rgba(255,255,255,.20);
+  transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+}
+
+#loginScreen #loginButton:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+#loginScreen #loginButton:active {
+  transform: translateY(0);
+}
+
+#loginScreen #loginError {
+  margin-top: 8px;
+  border: 1px solid rgba(255,95,112,.18);
+  background: rgba(255,95,112,.08);
+  color: #ff9aa5;
+}
+
+@media (max-width: 520px) {
+  #loginScreen.login-screen {
+    align-items: center;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  #loginScreen .login-card {
+    width: 100%;
+    max-width: 390px;
+    padding: 28px 22px !important;
+    border-radius: 24px;
+  }
+
+  .login-brand-v3 {
+    gap: 13px;
+    margin-bottom: 18px;
+  }
+
+  #loginScreen .login-logo {
+    width: 52px !important;
+    height: 52px !important;
+    min-width: 52px;
+    border-radius: 15px;
+    font-size: 19px !important;
+  }
+
+  #loginScreen .login-card h1 {
+    font-size: 30px;
+  }
+
+  .login-security-note {
+    margin-bottom: 18px;
+  }
+
+  #loginScreen #loginForm input {
+    height: 54px;
+  }
+
+  #loginScreen #loginButton {
+    height: 55px;
+  }
+}
+
+@media (max-height: 700px) {
+  #loginScreen.login-screen {
+    align-items: start;
+    padding-top: max(18px, env(safe-area-inset-top));
+  }
+
+  #loginScreen .login-card {
+    margin: auto 0;
+  }
+}
