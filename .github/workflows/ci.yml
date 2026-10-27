@@ -1,0 +1,32 @@
+name: CI - Meu Financeiro V3
+
+on:
+  push:
+    branches:
+      - "feat/v3-black-premium-investimentos-moedas"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Syntax server
+        run: node --check server.js
+      - name: Syntax V3 backend
+        run: node --check routes/v3.js && node --check lib/v3-finance.js
+      - name: Tests
+        run: npm test
