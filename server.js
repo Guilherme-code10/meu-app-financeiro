@@ -19,7 +19,8 @@ const supabaseAdmin = createClient(
 );
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || "0.0.0.0";
 
 const PIERRE_API_URL = "https://www.pierre.finance/tools/api";
 
@@ -4814,7 +4815,14 @@ app.use((req, res) => {
 // INICIAR SERVIDOR
 // ==========================================
 
-app.listen(PORT, () => {
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({
+    sucesso: true,
+    status: "ok",
+  });
+});
+
+const servidor = app.listen(PORT, HOST, () => {
   console.log("");
 
   console.log("=================================");
@@ -4825,7 +4833,7 @@ app.listen(PORT, () => {
 
   console.log("");
 
-  console.log(`Servidor: http://localhost:${PORT}`);
+  console.log(`Servidor: http://${HOST}:${PORT}`);
 
   console.log("");
 
@@ -4834,6 +4842,7 @@ app.listen(PORT, () => {
   console.log("");
 });
 
-setInterval(() => {
-  console.log("Servidor continua rodando...");
-}, 5000);
+servidor.on("error", (erro) => {
+  console.error("Erro ao iniciar servidor:", erro);
+  process.exitCode = 1;
+});
