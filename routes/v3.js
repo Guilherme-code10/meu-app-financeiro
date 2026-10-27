@@ -130,27 +130,84 @@ async function buscarMercado(ticker, periodo) {
     throw erro;
   }
 
-  const params = new URLSearchParams({
-    range: cfg.range,
-    interval: cfg.interval,
-    fundamental: "false",
-    dividends: "true",
-  });
+  const incluirDividendos =
+    String(process.env.BRAPI_INCLUDE_DIVIDENDS || "")
+      .trim()
+      .toLowerCase() === "true";
 
   const headers = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const resposta = await fetch(
-    `${BRAPI_URL}/${encodeURIComponent(simbolo)}?${params.toString()}`,
-    { headers },
+  async function consultar(params) {
+    const resposta = await fetch(
+      `${BRAPI_URL}/${encodeURIComponent(simbolo)}?${params.toString()}`,
+      { headers },
+    );
+
+    const texto = await resposta.text();
+    let json = {};
+    try {
+      json = texto ? JSON.parse(texto) : {};
+    } catch {
+      json = {};
+    }
+
+    return { resposta, json };
+  }
+
+  const params = new URLSearchParams({
+    range: cfg.range,
+    interval: cfg.interval,
+    fundamental: "false",
+  });
+
+  if (incluirDividendos) {
+    params.set("dividends", "true");
+  }
+
+  let { resposta, json } = await consultar(params);
+  let historicoLimitado = false;
+  let avisoPlano = incluirDividendos
+    ? null
+    : "Dividendos/JCP da Brapi desativados para compatibilidade com o plano atual.";
+
+  const mensagemErroInicial = String(
+    json?.message || json?.error || "",
   );
 
-  const texto = await resposta.text();
-  let json = {};
-  try {
-    json = texto ? JSON.parse(texto) : {};
-  } catch {
-    json = {};
+  if (
+    !resposta.ok &&
+    incluirDividendos &&
+    /dividend|jcp|provento|startup|plano/i.test(mensagemErroInicial)
+  ) {
+    const semDividendos = new URLSearchParams({
+      range: cfg.range,
+      interval: cfg.interval,
+      fundamental: "false",
+    });
+
+    ({ resposta, json } = await consultar(semDividendos));
+    avisoPlano =
+      "Dividendos/JCP indisponíveis no plano atual; cotação mantida sem proventos.";
+  }
+
+  const mensagemErroHistorico = String(
+    json?.message || json?.error || "",
+  );
+
+  if (
+    !resposta.ok &&
+    /hist[oó]ric|range|interval|startup|plano|pro\b/i.test(mensagemErroHistorico)
+  ) {
+    const somenteCotacao = new URLSearchParams({
+      fundamental: "false",
+    });
+
+    ({ resposta, json } = await consultar(somenteCotacao));
+    historicoLimitado = true;
+    avisoPlano =
+      avisoPlano ||
+      "O plano atual não liberou o histórico solicitado; exibindo apenas a cotação disponível.";
   }
 
   if (!resposta.ok) {
@@ -207,11 +264,23 @@ async function buscarMercado(ticker, periodo) {
       item.updatedAt ||
       null,
     historico,
-    dividendos: Array.isArray(dividendos) ? dividendos : [],
+    dividendos:
+      incluirDividendos && Array.isArray(dividendos)
+        ? dividendos
+        : [],
     fonte: "Brapi",
     atrasoMinutos: Number(process.env.BRAPI_DELAY_MINUTES || 30),
     atrasada: true,
     periodo: String(periodo || "1M").toUpperCase(),
+    recursos: {
+      historicoDisponivel: historico.length > 0 && !historicoLimitado,
+      dividendosSolicitados: incluirDividendos,
+      dividendosDisponiveis:
+        incluirDividendos &&
+        Array.isArray(dividendos) &&
+        dividendos.length > 0,
+    },
+    avisoPlano,
   };
 }
 
