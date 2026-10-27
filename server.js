@@ -3,7 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const crypto = require("crypto");
-const { reconstruirParcelas, lerParcela, adicionarMeses } = require("./lib/parcelamentos");
+const { reconstruirParcelas, lerParcela, adicionarMeses } = require("./lib/parcelamentos");\nconst { criarRouterV3 } = require("./routes/v3");
 
 const { createClient } = require("@supabase/supabase-js");
 
