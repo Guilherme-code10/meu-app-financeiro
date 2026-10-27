@@ -53,12 +53,12 @@ function v3InjetarNavegacao() {
   const btnInvest = document.createElement("button");
   btnInvest.className = "nav-item";
   btnInvest.dataset.section = "investimentos";
-  btnInvest.innerHTML = '📈 <span>Investimentos</span>';
+  btnInvest.innerHTML = '📈 <span>Investimentos Nubank</span>';
 
   const btnMoedas = document.createElement("button");
   btnMoedas.className = "nav-item";
   btnMoedas.dataset.section = "moedas";
-  btnMoedas.innerHTML = '💵 <span>Moedas e viagens</span>';
+  btnMoedas.innerHTML = '🌎 <span>Bancos internacionais</span>';
 
   if (parcelas?.nextSibling) {
     nav.insertBefore(btnInvest, parcelas.nextSibling);
@@ -78,13 +78,13 @@ function v3InjetarSecoes() {
   investimentos.innerHTML = `
     <div class="section-title">
       <div>
-        <p class="eyebrow">CARTEIRA</p>
-        <h2>Investimentos</h2>
-        <p>Ações, FIIs e ETFs com preço médio, histórico e dados de mercado identificados pela fonte.</p>
+        <p class="eyebrow">NUBANK · BOLSA</p>
+        <h2>Investimentos Nubank</h2>
+        <p>Sua carteira de bolsa na Nubank, com ações, FIIs e ETFs, preço médio, histórico e dados de mercado identificados pela fonte.</p>
       </div>
     </div>
 
-    <div id="v3InvestStatus" class="v3-note">Carregando carteira...</div>
+    <div id="v3InvestStatus" class="v3-note">Carregando carteira Nubank...</div>
 
     <div class="v3-kpis" style="margin-top:18px">
       <div class="v3-kpi"><span>Patrimônio investido</span><strong id="v3InvestTotal">—</strong></div>
@@ -121,14 +121,14 @@ function v3InjetarSecoes() {
       </div>
 
       <div class="v3-panel v3-span-4">
-        <h3>Minha carteira</h3>
+        <div class="v3-row-between"><h3>Carteira Nubank</h3><span class="v3-bank-badge v3-bank-nubank">Nubank</span></div>
         <p>Clique no ticker para abrir o gráfico.</p>
         <div id="v3Holdings" class="v3-holdings"><div class="v3-skeleton"></div></div>
       </div>
 
       <div class="v3-panel v3-span-6">
         <h3>Adicionar/ajustar posição</h3>
-        <p>Use para cadastrar uma posição existente sem inventar histórico de operações.</p>
+        <p>Use para cadastrar uma posição que você já possui na Nubank, sem inventar histórico de operações.</p>
         <form id="v3PositionForm" class="v3-form-grid">
           <label><span>Ticker</span><input name="ticker" required placeholder="ITUB4"></label>
           <label><span>Classe</span>
@@ -142,7 +142,7 @@ function v3InjetarSecoes() {
 
       <div class="v3-panel v3-span-6">
         <h3>Registrar compra ou venda</h3>
-        <p>O preço médio é recalculado automaticamente nas compras.</p>
+        <p>Registre as compras e vendas feitas pela Nubank. O preço médio é recalculado automaticamente nas compras.</p>
         <form id="v3OperationForm" class="v3-form-grid">
           <label><span>Ticker</span><input name="ticker" required placeholder="MXRF11"></label>
           <label><span>Tipo</span><select name="tipo"><option>COMPRA</option><option>VENDA</option></select></label>
@@ -213,13 +213,13 @@ function v3InjetarSecoes() {
   moedas.innerHTML = `
     <div class="section-title">
       <div>
-        <p class="eyebrow">VIAGENS</p>
-        <h2>Moedas e viagens</h2>
-        <p>Controle dólares por instituição sem alterar o custo histórico quando a cotação muda.</p>
+        <p class="eyebrow">DÓLARES · VIAGENS</p>
+        <h2>Bancos internacionais</h2>
+        <p>Controle seus dólares separadamente por banco internacional, sem alterar o custo histórico quando a cotação muda.</p>
       </div>
     </div>
 
-    <div id="v3FxStatus" class="v3-note">Carregando PTAX e contas...</div>
+    <div id="v3FxStatus" class="v3-note">Carregando PTAX e bancos internacionais...</div>
 
     <div class="v3-kpis" style="margin-top:18px">
       <div class="v3-kpi"><span>Saldo total</span><strong id="v3UsdTotal">—</strong></div>
@@ -231,16 +231,22 @@ function v3InjetarSecoes() {
     <div class="v3-grid">
       <div class="v3-panel v3-span-7">
         <div class="v3-row-between">
-          <div><h3>Contas em dólar</h3><p id="v3PtaxMeta">Cotação de referência: carregando...</p></div>
+          <div><h3>Meus bancos internacionais</h3><p id="v3PtaxMeta">Cotação de referência: carregando...</p></div>
           <strong id="v3PtaxValue">—</strong>
         </div>
         <div id="v3FxAccounts" class="v3-fx-accounts"><div class="v3-skeleton"></div></div>
       </div>
 
       <div class="v3-panel v3-span-5">
-        <h3>Adicionar instituição</h3>
+        <h3>Adicionar banco internacional</h3>
+        <p>Cadastre cada banco separadamente. Nenhum saldo é inventado.</p>
+        <div class="v3-bank-presets" aria-label="Bancos internacionais sugeridos">
+          <button type="button" class="v3-bank-preset" data-v3-bank="Revolut">Revolut</button>
+          <button type="button" class="v3-bank-preset" data-v3-bank="Wise">Wise</button>
+          <button type="button" class="v3-bank-preset" data-v3-bank="Nomad">Nomad</button>
+        </div>
         <form id="v3FxAccountForm" class="v3-form-grid">
-          <label class="full"><span>Instituição</span><input name="instituicao" required placeholder="Revolut, Wise, Nomad..."></label>
+          <label class="full"><span>Banco / instituição</span><input name="instituicao" required placeholder="Revolut, Wise, Nomad..."></label>
           <label class="full"><span>Nome personalizado</span><input name="nome" placeholder="Ex.: Dólares da viagem"></label>
           <button class="full" type="submit">Adicionar conta</button>
         </form>
@@ -294,12 +300,12 @@ function v3InjetarDashboard() {
       <small>Contas + investimentos + dólares − faturas atuais. Limites não entram.</small>
     </article>
     <article class="card">
-      <span>Investimentos V3</span>
+      <span>Investimentos Nubank</span>
       <strong id="v3DashboardInvestments">—</strong>
       <small>Cotações de mercado disponíveis, sem valores fictícios.</small>
     </article>
     <article class="card">
-      <span>Dólares</span>
+      <span>Bancos internacionais</span>
       <strong id="v3DashboardUsd">—</strong>
       <small>Convertidos pela última PTAX disponível.</small>
     </article>
@@ -492,7 +498,7 @@ async function v3CarregarInvestimentos() {
 
     if (status) {
       status.className = "v3-note";
-      status.textContent = "Carteira carregada. Cotações são consultadas separadamente e nunca substituídas por valores fictícios.";
+      status.textContent = "Carteira Nubank carregada. Cotações são consultadas separadamente e nunca substituídas por valores fictícios.";
     }
 
     const tickers = v3State.investimentos.posicoes.map(p => p.ticker).filter(Boolean);
@@ -509,7 +515,7 @@ async function v3CarregarInvestimentos() {
     if (status) {
       status.className = "v3-note v3-warning";
       status.textContent = erro.message.includes("schema")
-        ? "O código do V3 está pronto, mas o schema de desenvolvimento ainda não foi aplicado ao Supabase. A produção permanece intacta."
+        ? "A estrutura de investimentos não está disponível no banco. Nenhum valor foi inventado."
         : erro.message;
     }
     v3RenderizarInvestimentos();
@@ -728,7 +734,7 @@ function v3RenderizarInvestimentos() {
           return `
             <div class="v3-holding">
               <div class="v3-holding-head">
-                <div><button type="button" data-v3-ticker="${v3Escapar(posicao.ticker)}"><strong>${v3Escapar(posicao.ticker)}</strong></button><div class="meta">${v3Escapar(posicao.classe || "OUTRO")}</div></div>
+                <div><button type="button" data-v3-ticker="${v3Escapar(posicao.ticker)}"><strong>${v3Escapar(posicao.ticker)}</strong></button><div class="meta">${v3Escapar(posicao.classe || "OUTRO")} · Nubank</div></div>
                 <div style="text-align:right"><strong>${atual ? v3Dinheiro(valorAtual) : "Cotação indisponível"}</strong><div class="meta ${retorno == null ? "" : v3ClasseVariacao(retorno)}">${retorno == null ? "" : `${retorno >= 0 ? "+" : ""}${v3Dinheiro(retorno)}`}</div></div>
               </div>
               <div class="meta" style="margin-top:8px">${v3Numero(qtd, 4)} cota(s) · PM ${v3Dinheiro(pm)}${atual ? ` · Atual ${v3Dinheiro(atual)}` : ""}</div>
@@ -792,16 +798,24 @@ async function v3CarregarMoedas() {
     if (contas.status === "rejected") {
       status.className = "v3-note v3-warning";
       status.textContent = contas.reason.message.includes("schema")
-        ? "PTAX disponível; contas em dólar aguardam o schema V3 de desenvolvimento. Produção não foi alterada."
+        ? "PTAX disponível, mas a estrutura dos bancos internacionais não está disponível no banco."
         : contas.reason.message;
     } else {
       status.className = "v3-note";
-      status.textContent = "O custo histórico é calculado pelas compras e não muda quando a PTAX é atualizada.";
+      status.textContent = "Bancos internacionais carregados separadamente. O custo histórico é calculado pelas compras e não muda quando a PTAX é atualizada.";
     }
   }
 
   v3RenderizarMoedas();
   await v3AtualizarDashboard();
+}
+
+function v3ClasseBancoInternacional(instituicao) {
+  const banco = String(instituicao || "").trim().toLowerCase();
+  if (banco.includes("revolut")) return "v3-bank-revolut";
+  if (banco.includes("wise")) return "v3-bank-wise";
+  if (banco.includes("nomad")) return "v3-bank-nomad";
+  return "v3-bank-generic";
 }
 
 function v3RenderizarMoedas() {
@@ -848,9 +862,9 @@ function v3RenderizarMoedas() {
           const custoConta = Number(conta.custoBaseBrl || 0);
           const variacaoConta = cotacao ? valor - custoConta : 0;
           return `
-            <div class="v3-fx-account">
+            <div class="v3-fx-account ${v3ClasseBancoInternacional(conta.instituicao)}">
               <div class="v3-fx-head">
-                <div><strong>${v3Escapar(conta.nome || conta.instituicao)}</strong><div class="meta">${v3Escapar(conta.instituicao)}</div></div>
+                <div><strong>${v3Escapar(conta.nome || conta.instituicao)}</strong><div class="meta">${v3Escapar(conta.instituicao)} · USD</div></div>
                 <div style="text-align:right"><strong>${v3Dinheiro(saldo, "USD")}</strong><div class="meta">${cotacao ? v3Dinheiro(valor) : ""}</div></div>
               </div>
               <div class="meta" style="margin-top:8px">Custo médio: R$ ${v3Numero(conta.custoMedio || 0, 4)} · Custo histórico: ${v3Dinheiro(custoConta)} · <span class="${v3ClasseVariacao(variacaoConta)}">Variação: ${cotacao ? v3Dinheiro(variacaoConta) : "—"}</span></div>
@@ -1024,6 +1038,16 @@ function v3ConfigurarEventos() {
   document.querySelectorAll("#v3SimulatorForm input").forEach(input => input.addEventListener("input", v3Simular));
   document.querySelector("#v3SimReinvest")?.addEventListener("change", v3Simular);
 
+  document.querySelectorAll("[data-v3-bank]").forEach(btn => btn.addEventListener("click", () => {
+    const form = document.querySelector("#v3FxAccountForm");
+    const instituicao = form?.querySelector('input[name="instituicao"]');
+    const nome = form?.querySelector('input[name="nome"]');
+    const banco = btn.dataset.v3Bank || "";
+    if (instituicao) instituicao.value = banco;
+    if (nome && !nome.value) nome.value = `${banco} · Dólares`;
+    instituicao?.focus();
+  }));
+
   document.querySelector("#v3FxAccountForm")?.addEventListener("submit", async evento => {
     evento.preventDefault();
     const form = new FormData(evento.currentTarget);
@@ -1097,8 +1121,8 @@ if (typeof navegar === "function") {
   navegar = function v3Navegar(secao) {
     v3NavegarBase(secao);
     const titulo = document.querySelector("#pageTitle");
-    if (titulo && secao === "investimentos") titulo.textContent = "Investimentos";
-    if (titulo && secao === "moedas") titulo.textContent = "Moedas e viagens";
+    if (titulo && secao === "investimentos") titulo.textContent = "Investimentos Nubank";
+    if (titulo && secao === "moedas") titulo.textContent = "Bancos internacionais";
   };
 }
 
