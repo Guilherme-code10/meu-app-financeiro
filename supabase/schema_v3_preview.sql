@@ -58,6 +58,8 @@ create table if not exists public.moedas_movimentacoes (
       'COMPRA',
       'VENDA',
       'GASTO',
+      'AJUSTE_ENTRADA',
+      'AJUSTE_SAIDA',
       'TRANSFERENCIA_ENTRADA',
       'TRANSFERENCIA_SAIDA'
     )
