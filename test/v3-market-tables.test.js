@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   buscarCambioUsdBrlMercado,
+  buscarCambioBrapiUsdBrl,
   buscarCotacoesAtuais,
 } = require("../routes/v3");
 
@@ -98,6 +99,50 @@ test("cotações da carteira são buscadas em lote na Brapi", async () => {
     assert.equal(cotacoes[1].ticker, "XPML11");
     assert.equal(cotacoes[1].variacaoPercentual, -0.45);
     assert.match(cotacoes[0].atualizadoEm, /^\d{4}-\d{2}-\d{2}T/);
+  } finally {
+    global.fetch = fetchOriginal;
+    if (tokenOriginal === undefined) delete process.env.BRAPI_TOKEN;
+    else process.env.BRAPI_TOKEN = tokenOriginal;
+  }
+});
+
+
+test("fallback cambial da Brapi usa a BRAPI_TOKEN existente", async () => {
+  const fetchOriginal = global.fetch;
+  const tokenOriginal = process.env.BRAPI_TOKEN;
+
+  process.env.BRAPI_TOKEN = "token-cambio-teste";
+
+  global.fetch = async (url, opcoes = {}) => {
+    assert.match(String(url), /brapi\.dev\/api\/v2\/currency\?currency=USD-BRL/);
+    assert.equal(opcoes.headers.Authorization, "Bearer token-cambio-teste");
+
+    return respostaJson({
+      currency: [
+        {
+          fromCurrency: "USD",
+          toCurrency: "BRL",
+          bidPrice: "5.2100",
+          askPrice: "5.2300",
+          high: "5.2500",
+          low: "5.1800",
+          bidVariation: "0.0200",
+          percentageChange: "0.38",
+          updatedAtTimestamp: "1793196000",
+        },
+      ],
+    });
+  };
+
+  try {
+    const cotacao = await buscarCambioBrapiUsdBrl();
+
+    assert.equal(cotacao.compra, 5.21);
+    assert.equal(cotacao.venda, 5.23);
+    assert.equal(cotacao.meio, 5.22);
+    assert.equal(cotacao.fonte, "Brapi - câmbio");
+    assert.equal(cotacao.fallback, true);
+    assert.match(cotacao.atualizadoEm, /^\d{4}-\d{2}-\d{2}T/);
   } finally {
     global.fetch = fetchOriginal;
     if (tokenOriginal === undefined) delete process.env.BRAPI_TOKEN;
