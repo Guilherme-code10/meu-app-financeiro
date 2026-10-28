@@ -1063,6 +1063,12 @@ function nomeOrigemEntrada(origem) {
     REEMBOLSO:
       "Reembolso",
 
+    RENDIMENTO:
+      "Rendimento",
+
+    RENDA_EXTRA:
+      "Renda extra",
+
     OUTRAS:
       "Outras",
   };
@@ -1088,7 +1094,9 @@ async function alterarOrigemEntrada(
       "1 - Salário / Calvo\n" +
       "2 - Rafa\n" +
       "3 - Reembolso\n" +
-      "4 - Outras\n\n" +
+      "4 - Outras\n" +
+      "5 - Rendimento\n" +
+      "6 - Renda extra\n\n" +
       "Digite 0 para remover a classificação manual.",
     atual === "SALARIO_CALVO"
       ? "1"
@@ -1096,6 +1104,10 @@ async function alterarOrigemEntrada(
         ? "2"
         : atual === "REEMBOLSO"
           ? "3"
+        : atual === "RENDIMENTO"
+          ? "5"
+        : atual === "RENDA_EXTRA"
+          ? "6"
           : "4",
   );
 
@@ -1111,6 +1123,8 @@ async function alterarOrigemEntrada(
     "2": "RAFA",
     "3": "REEMBOLSO",
     "4": "OUTRAS",
+    "5": "RENDIMENTO",
+    "6": "RENDA_EXTRA",
   };
 
   try {
@@ -1145,7 +1159,7 @@ async function alterarOrigemEntrada(
 
     if (!origem) {
       alert(
-        "Escolha 1, 2, 3, 4 ou 0.",
+        "Escolha 1, 2, 3, 4, 5, 6 ou 0.",
       );
 
       return;
@@ -1201,6 +1215,8 @@ function mostrarResumoOrigensEntradas(
     SALARIO_CALVO: 0,
     RAFA: 0,
     REEMBOLSO: 0,
+    RENDIMENTO: 0,
+    RENDA_EXTRA: 0,
     OUTRAS: 0,
   };
 
@@ -1365,6 +1381,34 @@ function mostrarResumoOrigensEntradas(
         <strong class="income">
           ${dinheiro(
             totais.REEMBOLSO,
+          )}
+        </strong>
+      </div>
+    </div>
+
+    <div class="account-flow-item">
+      <div class="account-flow-name">
+        📈 Rendimentos
+      </div>
+
+      <div class="account-flow-values">
+        <strong class="income">
+          ${dinheiro(
+            totais.RENDIMENTO,
+          )}
+        </strong>
+      </div>
+    </div>
+
+    <div class="account-flow-item">
+      <div class="account-flow-name">
+        💵 Renda extra
+      </div>
+
+      <div class="account-flow-values">
+        <strong class="income">
+          ${dinheiro(
+            totais.RENDA_EXTRA,
           )}
         </strong>
       </div>
