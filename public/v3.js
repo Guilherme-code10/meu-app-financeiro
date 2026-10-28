@@ -8,7 +8,14 @@ const v3State = {
   moedas: { contas: [], ptax: null },
   mercado: { ticker: "MXRF11", periodo: "1M", dados: null },
   integracoes: null,
+  atualizacao: {
+    investimentosEm: null,
+    cambioEm: null,
+  },
 };
+
+let v3TimerCambio = null;
+let v3TimerInvestimentos = null;
 
 function v3Dinheiro(valor, moeda = "BRL") {
   return new Intl.NumberFormat("pt-BR", {
@@ -101,6 +108,19 @@ function v3InjetarSecoes() {
       <div class="v3-kpi"><span>Custo da carteira</span><strong id="v3InvestCost">—</strong></div>
       <div class="v3-kpi"><span>Rentabilidade</span><strong id="v3InvestReturn">—</strong></div>
       <div class="v3-kpi"><span>Dividendos registrados</span><strong id="v3InvestDividends">—</strong></div>
+    </div>
+
+    <div class="v3-panel v3-live-table-panel" style="margin-top:18px">
+      <div class="v3-row-between">
+        <div>
+          <h3>Cotações da carteira</h3>
+          <p>Preço de mercado, valor atual e resultado por ativo.</p>
+        </div>
+        <span class="v3-auto-badge" id="v3InvestAutoStatus">● Atualização automática · 15 min</span>
+      </div>
+      <div id="v3InvestmentTable" class="v3-scroll">
+        <div class="v3-skeleton"></div>
+      </div>
     </div>
 
     <div class="v3-grid">
@@ -229,7 +249,7 @@ function v3InjetarSecoes() {
       </div>
     </div>
 
-    <div id="v3FxStatus" class="v3-note">Carregando PTAX e bancos internacionais...</div>
+    <div id="v3FxStatus" class="v3-note">Carregando cotação USD/BRL e bancos internacionais...</div>
 
     <div class="v3-integration-strip" id="v3WiseIntegration">
       <div>
@@ -247,10 +267,23 @@ function v3InjetarSecoes() {
       <div class="v3-kpi"><span>Variação cambial estimada</span><strong id="v3UsdVariation">—</strong></div>
     </div>
 
+    <div class="v3-panel v3-live-table-panel" style="margin-top:18px">
+      <div class="v3-row-between">
+        <div>
+          <h3>Resumo dos bancos internacionais</h3>
+          <p>Saldo, custo médio e valor em reais usando a cotação comercial atual.</p>
+        </div>
+        <span class="v3-auto-badge" id="v3FxAutoStatus">● Atualização automática · 1 min</span>
+      </div>
+      <div id="v3FxTable" class="v3-scroll">
+        <div class="v3-skeleton"></div>
+      </div>
+    </div>
+
     <div class="v3-grid">
       <div class="v3-panel v3-span-7">
         <div class="v3-row-between">
-          <div><h3>Meus bancos internacionais</h3><p id="v3PtaxMeta">Cotação de referência: carregando...</p></div>
+          <div><h3>Meus bancos internacionais</h3><p id="v3PtaxMeta">Cotação USD/BRL: carregando...</p></div>
           <strong id="v3PtaxValue">—</strong>
         </div>
         <div id="v3FxAccounts" class="v3-fx-accounts"><div class="v3-skeleton"></div></div>
@@ -564,13 +597,33 @@ async function v3CarregarInvestimentos() {
     }
 
     const tickers = v3State.investimentos.posicoes.map(p => p.ticker).filter(Boolean);
-    const resultados = await Promise.allSettled(
-      tickers.map(t => v3Api(`/api/v3/mercado/${encodeURIComponent(t)}?periodo=1M`)),
-    );
-    resultados.forEach((r, i) => {
-      if (r.status === "fulfilled") v3State.investimentos.cotacoes.set(tickers[i], r.value);
-    });
+    v3State.investimentos.cotacoes.clear();
 
+    if (tickers.length) {
+      try {
+        const lote = await v3Api(
+          `/api/v3/mercado-cotacoes?tickers=${encodeURIComponent(tickers.join(","))}`,
+        );
+
+        (lote.cotacoes || []).forEach((cotacao) => {
+          if (cotacao?.ticker) {
+            v3State.investimentos.cotacoes.set(cotacao.ticker, cotacao);
+          }
+        });
+      } catch (erroLote) {
+        const resultados = await Promise.allSettled(
+          tickers.map(t => v3Api(`/api/v3/mercado/${encodeURIComponent(t)}?periodo=1M`)),
+        );
+
+        resultados.forEach((r, i) => {
+          if (r.status === "fulfilled") {
+            v3State.investimentos.cotacoes.set(tickers[i], r.value);
+          }
+        });
+      }
+    }
+
+    v3State.atualizacao.investimentosEm = new Date().toISOString();
     v3RenderizarInvestimentos();
     await v3AtualizarDashboard();
   } catch (erro) {
@@ -779,6 +832,86 @@ function v3RenderizarHistoricoMoedas() {
     : '<div class="v3-history-empty">Nenhuma movimentação em dólar registrada.</div>';
 }
 
+function v3RenderizarTabelaInvestimentos() {
+  const alvo = document.querySelector("#v3InvestmentTable");
+  const status = document.querySelector("#v3InvestAutoStatus");
+  if (!alvo) return;
+
+  const posicoes = v3State.investimentos.posicoes || [];
+
+  if (!posicoes.length) {
+    alvo.innerHTML = '<div class="v3-history-empty">Nenhuma posição cadastrada.</div>';
+    return;
+  }
+
+  alvo.innerHTML = `
+    <table class="v3-mini-table v3-market-table">
+      <thead>
+        <tr>
+          <th>Ativo</th>
+          <th>Classe</th>
+          <th>Qtd.</th>
+          <th>Preço médio</th>
+          <th>Cotação</th>
+          <th>Var. dia</th>
+          <th>Valor atual</th>
+          <th>Resultado</th>
+          <th>Atualização</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${posicoes.map((posicao) => {
+          const qtd = Number(posicao.quantidade || 0);
+          const pm = Number(posicao.preco_medio || 0);
+          const cotacao = v3State.investimentos.cotacoes.get(posicao.ticker);
+          const preco = Number(cotacao?.precoAtual || 0);
+          const valorAtual = preco > 0 ? qtd * preco : 0;
+          const custo = qtd * pm;
+          const resultado = preco > 0 ? valorAtual - custo : null;
+          const variacaoPct = Number(cotacao?.variacaoPercentual || 0);
+          const atualizado = cotacao?.atualizadoEm
+            ? new Date(cotacao.atualizadoEm).toLocaleString("pt-BR")
+            : "—";
+
+          return `
+            <tr>
+              <td><button type="button" class="v3-table-ticker" data-v3-table-ticker="${v3Escapar(posicao.ticker)}"><strong>${v3Escapar(posicao.ticker)}</strong></button></td>
+              <td>${v3Escapar(posicao.classe || "OUTRO")}</td>
+              <td>${v3Numero(qtd, 4)}</td>
+              <td>${v3Dinheiro(pm)}</td>
+              <td>${preco > 0 ? v3Dinheiro(preco) : "Indisponível"}</td>
+              <td class="${preco > 0 ? v3ClasseVariacao(variacaoPct) : ""}">
+                ${preco > 0 ? `${variacaoPct >= 0 ? "+" : ""}${v3Numero(variacaoPct, 2)}%` : "—"}
+              </td>
+              <td>${preco > 0 ? v3Dinheiro(valorAtual) : "—"}</td>
+              <td class="${resultado == null ? "" : v3ClasseVariacao(resultado)}">
+                ${resultado == null ? "—" : `${resultado >= 0 ? "+" : ""}${v3Dinheiro(resultado)}`}
+              </td>
+              <td class="meta">${v3Escapar(atualizado)}</td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
+
+  alvo.querySelectorAll("[data-v3-table-ticker]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ticker = btn.dataset.v3TableTicker;
+      const input = document.querySelector("#v3TickerInput");
+      if (input) input.value = ticker;
+      v3BuscarMercado(ticker, v3State.mercado.periodo);
+    });
+  });
+
+  if (status) {
+    const data = v3State.atualizacao.investimentosEm
+      ? new Date(v3State.atualizacao.investimentosEm).toLocaleTimeString("pt-BR")
+      : "—";
+    status.textContent = `● Automática · 15 min · última ${data} · Brapi ~30 min de atraso no plano atual`;
+  }
+}
+
 function v3RenderizarInvestimentos() {
   const posicoes = v3State.investimentos.posicoes || [];
   let custo = 0;
@@ -845,6 +978,7 @@ function v3RenderizarInvestimentos() {
   }
   if (divEl) divEl.textContent = v3Dinheiro(dividendos);
 
+  v3RenderizarTabelaInvestimentos();
   v3RenderizarDistribuicaoInvestimentos();
   v3RenderizarHistoricoInvestimentos();
   v3RenderizarEvolucaoAportes();
@@ -990,14 +1124,15 @@ async function v3CarregarMoedas() {
     if (contas.status === "rejected") {
       status.className = "v3-note v3-warning";
       status.textContent = contas.reason.message.includes("schema")
-        ? "PTAX disponível, mas a estrutura dos bancos internacionais não está disponível no banco."
+        ? "Cotação USD/BRL disponível, mas a estrutura dos bancos internacionais não está disponível no banco."
         : contas.reason.message;
     } else {
       status.className = "v3-note";
-      status.textContent = "Bancos internacionais carregados separadamente. O custo histórico é calculado pelas compras e não muda quando a PTAX é atualizada.";
+      status.textContent = "Bancos internacionais carregados. O saldo é manual, o custo histórico fica preservado e o valor em reais acompanha a cotação USD/BRL.";
     }
   }
 
+  v3State.atualizacao.cambioEm = new Date().toISOString();
   v3RenderizarMoedas();
   await v3AtualizarDashboard();
 }
@@ -1134,6 +1269,75 @@ function v3AtualizarPreviewCompraDolar() {
       : "—";
 }
 
+function v3RenderizarTabelaMoedas() {
+  const alvo = document.querySelector("#v3FxTable");
+  const status = document.querySelector("#v3FxAutoStatus");
+  if (!alvo) return;
+
+  const contas = v3State.moedas.contas || [];
+  const cotacaoDados = v3State.moedas.ptax;
+  const cotacao = Number(cotacaoDados?.meio || 0);
+
+  if (!contas.length) {
+    alvo.innerHTML = '<div class="v3-history-empty">Nenhum banco internacional cadastrado.</div>';
+  } else {
+    alvo.innerHTML = `
+      <table class="v3-mini-table v3-market-table">
+        <thead>
+          <tr>
+            <th>Banco</th>
+            <th>Saldo USD</th>
+            <th>Custo médio</th>
+            <th>Custo histórico</th>
+            <th>USD/BRL atual</th>
+            <th>Valor atual em R$</th>
+            <th>Variação</th>
+            <th>Fonte</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${contas.map((conta) => {
+            const saldo = Number(conta.saldoUsd || 0);
+            const custoMedio = Number(conta.custoMedio || 0);
+            const custoHistorico = Number(conta.custoBaseBrl || 0);
+            const custoCompleto = conta.custoHistoricoCompleto !== false;
+            const valorAtual = cotacao > 0 ? saldo * cotacao : 0;
+            const variacao = cotacao > 0 && custoCompleto
+              ? valorAtual - custoHistorico
+              : null;
+
+            return `
+              <tr>
+                <td>
+                  <strong>${v3Escapar(conta.nome || conta.instituicao)}</strong>
+                  <div class="meta">${v3Escapar(conta.instituicao)}</div>
+                </td>
+                <td>${v3Dinheiro(saldo, "USD")}</td>
+                <td>${custoCompleto ? `R$ ${v3Numero(custoMedio, 4)}` : "Parcial"}</td>
+                <td>${custoCompleto ? v3Dinheiro(custoHistorico) : "Parcial"}</td>
+                <td>${cotacao > 0 ? `R$ ${v3Numero(cotacao, 4)}` : "—"}</td>
+                <td>${cotacao > 0 ? v3Dinheiro(valorAtual) : "—"}</td>
+                <td class="${variacao == null ? "" : v3ClasseVariacao(variacao)}">
+                  ${variacao == null ? "—" : `${variacao >= 0 ? "+" : ""}${v3Dinheiro(variacao)}`}
+                </td>
+                <td class="meta">${v3Escapar(cotacaoDados?.fonte || "—")}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  if (status) {
+    const data = cotacaoDados?.atualizadoEm
+      ? new Date(cotacaoDados.atualizadoEm).toLocaleTimeString("pt-BR")
+      : "—";
+    const fallback = cotacaoDados?.fallback ? " · fallback PTAX" : "";
+    status.textContent = `● Automática · 1 min · cotação ${data}${fallback}`;
+  }
+}
+
 function v3RenderizarMoedas() {
   const contas = v3State.moedas.contas || [];
   const ptax = v3State.moedas.ptax;
@@ -1169,7 +1373,8 @@ function v3RenderizarMoedas() {
   if (ptaxValue) ptaxValue.textContent = cotacao ? `R$ ${v3Numero(cotacao, 4)}` : "—";
   if (ptaxMeta) {
     const data = ptax?.atualizadoEm ? new Date(ptax.atualizadoEm).toLocaleString("pt-BR") : "indisponível";
-    ptaxMeta.textContent = ptax ? `${ptax.fonte} · ${ptax.frequencia} · ${data}` : "Cotação indisponível.";
+    const aviso = ptax?.aviso ? ` · ${ptax.aviso}` : "";
+    ptaxMeta.textContent = ptax ? `${ptax.fonte} · ${ptax.frequencia} · ${data}${aviso}` : "Cotação indisponível.";
   }
 
   const container = document.querySelector("#v3FxAccounts");
@@ -1221,6 +1426,7 @@ function v3RenderizarMoedas() {
   });
 
   v3AtualizarPreviewCompraDolar();
+  v3RenderizarTabelaMoedas();
   v3RenderizarHistoricoMoedas();
 }
 
@@ -1296,7 +1502,32 @@ async function v3AtualizarDashboard() {
   if (texto) texto.textContent = `Contas ${v3Dinheiro(contas)} · Investimentos ${v3Dinheiro(investimentos)} · Dólares ${v3Dinheiro(dolares)} · Faturas consideradas ${v3Dinheiro(faturas)}.`;
 }
 
+function v3IniciarAtualizacaoAutomatica() {
+  if (v3TimerCambio) clearInterval(v3TimerCambio);
+  if (v3TimerInvestimentos) clearInterval(v3TimerInvestimentos);
+
+  v3TimerCambio = setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    if (!document.querySelector("#moedas")?.classList.contains("active")) return;
+
+    v3CarregarMoedas().catch((erro) => {
+      console.warn("Falha na atualização automática do câmbio:", erro);
+    });
+  }, 60 * 1000);
+
+  v3TimerInvestimentos = setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    if (!document.querySelector("#investimentos")?.classList.contains("active")) return;
+
+    v3CarregarInvestimentos().catch((erro) => {
+      console.warn("Falha na atualização automática dos investimentos:", erro);
+    });
+  }, 15 * 60 * 1000);
+}
+
 function v3ConfigurarEventos() {
+  v3IniciarAtualizacaoAutomatica();
+
   const hoje = new Date().toISOString().slice(0, 10);
   ["#v3OperationForm input[name='data']", "#v3DividendForm input[name='dataPagamento']", "#v3FxMovementForm input[name='data']", "#v3FxTransferForm input[name='data']"].forEach(seletor => {
     const campo = document.querySelector(seletor);
