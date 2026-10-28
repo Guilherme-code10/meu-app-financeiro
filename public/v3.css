@@ -914,3 +914,56 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Fluxo financeiro: contraste no modo Black Premium */
+.flow-row-pending {
+  background:
+    linear-gradient(180deg, rgba(245, 158, 11, .10), rgba(245, 158, 11, .04)) !important;
+  border: 1px solid rgba(245, 158, 11, .22);
+  color: var(--text);
+}
+
+.flow-row-pending .flow-audit-description strong {
+  color: #fff;
+}
+
+.flow-row-pending .flow-audit-description small {
+  color: #aaa7ba;
+}
+
+.flow-pending-label {
+  background: rgba(245, 158, 11, .16) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, .24);
+}
+
+.flow-confirm-external,
+.flow-confirm-internal,
+.flow-change-competence {
+  background: #15151f !important;
+  color: #f4f4f7 !important;
+  border: 1px solid rgba(255, 255, 255, .12) !important;
+}
+
+.flow-confirm-external:hover,
+.flow-confirm-internal:hover,
+.flow-change-competence:hover {
+  background: #1d1d2a !important;
+  border-color: rgba(139, 92, 246, .38) !important;
+}
+
+.flow-review-card {
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, .12), rgba(245, 158, 11, .05)) !important;
+  border-color: rgba(245, 158, 11, .22) !important;
+}
+
+.flow-review-card span,
+.flow-review-card small {
+  color: #c9c5d4 !important;
+}
+
+.flow-review-card strong {
+  color: #fbbf24 !important;
+}
