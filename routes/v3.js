@@ -171,7 +171,9 @@ async function buscarCambioUsdBrlMercado() {
 
   const compra = Number(item.bid || 0);
   const venda = Number(item.ask || 0);
-  const meio = compra && venda ? (compra + venda) / 2 : compra || venda;
+  const meio = compra && venda
+    ? Number(((compra + venda) / 2).toFixed(6))
+    : compra || venda;
 
   if (!meio) {
     throw new Error("Cotação USD/BRL inválida.");
@@ -251,7 +253,9 @@ async function buscarCambioBrapiUsdBrl() {
 
   const compra = Number(item.bidPrice || 0);
   const venda = Number(item.askPrice || 0);
-  const meio = compra && venda ? (compra + venda) / 2 : compra || venda;
+  const meio = compra && venda
+    ? Number(((compra + venda) / 2).toFixed(6))
+    : compra || venda;
 
   if (!meio) {
     throw new Error("Cotação USD/BRL inválida na Brapi.");
