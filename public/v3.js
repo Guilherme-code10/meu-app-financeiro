@@ -1552,14 +1552,15 @@ function v3ConfigurarEventos() {
 
   document.querySelector("#v3PositionForm")?.addEventListener("submit", async evento => {
     evento.preventDefault();
-    const form = new FormData(evento.currentTarget);
+    const formulario = evento.currentTarget;
+    const form = new FormData(formulario);
     try {
       await v3Api("/api/v3/investimentos/posicoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      evento.currentTarget.reset();
+      formulario.reset();
       await v3CarregarInvestimentos();
     } catch (erro) {
       alert(erro.message);
@@ -1568,14 +1569,15 @@ function v3ConfigurarEventos() {
 
   document.querySelector("#v3OperationForm")?.addEventListener("submit", async evento => {
     evento.preventDefault();
-    const form = new FormData(evento.currentTarget);
+    const formulario = evento.currentTarget;
+    const form = new FormData(formulario);
     try {
       await v3Api("/api/v3/investimentos/operacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      evento.currentTarget.reset();
+      formulario.reset();
       await v3CarregarInvestimentos();
     } catch (erro) {
       alert(erro.message);
@@ -1584,7 +1586,8 @@ function v3ConfigurarEventos() {
 
   document.querySelector("#v3DividendForm")?.addEventListener("submit", async evento => {
     evento.preventDefault();
-    const form = new FormData(evento.currentTarget);
+    const formulario = evento.currentTarget;
+    const form = new FormData(formulario);
     const bruto = Object.fromEntries(form.entries());
     const status = String(bruto.status || "RECEBIDO").toUpperCase();
 
@@ -1601,7 +1604,7 @@ function v3ConfigurarEventos() {
           origem: "MANUAL",
         }),
       });
-      evento.currentTarget.reset();
+      formulario.reset();
       await v3CarregarInvestimentos();
     } catch (erro) {
       alert(erro.message);
@@ -1628,20 +1631,21 @@ function v3ConfigurarEventos() {
     const nome = form?.querySelector('input[name="nome"]');
     const banco = btn.dataset.v3Bank || "";
     if (instituicao) instituicao.value = banco;
-    if (nome && !nome.value) nome.value = `${banco} · Dólares`;
+    if (nome) nome.value = `${banco} · Dólares`;
     instituicao?.focus();
   }));
 
   document.querySelector("#v3FxAccountForm")?.addEventListener("submit", async evento => {
     evento.preventDefault();
-    const form = new FormData(evento.currentTarget);
+    const formulario = evento.currentTarget;
+    const form = new FormData(formulario);
     try {
       await v3Api("/api/v3/moedas/contas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      evento.currentTarget.reset();
+      formulario.reset();
       await v3CarregarMoedas();
     } catch (erro) {
       alert(erro.message);
@@ -1650,16 +1654,17 @@ function v3ConfigurarEventos() {
 
   document.querySelector("#v3FxMovementForm")?.addEventListener("submit", async evento => {
     evento.preventDefault();
-    const form = new FormData(evento.currentTarget);
+    const formulario = evento.currentTarget;
+    const form = new FormData(formulario);
     try {
       await v3Api("/api/v3/moedas/movimentacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      evento.currentTarget.reset();
-      evento.currentTarget.elements.tipo.value = "COMPRA";
-      const campoData = evento.currentTarget.querySelector("input[name='data']");
+      formulario.reset();
+      formulario.elements.tipo.value = "COMPRA";
+      const campoData = formulario.querySelector("input[name='data']");
       if (campoData) campoData.value = new Date().toISOString().slice(0, 10);
       v3AtualizarFormularioMoeda();
       await v3CarregarMoedas();
@@ -1670,14 +1675,15 @@ function v3ConfigurarEventos() {
 
   document.querySelector("#v3FxTransferForm")?.addEventListener("submit", async evento => {
     evento.preventDefault();
-    const form = new FormData(evento.currentTarget);
+    const formulario = evento.currentTarget;
+    const form = new FormData(formulario);
     try {
       await v3Api("/api/v3/moedas/transferencias", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      evento.currentTarget.reset();
+      formulario.reset();
       await v3CarregarMoedas();
     } catch (erro) {
       alert(erro.message);
