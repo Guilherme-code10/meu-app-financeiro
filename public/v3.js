@@ -321,7 +321,7 @@ function v3InjetarSecoes() {
             <select name="tipo" id="v3FxMovementType">
               <option value="COMPRA">Compra de dólar</option>
               <option value="VENDA">Venda de dólar</option>
-              <option value="GASTO">Gasto em dólar</option>
+              <option value="GASTO">Gasto em dólar</option>\n              <option value="RENDIMENTO">Rendimento em USD (Wise / Revolut)</option>
               <option value="AJUSTE_ENTRADA">Ajuste de entrada</option>
               <option value="AJUSTE_SAIDA">Ajuste de saída</option>
             </select>
