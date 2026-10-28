@@ -206,18 +206,94 @@ async function buscarCambioUsdBrlMercado() {
   return valor;
 }
 
+async function buscarCambioBrapiUsdBrl() {
+  const token = String(process.env.BRAPI_TOKEN || "").trim();
+
+  if (!token) {
+    throw new Error("BRAPI_TOKEN não configurada para fallback cambial.");
+  }
+
+  const resposta = await fetch(
+    "https://brapi.dev/api/v2/currency?currency=USD-BRL",
+    {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      signal: AbortSignal.timeout(10000),
+    },
+  );
+
+  const texto = await resposta.text();
+  let json = {};
+
+  try {
+    json = texto ? JSON.parse(texto) : {};
+  } catch {
+    json = {};
+  }
+
+  if (!resposta.ok) {
+    throw new Error(
+      json?.message ||
+        json?.error ||
+        `Brapi câmbio respondeu HTTP ${resposta.status}.`,
+    );
+  }
+
+  const item = Array.isArray(json?.currency) ? json.currency[0] : null;
+
+  if (!item) {
+    throw new Error("Brapi não retornou USD/BRL.");
+  }
+
+  const compra = Number(item.bidPrice || 0);
+  const venda = Number(item.askPrice || 0);
+  const meio = compra && venda ? (compra + venda) / 2 : compra || venda;
+
+  if (!meio) {
+    throw new Error("Cotação USD/BRL inválida na Brapi.");
+  }
+
+  return {
+    par: "USD/BRL",
+    compra,
+    venda,
+    meio,
+    maxima: Number(item.high || 0),
+    minima: Number(item.low || 0),
+    variacao: Number(item.bidVariation || 0),
+    variacaoPercentual: Number(item.percentageChange || 0),
+    atualizadoEm: dataMercadoIso(
+      item.updatedAtTimestamp ||
+      item.updatedAtDate ||
+      null,
+    ),
+    fonte: "Brapi - câmbio",
+    frequencia: "cotação de referência",
+    atrasada: true,
+    fallback: true,
+    aviso:
+      "Cotação comercial principal indisponível; usando câmbio da Brapi como referência.",
+  };
+}
+
 async function buscarCotacaoUsdBrlAtual() {
   try {
     return await buscarCambioUsdBrlMercado();
   } catch (erroMercado) {
-    const ptax = await buscarPtaxUsdBrl();
+    try {
+      return await buscarCambioBrapiUsdBrl();
+    } catch (erroBrapi) {
+      const ptax = await buscarPtaxUsdBrl();
 
-    return {
-      ...ptax,
-      fallback: true,
-      aviso:
-        "Cotação comercial temporariamente indisponível; usando PTAX como referência.",
-    };
+      return {
+        ...ptax,
+        fallback: true,
+        aviso:
+          "Cotação comercial e Brapi indisponíveis; usando PTAX direta do Banco Central.",
+      };
+    }
   }
 }
 
@@ -1200,6 +1276,7 @@ module.exports = {
   criarRouterV3,
   buscarPtaxUsdBrl,
   buscarCambioUsdBrlMercado,
+  buscarCambioBrapiUsdBrl,
   buscarCotacaoUsdBrlAtual,
   buscarCotacoesAtuais,
   buscarMercado,
