@@ -676,7 +676,7 @@ function criarRouterV3({ supabaseAdmin }) {
         return res.status(400).json({ sucesso: false, erro: "Tipo de operação inválido." });
       }
 
-      const { data: atual, error: erroAtual } = await supabaseAdmin
+      if (tipo === "RENDIMENTO" && (totalBrl !== 0 || iof !== 0 || tarifas !== 0)) {\n        return res.status(400).json({ sucesso: false, erro: "Rendimento em USD não pode incluir custo em BRL, IOF ou tarifas." });\n      }\n\n      const { data: atual, error: erroAtual } = await supabaseAdmin
         .from("investimentos_posicoes")
         .select("*")
         .eq("user_id", req.usuario.id)
@@ -892,7 +892,7 @@ function criarRouterV3({ supabaseAdmin }) {
     try {
       const contaId = textoSeguro(req.body.contaId, 64);
       const tipo = String(req.body.tipo || "").toUpperCase();
-      const tipos = ["COMPRA", "VENDA", "GASTO", "AJUSTE_ENTRADA", "AJUSTE_SAIDA"];
+      const tipos = ["COMPRA", "VENDA", "GASTO", "AJUSTE_ENTRADA", "AJUSTE_SAIDA", "RENDIMENTO"];
 
       if (!tipos.includes(tipo)) {
         return res.status(400).json({ sucesso: false, erro: "Tipo de movimentação inválido." });
