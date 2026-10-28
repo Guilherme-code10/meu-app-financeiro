@@ -67,6 +67,19 @@ function numeroPositivo(valor, nome) {
   return n;
 }
 
+function dataMercadoIso(valor) {
+  if (valor == null || valor === "") return null;
+
+  const numero = Number(valor);
+  const data = Number.isFinite(numero) && String(valor).trim() !== ""
+    ? new Date(numero < 1e12 ? numero * 1000 : numero)
+    : new Date(valor);
+
+  return Number.isNaN(data.getTime())
+    ? null
+    : data.toISOString();
+}
+
 function dataIsoOuHoje(valor) {
   if (!valor) return new Date().toISOString().slice(0, 10);
   const data = new Date(`${String(valor).slice(0, 10)}T12:00:00Z`);
@@ -273,10 +286,11 @@ async function buscarCotacoesAtuais(tickers) {
     variacaoPercentual: Number(item.regularMarketChangePercent || 0),
     maximaDia: Number(item.regularMarketDayHigh || 0),
     minimaDia: Number(item.regularMarketDayLow || 0),
-    atualizadoEm:
+    atualizadoEm: dataMercadoIso(
       item.regularMarketTime ||
       item.updatedAt ||
       null,
+    ),
     fonte: "Brapi",
     atrasoMinutos: Number(process.env.BRAPI_DELAY_MINUTES || 30),
     atrasada: true,
@@ -425,10 +439,11 @@ async function buscarMercado(ticker, periodo) {
     moeda: item.currency || "BRL",
     precoAtual: Number(item.regularMarketPrice || 0),
     variacaoPercentual: Number(item.regularMarketChangePercent || 0),
-    atualizadoEm:
+    atualizadoEm: dataMercadoIso(
       item.regularMarketTime ||
       item.updatedAt ||
       null,
+    ),
     historico,
     dividendos:
       incluirDividendos && Array.isArray(dividendos)
