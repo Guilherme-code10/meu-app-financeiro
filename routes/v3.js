@@ -123,7 +123,9 @@ async function buscarPtaxUsdBrl() {
   const ultimo = registros[0];
   const compra = Number(ultimo.cotacaoCompra || 0);
   const venda = Number(ultimo.cotacaoVenda || 0);
-  const meio = compra && venda ? (compra + venda) / 2 : compra || venda;
+  const meio = compra && venda
+    ? Number(((compra + venda) / 2).toFixed(6))
+    : compra || venda;
 
   return {
     par: "USD/BRL",
