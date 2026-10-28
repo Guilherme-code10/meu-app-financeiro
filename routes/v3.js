@@ -284,23 +284,34 @@ async function buscarCambioBrapiUsdBrl() {
   };
 }
 
-async function buscarCotacaoUsdBrlAtual() {
-  try {
-    return await buscarCambioUsdBrlMercado();
-  } catch (erroMercado) {
-    try {
-      return await buscarCambioBrapiUsdBrl();
-    } catch (erroBrapi) {
-      const ptax = await buscarPtaxUsdBrl();
+async function buscarCambioFrankfurterUsdBrl() {
+  const resposta = await fetch("https://api.frankfurter.dev/v1/latest?base=USD&symbols=BRL", {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(9000),
+  });
+  if (!resposta.ok) throw new Error(`Frankfurter respondeu HTTP ${resposta.status}.`);
+  const json = await resposta.json();
+  const meio = Number(json?.rates?.BRL);
+  if (!Number.isFinite(meio) || meio <= 0) throw new Error("Frankfurter não retornou USD/BRL válido.");
+  return { par: "USD/BRL", compra: meio, venda: meio, meio, atualizadoEm: json.date ? `${json.date}T00:00:00Z` : null, fonte: "Frankfurter - referência diária (BCE)", frequencia: "diária", atrasada: true, fallback: true, aviso: "Cotação de referência diária; não é cotação comercial em tempo real." };
+}
 
-      return {
-        ...ptax,
-        fallback: true,
-        aviso:
-          "Cotação comercial e Brapi indisponíveis; usando PTAX direta do Banco Central.",
-      };
+async function buscarCotacaoUsdBrlAtual() {
+  const fontes = [buscarCambioUsdBrlMercado, buscarCambioBrapiUsdBrl, buscarPtaxUsdBrl, buscarCambioFrankfurterUsdBrl];
+  const erros = [];
+  for (const fonte of fontes) {
+    try {
+      const cotacao = await fonte();
+      if (Number.isFinite(Number(cotacao?.meio)) && Number(cotacao.meio) > 0) return cotacao;
+    } catch (erro) {
+      erros.push(`${fonte.name}: ${erro.message}`);
+      console.warn("[V3 USD/BRL] Fonte indisponível:", fonte.name, erro.message);
     }
   }
+  const erro = new Error("Todas as fontes de câmbio estão indisponíveis temporariamente.");
+  erro.codigo = "FX_SOURCES_UNAVAILABLE";
+  console.error("[V3 USD/BRL]", erros.join(" | "));
+  throw erro;
 }
 
 async function buscarCotacoesAtuais(tickers) {
