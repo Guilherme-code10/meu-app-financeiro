@@ -14,6 +14,13 @@ const {
 const BRAPI_URL = "https://brapi.dev/api/quote";
 const BCB_PTAX_URL =
   "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo";
+const AWESOME_USD_BRL_URL =
+  "https://economia.awesomeapi.com.br/json/last/USD-BRL";
+
+let cacheCambioUsdBrl = {
+  valor: null,
+  expiraEm: 0,
+};
 
 function erroTabelaAusente(erro) {
   return ["42P01", "PGRST205"].includes(String(erro?.code || ""));
@@ -58,6 +65,19 @@ function numeroPositivo(valor, nome) {
     throw new Error(`${nome} deve ser maior que zero.`);
   }
   return n;
+}
+
+function dataMercadoIso(valor) {
+  if (valor == null || valor === "") return null;
+
+  const numero = Number(valor);
+  const data = Number.isFinite(numero) && String(valor).trim() !== ""
+    ? new Date(numero < 1e12 ? numero * 1000 : numero)
+    : new Date(valor);
+
+  return Number.isNaN(data.getTime())
+    ? null
+    : data.toISOString();
 }
 
 function dataIsoOuHoje(valor) {
@@ -115,6 +135,166 @@ async function buscarPtaxUsdBrl() {
     frequencia: "diária",
     atrasada: true,
   };
+}
+
+async function buscarCambioUsdBrlMercado() {
+  const agora = Date.now();
+
+  if (cacheCambioUsdBrl.valor && cacheCambioUsdBrl.expiraEm > agora) {
+    return cacheCambioUsdBrl.valor;
+  }
+
+  const headers = { Accept: "application/json" };
+  const awesomeApiKey = String(process.env.AWESOME_API_KEY || "").trim();
+
+  if (awesomeApiKey) {
+    headers["x-api-key"] = awesomeApiKey;
+  }
+
+  const resposta = await fetch(AWESOME_USD_BRL_URL, {
+    headers,
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!resposta.ok) {
+    throw new Error(`AwesomeAPI respondeu HTTP ${resposta.status}.`);
+  }
+
+  const json = await resposta.json();
+  const item = json?.USDBRL;
+
+  if (!item) {
+    throw new Error("AwesomeAPI não retornou USD/BRL.");
+  }
+
+  const compra = Number(item.bid || 0);
+  const venda = Number(item.ask || 0);
+  const meio = compra && venda ? (compra + venda) / 2 : compra || venda;
+
+  if (!meio) {
+    throw new Error("Cotação USD/BRL inválida.");
+  }
+
+  const timestamp = Number(item.timestamp || 0);
+  const atualizadoEm = timestamp
+    ? new Date(timestamp * 1000).toISOString()
+    : null;
+
+  const valor = {
+    par: "USD/BRL",
+    compra,
+    venda,
+    meio,
+    maxima: Number(item.high || 0),
+    minima: Number(item.low || 0),
+    variacao: Number(item.varBid || 0),
+    variacaoPercentual: Number(item.pctChange || 0),
+    atualizadoEm,
+    fonte: "AwesomeAPI - dólar comercial",
+    frequencia: awesomeApiKey
+      ? "tempo real"
+      : "atualização frequente · cache de até 1 min",
+    atrasada: false,
+    cacheSegundos: awesomeApiKey ? 15 : 55,
+  };
+
+  cacheCambioUsdBrl = {
+    valor,
+    expiraEm: agora + (awesomeApiKey ? 15000 : 55000),
+  };
+
+  return valor;
+}
+
+async function buscarCotacaoUsdBrlAtual() {
+  try {
+    return await buscarCambioUsdBrlMercado();
+  } catch (erroMercado) {
+    const ptax = await buscarPtaxUsdBrl();
+
+    return {
+      ...ptax,
+      fallback: true,
+      aviso:
+        "Cotação comercial temporariamente indisponível; usando PTAX como referência.",
+    };
+  }
+}
+
+async function buscarCotacoesAtuais(tickers) {
+  const lista = [...new Set(
+    (Array.isArray(tickers) ? tickers : String(tickers || "").split(","))
+      .map((ticker) => tickerSeguro(ticker))
+      .filter(Boolean),
+  )].slice(0, 20);
+
+  if (!lista.length) {
+    return [];
+  }
+
+  const token = String(process.env.BRAPI_TOKEN || "").trim();
+  const liberadosSemToken = new Set(["PETR4", "MGLU3", "VALE3", "ITUB4"]);
+
+  if (!token && lista.some((ticker) => !liberadosSemToken.has(ticker))) {
+    const erro = new Error("Configure BRAPI_TOKEN no servidor para consultar a carteira.");
+    erro.status = 503;
+    erro.codigo = "BRAPI_TOKEN_REQUIRED";
+    throw erro;
+  }
+
+  const headers = { Accept: "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const params = new URLSearchParams({
+    fundamental: "false",
+  });
+
+  const resposta = await fetch(
+    `${BRAPI_URL}/${lista.map(encodeURIComponent).join(",")}?${params.toString()}`,
+    {
+      headers,
+      signal: AbortSignal.timeout(12000),
+    },
+  );
+
+  const texto = await resposta.text();
+  let json = {};
+
+  try {
+    json = texto ? JSON.parse(texto) : {};
+  } catch {
+    json = {};
+  }
+
+  if (!resposta.ok) {
+    const erro = new Error(
+      json?.message ||
+        json?.error ||
+        `Brapi respondeu HTTP ${resposta.status}.`,
+    );
+    erro.status = resposta.status;
+    erro.codigo = json?.code || "BRAPI_ERROR";
+    throw erro;
+  }
+
+  return (Array.isArray(json?.results) ? json.results : []).map((item) => ({
+    ticker: item.symbol,
+    nome: item.longName || item.shortName || item.symbol,
+    moeda: item.currency || "BRL",
+    precoAtual: Number(item.regularMarketPrice || 0),
+    variacao: Number(item.regularMarketChange || 0),
+    variacaoPercentual: Number(item.regularMarketChangePercent || 0),
+    maximaDia: Number(item.regularMarketDayHigh || 0),
+    minimaDia: Number(item.regularMarketDayLow || 0),
+    atualizadoEm: dataMercadoIso(
+      item.regularMarketTime ||
+      item.updatedAt ||
+      null,
+    ),
+    fonte: "Brapi",
+    atrasoMinutos: Number(process.env.BRAPI_DELAY_MINUTES || 30),
+    atrasada: true,
+  }));
 }
 
 async function buscarMercado(ticker, periodo) {
@@ -259,10 +439,11 @@ async function buscarMercado(ticker, periodo) {
     moeda: item.currency || "BRL",
     precoAtual: Number(item.regularMarketPrice || 0),
     variacaoPercentual: Number(item.regularMarketChangePercent || 0),
-    atualizadoEm:
+    atualizadoEm: dataMercadoIso(
       item.regularMarketTime ||
       item.updatedAt ||
       null,
+    ),
     historico,
     dividendos:
       incluirDividendos && Array.isArray(dividendos)
@@ -304,7 +485,7 @@ function criarRouterV3({ supabaseAdmin }) {
         pierreContasInvestimento: true,
         pierreSincronizacaoUsdAutomatica: false,
         mercado: "Brapi",
-        cambio: "Banco Central do Brasil - PTAX",
+        cambio: "AwesomeAPI - dólar comercial, com fallback para PTAX",
       },
     });
   });
@@ -504,6 +685,30 @@ function criarRouterV3({ supabaseAdmin }) {
     }
   });
 
+  router.get("/mercado-cotacoes", async (req, res) => {
+    try {
+      const tickers = String(req.query.tickers || "")
+        .split(",")
+        .map((ticker) => ticker.trim())
+        .filter(Boolean);
+
+      const cotacoes = await buscarCotacoesAtuais(tickers);
+
+      res.json({
+        sucesso: true,
+        cotacoes,
+        atrasoMinutos: Number(process.env.BRAPI_DELAY_MINUTES || 30),
+        atualizadoEm: new Date().toISOString(),
+      });
+    } catch (erro) {
+      res.status(erro.status || 502).json({
+        sucesso: false,
+        codigo: erro.codigo || "MARKET_DATA_ERROR",
+        erro: erro.message,
+      });
+    }
+  });
+
   router.get("/mercado/:ticker", async (req, res) => {
     try {
       const dados = await buscarMercado(req.params.ticker, req.query.periodo || "1M");
@@ -519,7 +724,7 @@ function criarRouterV3({ supabaseAdmin }) {
 
   router.get("/moedas/usdbrl", async (_req, res) => {
     try {
-      const cotacao = await buscarPtaxUsdBrl();
+      const cotacao = await buscarCotacaoUsdBrlAtual();
       res.json({ sucesso: true, cotacao });
     } catch (erro) {
       res.status(502).json({ sucesso: false, erro: erro.message });
@@ -981,8 +1186,9 @@ function criarRouterV3({ supabaseAdmin }) {
         atrasoMinutosEstimado: Number(process.env.BRAPI_DELAY_MINUTES || 30),
       },
       cambio: {
-        fonte: "Banco Central do Brasil - PTAX",
-        frequencia: "diária",
+        fonte: "AwesomeAPI - dólar comercial",
+        frequencia: "atualização frequente; sem chave pode haver cache de até 1 min",
+        fallback: "Banco Central do Brasil - PTAX",
       },
     });
   });
@@ -993,5 +1199,8 @@ function criarRouterV3({ supabaseAdmin }) {
 module.exports = {
   criarRouterV3,
   buscarPtaxUsdBrl,
+  buscarCambioUsdBrlMercado,
+  buscarCotacaoUsdBrlAtual,
+  buscarCotacoesAtuais,
   buscarMercado,
 };

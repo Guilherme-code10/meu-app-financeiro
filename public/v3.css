@@ -1067,3 +1067,73 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 .monthly-chart-line > span {
   color: #aaa7ba !important;
 }
+
+
+/* Tabelas de mercado e câmbio */
+.v3-live-table-panel {
+  overflow: hidden;
+}
+
+.v3-auto-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 9px;
+  border: 1px solid rgba(39, 209, 127, .16);
+  border-radius: 999px;
+  background: rgba(39, 209, 127, .07);
+  color: #6ee7b7;
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.v3-market-table {
+  min-width: 920px;
+  margin-top: 12px;
+}
+
+.v3-market-table th {
+  white-space: nowrap;
+}
+
+.v3-market-table td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.v3-table-ticker {
+  border: 0;
+  padding: 0;
+  background: transparent !important;
+  color: #a78bfa !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
+.v3-table-ticker:hover {
+  color: #c4b5fd !important;
+  filter: none !important;
+}
+
+.v3-market-table .v3-positive {
+  color: #6ee7b7 !important;
+  font-weight: 700;
+}
+
+.v3-market-table .v3-negative {
+  color: #fb7185 !important;
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .v3-live-table-panel .v3-row-between {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .v3-auto-badge {
+    width: fit-content;
+  }
+}
