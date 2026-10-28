@@ -572,6 +572,8 @@ app.post(
         "RAFA",
         "OUTRAS",
         "REEMBOLSO",
+        "RENDIMENTO",
+        "RENDA_EXTRA",
       ];
 
       if (
