@@ -961,20 +961,21 @@ function v3RenderizarInvestimentos() {
     .filter(d => d.recebido !== false)
     .reduce((s, d) => s + Number(d.valor || 0), 0);
 
-  const total = mercado || custo;
-  const retorno = mercado ? mercado - custo : 0;
-  const retornoPct = custo && mercado ? (retorno / custo) * 100 : 0;
+  const completas = posicoes.length > 0 && posicoes.every(p => Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0) > 0);
+  const total = completas ? mercado : null;
+  const retorno = completas ? mercado - custo : null;
+  const retornoPct = completas && custo ? (retorno / custo) * 100 : null;
 
   const totalEl = document.querySelector("#v3InvestTotal");
   const costEl = document.querySelector("#v3InvestCost");
   const returnEl = document.querySelector("#v3InvestReturn");
   const divEl = document.querySelector("#v3InvestDividends");
 
-  if (totalEl) totalEl.textContent = mercado ? v3Dinheiro(total) : "Sem cotação";
+  if (totalEl) totalEl.textContent = completas ? v3Dinheiro(total) : "Parcial · cotações pendentes";
   if (costEl) costEl.textContent = v3Dinheiro(custo);
   if (returnEl) {
-    returnEl.textContent = mercado ? `${v3Dinheiro(retorno)} (${retornoPct.toFixed(2)}%)` : "—";
-    returnEl.className = v3ClasseVariacao(retorno);
+    returnEl.textContent = completas ? `${v3Dinheiro(retorno)} (${retornoPct.toFixed(2)}%)` : "Indisponível · cotações pendentes";
+    returnEl.className = completas ? v3ClasseVariacao(retorno) : "";
   }
   if (divEl) divEl.textContent = v3Dinheiro(dividendos);
 
@@ -1478,18 +1479,20 @@ async function v3AtualizarDashboard() {
   }
 
   const usd = (v3State.moedas.contas || []).reduce((s, c) => s + Number(c.saldoUsd || 0), 0);
-  const dolares = usd * Number(v3State.moedas.ptax?.meio || 0);
+  const cambioDisponivel = Number(v3State.moedas.ptax?.meio || 0) > 0;
+  const dolares = cambioDisponivel ? usd * Number(v3State.moedas.ptax.meio) : null;
   const faturas = v3FaturasAtuais();
-  const patrimonio = contas + investimentos + dolares - faturas;
+  const cotacoesCompletas = (v3State.investimentos.posicoes || []).every(p => Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0) > 0);
+  const patrimonio = cotacoesCompletas && (usd === 0 || cambioDisponivel) ? contas + investimentos + (dolares || 0) - faturas : null;
 
   const net = document.querySelector("#v3NetWorth");
   const inv = document.querySelector("#v3DashboardInvestments");
   const usdEl = document.querySelector("#v3DashboardUsd");
-  if (net) net.textContent = v3Dinheiro(patrimonio);
-  if (inv) inv.textContent = investimentos ? v3Dinheiro(investimentos) : "Sem cotação";
-  if (usdEl) usdEl.textContent = dolares ? v3Dinheiro(dolares) : v3Dinheiro(0);
+  if (net) net.textContent = patrimonio == null ? "Indisponível · dados parciais" : v3Dinheiro(patrimonio);
+  if (inv) inv.textContent = cotacoesCompletas ? v3Dinheiro(investimentos) : "Parcial · cotações pendentes";
+  if (usdEl) usdEl.textContent = usd && !cambioDisponivel ? "Cotação indisponível" : v3Dinheiro(dolares || 0);
 
-  const ativos = Math.max(0, contas) + Math.max(0, investimentos) + Math.max(0, dolares);
+  const ativos = Math.max(0, contas) + Math.max(0, investimentos) + Math.max(0, dolares || 0);
   const pct = valor => ativos > 0 ? (Math.max(0, valor) / ativos) * 100 : 0;
   const a = document.querySelector("#v3DistAccounts");
   const i = document.querySelector("#v3DistInvest");
@@ -1499,7 +1502,7 @@ async function v3AtualizarDashboard() {
   if (d) d.style.width = `${pct(dolares)}%`;
 
   const texto = document.querySelector("#v3DistributionText");
-  if (texto) texto.textContent = `Contas ${v3Dinheiro(contas)} · Investimentos ${v3Dinheiro(investimentos)} · Dólares ${v3Dinheiro(dolares)} · Faturas consideradas ${v3Dinheiro(faturas)}.`;
+  if (texto) texto.textContent = `Contas ${v3Dinheiro(contas)} · Investimentos ${v3Dinheiro(investimentos)} · Dólares ${(cambioDisponivel ? v3Dinheiro(dolares) : "Cotação indisponível")} · Faturas consideradas ${v3Dinheiro(faturas)}.`;
 }
 
 function v3IniciarAtualizacaoAutomatica() {
