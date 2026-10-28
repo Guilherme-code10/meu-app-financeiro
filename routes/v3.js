@@ -196,7 +196,7 @@ async function buscarCambioUsdBrlMercado() {
     atualizadoEm,
     fonte: "AwesomeAPI - dólar comercial",
     frequencia: awesomeApiKey
-      ? "tempo real"
+      ? "atualização frequente · cache de até 15 s"
       : "atualização frequente · cache de até 1 min",
     atrasada: false,
     cacheSegundos: awesomeApiKey ? 15 : 55,
@@ -297,21 +297,16 @@ async function buscarCambioFrankfurterUsdBrl() {
 }
 
 async function buscarCotacaoUsdBrlAtual() {
-  const fontes = [buscarCambioUsdBrlMercado, buscarCambioBrapiUsdBrl, buscarPtaxUsdBrl, buscarCambioFrankfurterUsdBrl];
-  const erros = [];
-  for (const fonte of fontes) {
-    try {
-      const cotacao = await fonte();
-      if (Number.isFinite(Number(cotacao?.meio)) && Number(cotacao.meio) > 0) return cotacao;
-    } catch (erro) {
-      erros.push(`${fonte.name}: ${erro.message}`);
-      console.warn("[V3 USD/BRL] Fonte indisponível:", fonte.name, erro.message);
-    }
+  // Somente cotação comercial com atualização frequente; não misturar PTAX diária
+  // ou taxas de referência com dados em tempo real no painel.
+  try {
+    return await buscarCambioUsdBrlMercado();
+  } catch (erroOriginal) {
+    console.error("[V3 USD/BRL] Cotação comercial indisponível:", erroOriginal.message);
+    const erro = new Error("Cotação comercial atual indisponível. Verifique AWESOME_API_KEY e a disponibilidade da AwesomeAPI.");
+    erro.codigo = "FX_LIVE_UNAVAILABLE";
+    throw erro;
   }
-  const erro = new Error("Todas as fontes de câmbio estão indisponíveis temporariamente.");
-  erro.codigo = "FX_SOURCES_UNAVAILABLE";
-  console.error("[V3 USD/BRL]", erros.join(" | "));
-  throw erro;
 }
 
 async function buscarCotacoesAtuais(tickers) {
