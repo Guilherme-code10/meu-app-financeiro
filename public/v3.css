@@ -967,3 +967,103 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 .flow-review-card strong {
   color: #fbbf24 !important;
 }
+
+
+/* =========================================================
+   BLACK PREMIUM - COMPATIBILIDADE COM COMPONENTES LEGADOS
+   Evita fundo claro com texto claro nas telas antigas.
+   ========================================================= */
+
+.dashboard-month-button,
+.dashboard-month-current {
+  background: #111119 !important;
+  color: #f4f4f7 !important;
+  border: 1px solid rgba(255, 255, 255, .12) !important;
+  box-shadow: none !important;
+}
+
+.dashboard-month-button:hover,
+.dashboard-month-current:hover {
+  background: #1a1a25 !important;
+  border-color: rgba(139, 92, 246, .38) !important;
+}
+
+.dashboard-month-current {
+  color: #c4b5fd !important;
+}
+
+.planning-warning {
+  background:
+    linear-gradient(135deg, rgba(124, 58, 237, .12), rgba(124, 58, 237, .05)) !important;
+  border-color: rgba(139, 92, 246, .20) !important;
+  color: #c9c5d4 !important;
+}
+
+.planning-item,
+.planning-reserve-start,
+.planning-commitment-item,
+.mini-finance-card,
+.account-flow-values > div,
+.flow-audit-summary > div,
+.flow-audit-info {
+  background:
+    linear-gradient(180deg, rgba(22, 22, 31, .96), rgba(13, 13, 20, .98)) !important;
+  border-color: rgba(255, 255, 255, .08) !important;
+  color: var(--text) !important;
+}
+
+.planning-item strong,
+.planning-reserve-start strong,
+.planning-commitment-item strong,
+.mini-finance-card strong,
+.account-flow-values strong,
+.flow-audit-summary strong {
+  color: #f4f4f7;
+}
+
+.planning-item small,
+.planning-commitment-item small,
+.mini-finance-card span,
+.account-flow-values span,
+.flow-audit-summary span,
+.flow-audit-info {
+  color: #aaa7ba !important;
+}
+
+.planning-check-ok {
+  background: rgba(39, 209, 127, .10) !important;
+  color: #6ee7b7 !important;
+  border: 1px solid rgba(39, 209, 127, .18);
+}
+
+.planning-check-warning {
+  background: rgba(245, 158, 11, .10) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, .18);
+}
+
+.flow-internal-button,
+.flow-undo-button {
+  background: #15151f !important;
+  color: #f4f4f7 !important;
+  border: 1px solid rgba(255, 255, 255, .12) !important;
+}
+
+.flow-internal-button:hover,
+.flow-undo-button:hover {
+  background: #1d1d2a !important;
+  border-color: rgba(139, 92, 246, .38) !important;
+}
+
+.monthly-chart-track {
+  background: #242431 !important;
+}
+
+.dashboard-chart-divider {
+  background: rgba(255, 255, 255, .08) !important;
+}
+
+.monthly-chart-month,
+.monthly-chart-line > span {
+  color: #aaa7ba !important;
+}
