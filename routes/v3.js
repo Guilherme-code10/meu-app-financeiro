@@ -682,7 +682,11 @@ function criarRouterV3({ supabaseAdmin }) {
         return res.status(400).json({ sucesso: false, erro: "Tipo de operação inválido." });
       }
 
-      if (tipo === "RENDIMENTO" && (totalBrl !== 0 || iof !== 0 || tarifas !== 0)) {\n        return res.status(400).json({ sucesso: false, erro: "Rendimento em USD não pode incluir custo em BRL, IOF ou tarifas." });\n      }\n\n      const { data: atual, error: erroAtual } = await supabaseAdmin
+      if (tipo === "RENDIMENTO" && (totalBrl !== 0 || iof !== 0 || tarifas !== 0)) {
+        return res.status(400).json({ sucesso: false, erro: "Rendimento em USD não pode incluir custo em BRL, IOF ou tarifas." });
+      }
+
+      const { data: atual, error: erroAtual } = await supabaseAdmin
         .from("investimentos_posicoes")
         .select("*")
         .eq("user_id", req.usuario.id)
