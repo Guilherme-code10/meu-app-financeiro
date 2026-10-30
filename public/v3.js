@@ -596,30 +596,41 @@ async function v3CarregarInvestimentos() {
       status.textContent = "Carteira Nubank carregada. Cotações são consultadas separadamente e nunca substituídas por valores fictícios.";
     }
 
-    const tickers = v3State.investimentos.posicoes.map(p => p.ticker).filter(Boolean);
-    v3State.investimentos.cotacoes.clear();
+    const tickers = [...new Set(v3State.investimentos.posicoes.map(p => p.ticker).filter(Boolean))];
+    // Preserve the last valid quotes when the provider is temporarily unavailable.
+    const cotacoesAnteriores = new Map(v3State.investimentos.cotacoes);
 
     if (tickers.length) {
+      const falhas = [];
       try {
-        const lote = await v3Api(
-          `/api/v3/mercado-cotacoes?tickers=${encodeURIComponent(tickers.join(","))}`,
-        );
-
-        (lote.cotacoes || []).forEach((cotacao) => {
-          if (cotacao?.ticker) {
+        const lote = await v3Api(`/api/v3/mercado-cotacoes?tickers=${encodeURIComponent(tickers.join(","))}`);
+        (lote.cotacoes || []).forEach(cotacao => {
+          if (cotacao?.ticker && Number(cotacao.precoAtual) > 0) {
             v3State.investimentos.cotacoes.set(cotacao.ticker, cotacao);
           }
         });
       } catch (erroLote) {
-        const resultados = await Promise.allSettled(
-          tickers.map(t => v3Api(`/api/v3/mercado/${encodeURIComponent(t)}?periodo=1M`)),
-        );
-
-        resultados.forEach((r, i) => {
-          if (r.status === "fulfilled") {
-            v3State.investimentos.cotacoes.set(tickers[i], r.value);
+        console.warn("Consulta em lote indisponível; tentando ativos separadamente:", erroLote);
+      }
+      const pendentes = tickers.filter(t => !Number(v3State.investimentos.cotacoes.get(t)?.precoAtual));
+      const resultados = await Promise.allSettled(
+        pendentes.map(t => v3Api(`/api/v3/mercado/${encodeURIComponent(t)}?periodo=1M`)),
+      );
+      resultados.forEach((resultado, i) => {
+        const ticker = pendentes[i];
+        if (resultado.status === "fulfilled" && Number(resultado.value?.precoAtual) > 0) {
+          v3State.investimentos.cotacoes.set(ticker, resultado.value);
+        } else {
+          const anterior = cotacoesAnteriores.get(ticker);
+          if (Number(anterior?.precoAtual) > 0) {
+            v3State.investimentos.cotacoes.set(ticker, { ...anterior, atrasada: true });
           }
-        });
+          falhas.push(ticker);
+        }
+      });
+      if (falhas.length && status) {
+        status.className = "v3-note v3-warning";
+        status.textContent = `Cotações pendentes: ${falhas.join(", ")}. Os demais ativos foram atualizados; preços anteriores, quando disponíveis, estão marcados como atrasados.`;
       }
     }
 
