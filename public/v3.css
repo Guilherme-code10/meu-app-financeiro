@@ -1137,3 +1137,17 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
     width: fit-content;
   }
 }
+
+/* Ajustes Black Premium: contraste das caixinhas e legibilidade dos cartões. */
+#caixinhas .fixed-item, #caixinhas .caixinha-item, #caixinhas .goal-card {
+  background: linear-gradient(145deg, #1b2030, #111722) !important;
+  border: 1px solid rgba(167,139,250,.22) !important;
+  color: #f5f4fb !important;
+  box-shadow: 0 12px 30px rgba(0,0,0,.2);
+}
+#caixinhas .fixed-item *, #caixinhas .caixinha-item *, #caixinhas .goal-card * { color: inherit; }
+#caixinhas .fixed-item small, #caixinhas .fixed-item .meta, #caixinhas .caixinha-item small { color: #b9b7c9 !important; }
+#caixinhas .caixinha-acoes button, #caixinhas .fixed-item button { color: #fff; }
+#v3NetWorthCard strong, #v3DashboardInvestments, #v3DashboardUsd { overflow-wrap: anywhere; font-size: clamp(1.05rem, 1.5vw, 1.6rem); }
+.v3-dashboard-row .v3-panel { min-width: 0; }
+@media (max-width: 900px) { .v3-dashboard-row { grid-template-columns: 1fr; } }
