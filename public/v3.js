@@ -401,7 +401,7 @@ function v3InjetarDashboard() {
     <article class="card">
       <span>Bancos internacionais</span>
       <strong id="v3DashboardUsd">—</strong>
-      <small>Convertidos pela última PTAX disponível.</small>
+      <small>Convertidos pela cotação disponível, com fonte e data na área internacional.</small>
     </article>
   `;
   cards.insertAdjacentHTML("beforeend", html);
@@ -1483,14 +1483,17 @@ async function v3AtualizarDashboard() {
   const dolares = cambioDisponivel ? usd * Number(v3State.moedas.ptax.meio) : null;
   const faturas = v3FaturasAtuais();
   const cotacoesCompletas = (v3State.investimentos.posicoes || []).every(p => Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0) > 0);
-  const patrimonio = cotacoesCompletas && (usd === 0 || cambioDisponivel) ? contas + investimentos + (dolares || 0) - faturas : null;
+  // Mostra o subtotal verificável mesmo quando uma API de mercado falha.
+  // Valores ausentes nunca são tratados como zero no rótulo de patrimônio completo.
+  const dadosPendentes = !cotacoesCompletas || (usd !== 0 && !cambioDisponivel);
+  const patrimonioConhecido = contas + investimentos + (dolares || 0) - faturas;
 
   const net = document.querySelector("#v3NetWorth");
   const inv = document.querySelector("#v3DashboardInvestments");
   const usdEl = document.querySelector("#v3DashboardUsd");
-  if (net) net.textContent = patrimonio == null ? "Indisponível · dados parciais" : v3Dinheiro(patrimonio);
+  if (net) net.textContent = `${v3Dinheiro(patrimonioConhecido)}${dadosPendentes ? " · parcial" : ""}`;
   if (inv) inv.textContent = cotacoesCompletas ? v3Dinheiro(investimentos) : "Parcial · cotações pendentes";
-  if (usdEl) usdEl.textContent = usd && !cambioDisponivel ? "Cotação indisponível" : v3Dinheiro(dolares || 0);
+  if (usdEl) usdEl.textContent = usd && !cambioDisponivel ? `${v3Dinheiro(usd)} USD · câmbio pendente` : v3Dinheiro(dolares || 0);
 
   const ativos = Math.max(0, contas) + Math.max(0, investimentos) + Math.max(0, dolares || 0);
   const pct = valor => ativos > 0 ? (Math.max(0, valor) / ativos) * 100 : 0;
