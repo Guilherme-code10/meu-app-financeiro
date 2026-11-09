@@ -2870,7 +2870,9 @@ app.post("/api/caixinhas/sincronizar", exigirAdmin, async (req, res) => {
       "🔄 Buscando movimentações dos últimos 90 dias para identificar novidades.",
     );
 
-    const dataInicioFormatada = dataInicio.toISOString().slice(0, 10);
+    // Saldos conciliados com extrato do Mercado Pago em 09/11/2026.
+    // Nunca reaplicar transações históricas sobre esses saldos-base.
+    const dataInicioFormatada = "2026-11-10";
 
     const dataFim = new Date(agora);
 
@@ -2894,6 +2896,9 @@ const dataFimFormatada = dataFim
       ? respostaPierre.data
       : [];
 
+    // Não importar transações anteriores ao saldo-base, mesmo se a API ignorar o filtro.
+    const dataCorte = "2026-11-10";
+
     console.log(`📊 ${transacoes.length} transações encontradas.`);
 
     const sincronizadas = [];
@@ -2902,6 +2907,11 @@ const dataFimFormatada = dataFim
     const pendencias = [];
 
     for (const transacao of transacoes) {
+      const dataTransacao = String(transacao.date || transacao.transaction_date || transacao.transactionDate || transacao.postedAt || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTransacao) || dataTransacao < dataCorte) {
+        ignoradas.push({ transacao_id: transacao.id || null, motivo: "Transação anterior ao saldo-base ou sem data verificável." });
+        continue;
+      }
       const transacaoId =
         transacao.id || transacao.transaction_id || transacao.transactionId;
 
