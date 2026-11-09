@@ -2580,9 +2580,8 @@ app.get("/api/caixinhas", exigirAdmin, async (req, res) => {
     const { data, error } = await supabase
       .from("caixinhas")
       .select("*")
-      .order("created_at", {
-        ascending: false,
-      });
+      .order("saldo", { ascending: false })
+      .order("nome", { ascending: true });
 
     if (error) {
       throw error;
