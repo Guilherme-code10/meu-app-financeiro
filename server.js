@@ -2864,10 +2864,10 @@ app.post("/api/caixinhas/sincronizar", exigirAdmin, async (req, res) => {
 
     const dataInicio = new Date(agora);
 
-    dataInicio.setDate(dataInicio.getDate() - 30);
+    dataInicio.setDate(dataInicio.getDate() - 90);
 
     console.log(
-      "🔄 Buscando movimentações dos últimos 30 dias para identificar novidades.",
+      "🔄 Buscando movimentações dos últimos 90 dias para identificar novidades.",
     );
 
     const dataInicioFormatada = dataInicio.toISOString().slice(0, 10);
@@ -2899,6 +2899,7 @@ const dataFimFormatada = dataFim
     const sincronizadas = [];
 
     const ignoradas = [];
+    const pendencias = [];
 
     for (const transacao of transacoes) {
       const transacaoId =
@@ -2979,13 +2980,13 @@ const dataFimFormatada = dataFim
         descricaoNormalizada.includes("reserva por gastos") ||
         descricaoNormalizada.includes("dinheiro reservado") ||
         descricaoNormalizada.includes("valor reservado") ||
-        descricaoNormalizada.includes("reserva") ||
+        descricaoNormalizada.startsWith("reserva ") ||
         descricaoNormalizada.includes("guardar dinheiro");
 
       const ehRetirada =
         descricaoNormalizada.includes("dinheiro retirado") ||
         descricaoNormalizada.includes("valor retirado") ||
-        descricaoNormalizada.includes("retirada") ||
+        descricaoNormalizada.startsWith("retirada ") ||
         descricaoNormalizada.includes("resgate");
 
       if (!ehReserva && !ehRetirada) {
@@ -3051,8 +3052,7 @@ const dataFimFormatada = dataFim
         }
 
         return (
-          descricaoNormalizada.includes(nomeCaixinha) ||
-          nomeCaixinha.includes(descricaoNormalizada)
+          descricaoNormalizada.includes(nomeCaixinha)
         );
       });
 
@@ -3088,9 +3088,9 @@ const dataFimFormatada = dataFim
 
       let tipoMovimentacao;
 
-      if (tipoPierre === "DEBIT") {
+      if (ehReserva && !ehRetirada && tipoPierre === "DEBIT") {
         tipoMovimentacao = "ENTRADA";
-      } else if (tipoPierre === "CREDIT") {
+      } else if (ehRetirada && !ehReserva && tipoPierre === "CREDIT") {
         tipoMovimentacao = "SAIDA";
       } else {
         ignoradas.push({
@@ -3100,7 +3100,7 @@ const dataFimFormatada = dataFim
 
           tipoPierre,
 
-          motivo: `Tipo do Pierre não reconhecido: ${tipoPierre}`,
+          motivo: `Tipo ou descrição incompatível: ${tipoPierre} / ${descricao}`,
         });
 
         continue;
@@ -3119,16 +3119,12 @@ const dataFimFormatada = dataFim
       }
 
       if (novoSaldo < 0) {
-        ignoradas.push({
+        pendencias.push({
           transacao_id: transacaoId,
-
           caixinha: caixinhaEncontrada.nome,
-
           descricao,
-
           valor,
-
-          motivo: "A saída deixaria o saldo da caixinha negativo.",
+          motivo: "Saída superior ao saldo registrado; requer conciliação.",
         });
 
         continue;
@@ -3279,6 +3275,9 @@ ignoradas.forEach((item) => {
       sincronizadas,
 
       ignoradas,
+      pendencias,
+      totalPendencias: pendencias.length,
+      conciliacaoCompleta: pendencias.length === 0,
 
       ultima_sincronizacao: agora.toISOString(),
     });
