@@ -2990,13 +2990,13 @@ const dataFimFormatada = dataFim
         descricaoNormalizada.includes("reserva por gastos") ||
         descricaoNormalizada.includes("dinheiro reservado") ||
         descricaoNormalizada.includes("valor reservado") ||
-        descricaoNormalizada.startsWith("reserva ") ||
+        descricaoNormalizada.includes("reserva ") ||
         descricaoNormalizada.includes("guardar dinheiro");
 
       const ehRetirada =
         descricaoNormalizada.includes("dinheiro retirado") ||
         descricaoNormalizada.includes("valor retirado") ||
-        descricaoNormalizada.startsWith("retirada ") ||
+        descricaoNormalizada.includes("retirada ") ||
         descricaoNormalizada.includes("resgate");
 
       if (!ehReserva && !ehRetirada) {
@@ -3098,9 +3098,9 @@ const dataFimFormatada = dataFim
 
       let tipoMovimentacao;
 
-      if (ehReserva && !ehRetirada && tipoPierre === "DEBIT") {
+      if (ehReserva && !ehRetirada) {
         tipoMovimentacao = "ENTRADA";
-      } else if (ehRetirada && !ehReserva && tipoPierre === "CREDIT") {
+      } else if (ehRetirada && !ehReserva) {
         tipoMovimentacao = "SAIDA";
       } else {
         ignoradas.push({
@@ -3110,7 +3110,7 @@ const dataFimFormatada = dataFim
 
           tipoPierre,
 
-          motivo: `Tipo ou descrição incompatível: ${tipoPierre} / ${descricao}`,
+          motivo: `Descrição ambígua: ${descricao}`,
         });
 
         continue;
