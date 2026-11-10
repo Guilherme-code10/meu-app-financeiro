@@ -10075,6 +10075,7 @@ function renderizarPlanejamentoFuturo() {
             <th>Receitas</th>
             <th>Despesas</th>
             <th>Parcelas reais</th>
+            <th>Detalhamento</th>
             <th>Reservas</th>
             <th>Livre</th>
             <th>Reserva acumulada</th>
@@ -10118,6 +10119,28 @@ function renderizarPlanejamentoFuturo() {
 
                   <td class="expense">
                     ${dinheiro(mes.totalCompromissos)}
+                  </td>
+
+                  <td>
+                    ${mes.compromissos.length ? `
+                      <details class="planning-month-details">
+                        <summary>Ver parcelas (${mes.compromissos.length})</summary>
+                        <div class="planning-month-items">
+                          ${mes.compromissos.map((item) => {
+                            const atual = Number(item.parcelaAtual || 0);
+                            const total = Number(item.totalParcelas || 0);
+                            const progresso = atual > 0 && total > 0 ? `Parcela ${atual} de ${total} · ${Math.max(0,total-atual)} restantes` : "Parcela não identificada";
+                            return `
+                              <div class="planning-month-item">
+                                <strong>${escapar(item.nome || "Compra sem descrição")}</strong>
+                                <small>${escapar(item.origem === "CARTAO" ? "Cartão" : "Manual")} · ${escapar(item.conta || "Cartão não identificado")}</small>
+                                <small>${escapar(progresso)}</small>
+                                <small>Vencimento: ${escapar(dataBR(item.vencimento))}</small>
+                                <strong class="expense">${dinheiro(item.valor)}</strong>
+                              </div>`;
+                          }).join("")}
+                        </div>
+                      </details>` : "Sem parcelas"}
                   </td>
 
                   <td class="internal">
