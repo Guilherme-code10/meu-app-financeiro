@@ -2872,7 +2872,7 @@ app.post("/api/caixinhas/sincronizar", exigirAdmin, async (req, res) => {
 
     // Saldos conciliados com extrato do Mercado Pago em 09/11/2026.
     // Nunca reaplicar transações históricas sobre esses saldos-base.
-    const dataInicioFormatada = "2026-11-10";
+    const dataInicioFormatada = dataInicio.toISOString().slice(0, 10);
 
     const dataFim = new Date(agora);
 
@@ -2905,11 +2905,21 @@ const dataFimFormatada = dataFim
 
     const ignoradas = [];
     const pendencias = [];
+    const historicasAntesDaBase = [];
 
     for (const transacao of transacoes) {
       const dataTransacao = String(transacao.date || transacao.transaction_date || transacao.transactionDate || transacao.postedAt || "").slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTransacao) || dataTransacao < dataCorte) {
-        ignoradas.push({ transacao_id: transacao.id || null, motivo: "Transação anterior ao saldo-base ou sem data verificável." });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dataTransacao)) {
+        ignoradas.push({ transacao_id: transacao.id || null, motivo: "Transação sem data verificável." });
+        continue;
+      }
+      if (dataTransacao < dataCorte) {
+        const descricaoHistorica = String(transacao.description || transacao.descricao || "");
+        const nomeHistorico = normalizarTexto(descricaoHistorica);
+        const relacionada = caixinhas.some(c => nomeHistorico.includes(normalizarTexto(c.nome)));
+        if (relacionada && /reserv|retirad|resgat|guardar dinheiro/.test(nomeHistorico)) {
+          historicasAntesDaBase.push({ transacao_id: transacao.id || null, data: dataTransacao, descricao: descricaoHistorica, valor: transacao.amount });
+        }
         continue;
       }
       const transacaoId =
@@ -3268,7 +3278,7 @@ ignoradas.forEach((item) => {
     res.json({
       sucesso: true,
 
-      mensagem: "Sincronização concluída.",
+      mensagem: "Novas movimentações processadas. Transações anteriores ao saldo-base são apenas diagnosticadas e não alteram os saldos.",
 
       periodoBusca: {
         inicio: dataInicioFormatada,
@@ -3287,6 +3297,8 @@ ignoradas.forEach((item) => {
       ignoradas,
       pendencias,
       totalPendencias: pendencias.length,
+      totalHistoricasAntesDaBase: historicasAntesDaBase.length,
+      historicasAntesDaBase,
       conciliacaoCompleta: pendencias.length === 0,
 
       ultima_sincronizacao: agora.toISOString(),
