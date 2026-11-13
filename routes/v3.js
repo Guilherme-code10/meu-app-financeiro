@@ -775,6 +775,61 @@ function criarRouterV3({ supabaseAdmin }) {
     }
   });
 
+
+  // Importação assistida de proventos confirmados no extrato da corretora.
+  // Nunca infere proventos a partir de movimentos genéricos do Pierre.
+  router.post("/investimentos/dividendos/importar", async (req, res) => {
+    try {
+      const brutos = req.body?.pagamentos;
+      if (!Array.isArray(brutos) || brutos.length < 1 || brutos.length > 100) {
+        return res.status(400).json({ sucesso:false, erro:"Envie de 1 a 100 pagamentos confirmados." });
+      }
+      const itens = brutos.map(p => {
+        const ticker = tickerSeguro(p.ticker);
+        if (!/^[A-Z]{4}[0-9]{1,2}$/.test(ticker)) throw new Error("Ticker inválido para importação.");
+        const data = dataIsoOuHoje(p.dataPagamento);
+        if (!p.dataPagamento || data > new Date().toISOString().slice(0,10)) throw new Error("Data de pagamento inválida ou futura.");
+        const valor = numeroPositivo(p.valor,"Valor");
+        if (!Number.isFinite(valor) || valor > 1000000 || Math.round(valor * 100) !== valor * 100 && Math.abs(Math.round(valor*100)-valor*100)>0.00001) {
+          throw new Error("Informe um valor monetário válido com até duas casas decimais.");
+        }
+        const tipo = String(p.tipo || "").toUpperCase().trim();
+        if (!["DIVIDENDO","JCP","RENDIMENTO_FII"].includes(tipo)) throw new Error("Tipo de provento não reconhecido.");
+        return {ticker, data_pagamento:data, valor:Number(valor.toFixed(2)), tipo};
+      });
+      const keys = new Set();
+      for(const p of itens) {
+        const key = p.ticker+":"+p.data_pagamento+":"+p.valor.toFixed(2);
+        if(keys.has(key)) throw new Error("Há lançamentos idênticos no arquivo. Remova duplicações antes de importar.");
+        keys.add(key);
+      }
+      const {data: registrados,error:erroBusca} = await supabaseAdmin
+        .from("investimentos_dividendos").select("ticker,data_pagamento,valor,recebido")
+        .eq("user_id",req.usuario.id);
+      if(erroBusca) return responderErroBanco(res,erroBusca);
+      const {data:posicoes,error:erroPosicoes}=await supabaseAdmin
+        .from("investimentos_posicoes").select("ticker,classe").eq("user_id",req.usuario.id);
+      if(erroPosicoes) return responderErroBanco(res,erroPosicoes);
+      const ativos=new Map((posicoes||[]).map(p=>[p.ticker,p]));
+      const desconhecidos=itens.filter(p=>!ativos.has(p.ticker)).map(p=>p.ticker);
+      if(desconhecidos.length) return res.status(400).json({sucesso:false,erro:"Ativos não encontrados na carteira: "+[...new Set(desconhecidos)].join(", ")+". Nenhuma importação feita."});
+      const ja=new Set((registrados||[]).filter(p=>p.recebido).map(p=>p.ticker+":"+p.data_pagamento+":"+Number(p.valor).toFixed(2)));
+      const ignorados=itens.filter(p=>ja.has(p.ticker+":"+p.data_pagamento+":"+p.valor.toFixed(2)));
+      const novos=itens.filter(p=>!ja.has(p.ticker+":"+p.data_pagamento+":"+p.valor.toFixed(2)));
+      if(!novos.length) return res.json({sucesso:true,importados:0,ignorados:ignorados.length,mensagem:"Todos os pagamentos já estavam cadastrados."});
+      const payload=novos.map(p=>({
+        user_id:req.usuario.id,ticker:p.ticker,valor:p.valor,data_pagamento:p.data_pagamento,
+        anunciado:false,recebido:true,origem:"NUBANK_EXTRATO"
+      }));
+      const {data:salvos,error:erroSalvar}=await supabaseAdmin.from("investimentos_dividendos")
+        .insert(payload).select("id");
+      if(erroSalvar) return responderErroBanco(res,erroSalvar);
+      return res.json({sucesso:true,importados:salvos?.length||0,ignorados:ignorados.length});
+    } catch (erro) {
+      return res.status(400).json({sucesso:false,erro:erro.message});
+    }
+  });
+
   router.post("/investimentos/dividendos", async (req, res) => {
     try {
       const ticker = tickerSeguro(req.body.ticker);
