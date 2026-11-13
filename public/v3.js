@@ -114,6 +114,13 @@ function v3InjetarSecoes() {
       <div id="v3PortfolioReconcileStatus" class="v3-note" aria-live="polite">Aguardando consulta da integração.</div>
     </div>
 
+    <div class="v3-panel" id="v3B3ImportPanel" style="margin-top:14px">
+      <h3>Conferir extrato da B3</h3>
+      <p>Analise compras, vendas e proventos a partir de um CSV exportado da Área do Investidor, sem alterar seus investimentos.</p>
+      <label class="v3-b3-upload"><span>Selecionar extrato CSV</span><input id="v3B3File" type="file" accept=".csv,text/csv"></label>
+      <div id="v3B3Preview" class="v3-note" aria-live="polite">Nenhum arquivo selecionado. Para usar Excel da B3, salve uma cópia em CSV UTF-8.</div>
+      <small>O arquivo é analisado localmente neste navegador e não é enviado ao servidor.</small>
+    </div>
     <div class="v3-kpis" style="margin-top:18px">
       <div class="v3-kpi"><span>Patrimônio investido</span><strong id="v3InvestTotal">—</strong></div>
       <div class="v3-kpi"><span>Custo da carteira</span><strong id="v3InvestCost">—</strong></div>
@@ -1708,10 +1715,76 @@ async function v3ProcurarProventosPierre() {
   }
 }
 
+function v3B3Normalizar(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function v3B3Csv(text) {
+  const content = String(text || "").replace(/^\uFEFF/, "");
+  const first = content.split(/\r?\n/).find(x => x.trim()) || "";
+  const sep = (first.match(/;/g) || []).length >= (first.match(/,/g) || []).length ? ";" : ",";
+  let cell = "", row = [], quoted = false;
+  const rows = [];
+  for (let i=0;i<content.length;i++) {
+    const char=content[i];
+    if (char === '"') {
+      if (quoted && content[i+1] === '"') {cell += '"';i++;} else quoted=!quoted;
+    } else if (char === sep && !quoted) {row.push(cell.trim());cell="";}
+    else if ((char === "\n" || char === "\r") && !quoted) {
+      if(char==="\r" && content[i+1]==="\n")i++;
+      row.push(cell.trim());cell="";
+      if(row.some(Boolean))rows.push(row);
+      row=[];
+    } else cell+=char;
+  }
+  row.push(cell.trim());if(row.some(Boolean))rows.push(row);
+  return rows;
+}
+
+function v3B3Numero(value) {
+  let str=String(value || "").replace(/R\$|\s/g,"");
+  if(!str)return null;
+  if(str.includes(",")&&str.includes(".")) str=str.lastIndexOf(",")>str.lastIndexOf(".")?str.replace(/\./g,"").replace(",","."):str.replace(/,/g,"");
+  else if(str.includes(","))str=str.replace(",",".");
+  const n=Number(str);return Number.isFinite(n)?n:null;
+}
+
+async function v3B3PreviewFile(file) {
+  const alvo=document.querySelector("#v3B3Preview");
+  if(!file||!alvo)return;
+  if(!/\.csv$/i.test(file.name)||file.size>5*1024*1024){
+    alvo.textContent="Selecione um CSV UTF-8 com até 5 MB. Arquivos Excel devem ser convertidos antes.";return;
+  }
+  try{
+    const rows=v3B3Csv(await file.text());
+    const index=rows.findIndex(row=>row.some(c=>["data","datadonegocio","movimentacao","tipodemovimentacao","codigodenegociacao","produto"].includes(v3B3Normalizar(c))));
+    if(index<0){alvo.textContent="Não encontrei cabeçalho B3 reconhecível. Verifique o CSV.";return;}
+    const header=rows[index].map(v3B3Normalizar);
+    const col=(r,names)=>{for(const n of names){const i=header.indexOf(n);if(i>=0)return r[i]||"";}return "";};
+    const records=rows.slice(index+1,10001).map(row=>{
+      const produto=col(row,["produto","codigodenegociacao"]);
+      const descricao=col(row,["movimentacao","tipodemovimentacao","entradaesaida"]);
+      const mov=v3B3Normalizar(descricao);
+      const type=/dividendo|rendimento|jcp|jurossobrecapital/.test(mov)?"PROVENTO":/compra/.test(mov)?"COMPRA":/venda/.test(mov)?"VENDA":"OUTRO";
+      const ticker=String(produto).toUpperCase().match(/\b[A-Z]{4}\d{1,2}\b/)?.[0]||null;
+      return {type,ticker,produto,data:col(row,["data","datadonegocio"]),q:v3B3Numero(col(row,["quantidade"])),valor:v3B3Numero(col(row,["valordaoperacao","valor"]))};
+    }).filter(r=>r.type!=="OUTRO");
+    const count=t=>records.filter(r=>r.type===t).length;
+    const local=new Set((v3State.investimentos.posicoes||[]).map(p=>String(p.ticker).toUpperCase()));
+    const newly=[...new Set(records.map(r=>r.ticker).filter(Boolean))].filter(t=>!local.has(t));
+    const table=records.slice(0,100).map(r=>`<tr><td>${v3Escapar(r.data)}</td><td>${v3Escapar(r.type)}</td><td>${v3Escapar(r.ticker||r.produto)}</td><td>${r.q===null?"—":v3Numero(r.q,4)}</td><td>${r.valor===null?"—":v3Dinheiro(r.valor)}</td><td>${r.ticker?(local.has(r.ticker)?"Já existe posição":"Ainda não cadastrado"):"Ticker não identificado"}</td></tr>`).join("");
+    alvo.innerHTML=`<strong>Prévia local: ${v3Escapar(file.name)}</strong>
+      <div class="v3-reconcile-results"><span>${count("COMPRA")} compras</span><span>${count("VENDA")} vendas</span><span>${count("PROVENTO")} possíveis proventos</span><span>${newly.length} ativos novos</span></div>
+      <div class="v3-scroll"><table class="v3-mini-table"><thead><tr><th>Data</th><th>Tipo</th><th>Ativo</th><th>Qtd.</th><th>Valor</th><th>Conferência</th></tr></thead><tbody>${table}</tbody></table></div>
+      <small>Prévia limitada a 100 linhas. Sem gravação. Para apurar custo real, confira taxas e notas de corretagem; compras antigas podem já estar na carteira.</small>`;
+  }catch(err){alvo.textContent="Não foi possível ler o arquivo: "+err.message;}
+}
+
 function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
   document.querySelector("#v3FindPierreDividends")?.addEventListener("click", v3ProcurarProventosPierre);
   document.querySelector("#v3PortfolioReconcileRefresh")?.addEventListener("click", v3ConferirPosicoesSemAlterar);
+  document.querySelector("#v3B3File")?.addEventListener("change", e => v3B3PreviewFile(e.target.files?.[0]));
 
   const hoje = new Date().toISOString().slice(0, 10);
   ["#v3OperationForm input[name='data']", "#v3DividendForm input[name='dataPagamento']", "#v3FxMovementForm input[name='data']", "#v3FxTransferForm input[name='data']"].forEach(seletor => {
