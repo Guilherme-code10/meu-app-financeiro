@@ -1343,3 +1343,9 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 #investimentos .v3-import-actions small,
 #investimentos #v3PierreDividendCandidates small { color: #c5bfd2 !important; line-height: 1.5; }
 #investimentos #v3PierreDividendCandidates { margin: 12px 0; }
+
+
+/* Destaque do custo de aquisição de cada posição. */
+#investimentos .v3-market-table .v3-cost-cell,
+#investimentos .v3-holding-paid { color: #c7afff !important; font-weight: 700; }
+#investimentos .v3-holding-paid { display: inline; font-size: inherit; }
