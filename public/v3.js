@@ -117,7 +117,7 @@ function v3InjetarSecoes() {
     <div class="v3-panel" id="v3B3ImportPanel" style="margin-top:14px">
       <h3>Conferir extrato da B3</h3>
       <p>Analise compras, vendas e proventos a partir de um CSV exportado da Área do Investidor, sem alterar seus investimentos.</p>
-      <label class="v3-b3-upload"><span>Selecionar extrato CSV</span><input id="v3B3File" type="file" accept=".csv,text/csv"></label>
+      <label class="v3-b3-upload"><span>Selecionar extrato CSV</span><input id="v3B3File" type="file" accept=".csv,.pdf,text/csv,application/pdf" multiple></label>
       <div id="v3B3Preview" class="v3-note" aria-live="polite">Nenhum arquivo selecionado. Para usar Excel da B3, salve uma cópia em CSV UTF-8.</div>
       <small>O arquivo é analisado localmente neste navegador e não é enviado ao servidor.</small>
     </div>
@@ -1749,11 +1749,108 @@ function v3B3Numero(value) {
   const n=Number(str);return Number.isFinite(n)?n:null;
 }
 
+
+/* Interpretação local de notas de corretagem Nu com PDF.js. Nenhum arquivo é transmitido. */
+async function v3NuNotasPDF(files) {
+  const alvo = document.querySelector("#v3B3Preview");
+  if (!alvo || !files?.length) return;
+  const documentos = [...files];
+  if (documentos.some(f => !/\\.pdf$/i.test(f.name) || f.size > 8 * 1024 * 1024)) {
+    alvo.textContent = "Envie somente notas PDF com até 8 MB por arquivo."; return;
+  }
+  alvo.textContent = "Lendo notas da Nubank localmente, sem alterar seus dados…";
+  try {
+    const pdfjs = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+    const nomes = [
+      ["FII MAXI REN", "MXRF11"], ["FII XP MALLS", "XPML11"],
+      ["BBSEGURIDADE", "BBSE3"], ["ITAUUNIBANCO", "ITUB4"],
+      ["TAESA", "TAEE11"], ["INVESTO WRLD", "WRLD11"],
+    ];
+    const todos = [];
+    const problemas = [];
+    const notasLidas = new Set();
+    const parseValor = t => Number(String(t || "").replace(/\\./g, "").replace(",", "."));
+    for (const arquivo of documentos) {
+      const data = new Uint8Array(await arquivo.arrayBuffer());
+      const doc = await pdfjs.getDocument({data}).promise;
+      for (let pageNo = 1; pageNo <= doc.numPages; pageNo++) {
+        const page = await doc.getPage(pageNo);
+        const textContent = await page.getTextContent();
+        const rows = [];
+        const items = textContent.items.filter(t => typeof t.str === "string")
+          .map(t => ({x:Number(t.transform?.[4] || 0), y:Number(t.transform?.[5] || 0), s:t.str.trim()}))
+          .filter(t => t.s).sort((a,b) => b.y - a.y || a.x-b.x);
+        for(const item of items) {
+          let row = rows.find(r => Math.abs(r.y - item.y) <= 2);
+          if(!row) {row={y:item.y,parts:[]};rows.push(row);}
+          row.parts.push(item);
+        }
+        rows.sort((a,b)=>b.y-a.y);
+        const lines = rows.map(r=>r.parts.sort((a,b)=>a.x-b.x).map(x=>x.s).join(" "));
+        const full = lines.join("\n");
+        const numero = full.match(/(?:Nr\\.?\\s*Nota|N[º°]\\s*Nota)[\\s\\S]{0,140}?(\\d{4,9})/i)?.[1] || "";
+        const dataNota = full.match(/\\b\\d{2}\\/\\d{2}\\/\\d{4}\\b/)?.[0] || "";
+        const identidade = numero ? numero+":"+dataNota : arquivo.name+":"+pageNo;
+        if(notasLidas.has(identidade)) continue;
+        notasLidas.add(identidade);
+        let encontradas = 0;
+        for(const linha of lines) {
+          const match = linha.match(/B3\\s+RV\\s+LISTADO\\s+([CV])\\s+(?:VISTA|FRACIONARIO)\\s+(.+?)\\s+[@#]\\s+(\\d+)\\s+([\\d.,]+)\\s+([\\d.,]+)\\s+[DC]\\b/i);
+          if(!match) continue;
+          const produto = match[2].toUpperCase().replace(/\\s+/g," ").trim();
+          const ticker = nomes.find(n=>produto.includes(n[0]))?.[1] || produto.match(/\\b[A-Z]{4}\\d{1,2}\\b/)?.[0] || null;
+          const qtd = Number(match[3]);const preco=parseValor(match[4]);const valor=parseValor(match[5]);
+          if(!ticker || !Number.isFinite(qtd) || qtd<=0 || !Number.isFinite(valor) || valor<=0) {
+            problemas.push("Linha sem ticker ou valores verificáveis: "+produto);continue;
+          }
+          todos.push({ticker, qtd, preco, valor, tipo:match[1]==="C"?"COMPRA":"VENDA", data:dataNota, numero, arquivo:arquivo.name});
+          encontradas++;
+        }
+        if(!encontradas) problemas.push("Nenhuma operação reconhecida em "+arquivo.name+" (página "+pageNo+")");
+      }
+    }
+    const locais = new Map((v3State.investimentos.posicoes || []).map(p => [String(p.ticker).toUpperCase(),p]));
+    const grupos = new Map();
+    for(const op of todos) {
+      const chave = op.ticker;
+      const total = grupos.get(chave) || {ticker:chave, quantidade:0, custo:0, compras:0, vendas:0};
+      total.quantidade += op.tipo === "COMPRA" ? op.qtd : -op.qtd;
+      if(op.tipo === "COMPRA") {total.custo+=op.valor;total.compras++;}
+      else total.vendas++;
+      grupos.set(chave,total);
+    }
+    const lista=[...grupos.values()];
+    const linhas=lista.map(g=>{
+      const local=locais.get(g.ticker);
+      const qtdLocal=local ? Number(local.quantidade) : null;
+      const qtdDiferente=qtdLocal!==null && Math.abs(qtdLocal-g.quantidade)>0.000001;
+      const custoLocal=qtdLocal!==null ? qtdLocal*Number(local.preco_medio||0) : null;
+      const diferenca=custoLocal!==null ? custoLocal-g.custo : null;
+      return `<tr><td>${v3Escapar(g.ticker)}</td><td>${v3Numero(g.quantidade,4)}</td>
+        <td>${v3Dinheiro(g.custo)}</td><td>${qtdLocal===null?"Sem posição":v3Numero(qtdLocal,4)}</td>
+        <td>${diferenca===null?"—":v3Dinheiro(diferenca)}</td>
+        <td>${qtdDiferente?"Conferir quantidade":g.vendas?"Vendas: conferir custo":"Prévia compatível; conferir taxas"}</td></tr>`;
+    }).join("");
+    const totalCompras=todos.filter(x=>x.tipo==="COMPRA").reduce((a,b)=>a+b.valor,0);
+    alvo.innerHTML = `<strong>Notas conferidas localmente: ${notasLidas.size}</strong>
+      <div class="v3-reconcile-results"><span>${todos.filter(x=>x.tipo==="COMPRA").length} compras</span>
+      <span>${todos.filter(x=>x.tipo==="VENDA").length} vendas</span>
+      <span>${v3Dinheiro(totalCompras)} em compras, sem taxas</span></div>
+      <div class="v3-scroll"><table class="v3-mini-table"><thead><tr><th>Ativo</th><th>Qtd. notas</th><th>Custo compras</th><th>Qtd. cadastrada</th><th>Diferença de custo*</th><th>Conferência</th></tr></thead>
+      <tbody>${linhas || '<tr><td colspan="6">Nenhum negócio identificado.</td></tr>'}</tbody></table></div>
+      ${problemas.length?`<p>${v3Escapar(problemas.slice(0,4).join("; "))}</p>`:""}
+      <small>*Diferença entre custo cadastrado (quantidade × preço médio arredondado) e compras encontradas nestas notas; não considera taxas ou notas ausentes. Não altera o Supabase. Reenvie as mesmas notas quando quiser: a conferência não cria lançamentos duplicados.</small>`;
+  } catch (erro) {
+    alvo.textContent = "Não foi possível ler o PDF. Confira sua conexão com o carregador de PDF e tente novamente. Detalhes: "+erro.message;
+  }
+}
+
 async function v3B3PreviewFile(file) {
   const alvo=document.querySelector("#v3B3Preview");
   if(!file||!alvo)return;
   if(!/\.csv$/i.test(file.name)||file.size>5*1024*1024){
-    alvo.textContent="Selecione um CSV UTF-8 com até 5 MB. Arquivos Excel devem ser convertidos antes.";return;
+    alvo.textContent="Selecione um CSV UTF-8 com até 5 MB. Também aceitamos notas de corretagem em PDF.";return;
   }
   try{
     const rows=v3B3Csv(await file.text());
@@ -1784,7 +1881,16 @@ function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
   document.querySelector("#v3FindPierreDividends")?.addEventListener("click", v3ProcurarProventosPierre);
   document.querySelector("#v3PortfolioReconcileRefresh")?.addEventListener("click", v3ConferirPosicoesSemAlterar);
-  document.querySelector("#v3B3File")?.addEventListener("change", e => v3B3PreviewFile(e.target.files?.[0]));
+  document.querySelector("#v3B3File")?.addEventListener("change", e => {
+    const files = [...(e.target.files || [])];
+    if (!files.length) return;
+    if (files.every(f => /\\.pdf$/i.test(f.name))) v3NuNotasPDF(files);
+    else if (files.length === 1 && /\\.csv$/i.test(files[0].name)) v3B3PreviewFile(files[0]);
+    else {
+      const alvo = document.querySelector("#v3B3Preview");
+      if (alvo) alvo.textContent = "Selecione somente PDFs da Nubank ou apenas um CSV da B3 por vez.";
+    }
+  });
 
   const hoje = new Date().toISOString().slice(0, 10);
   ["#v3OperationForm input[name='data']", "#v3DividendForm input[name='dataPagamento']", "#v3FxMovementForm input[name='data']", "#v3FxTransferForm input[name='data']"].forEach(seletor => {
