@@ -112,6 +112,7 @@ function v3InjetarSecoes() {
         <button type="button" id="v3PortfolioReconcileRefresh" class="v3-sync-btn">Conferir agora</button>
       </div>
       <div id="v3PortfolioReconcileStatus" class="v3-note" aria-live="polite">Aguardando consulta da integração.</div>
+      <div id="v3BrokerTransactionPreview" class="v3-note" aria-live="polite"></div>
     </div>
 
     <div class="v3-panel" id="v3B3ImportPanel" style="margin-top:14px">
@@ -606,6 +607,63 @@ async function v3BuscarMercado(ticker = v3State.mercado.ticker, periodo = v3Stat
     if (chart) chart.innerHTML = `<div class="v3-chart-empty">${v3Escapar(erro.message)}</div>`;
     const meta = document.querySelector("#v3MarketMeta");
     if (meta) meta.textContent = erro.message;
+  }
+}
+
+
+async function v3ConferirOperacoesBelvo() {
+  const alvo = document.querySelector("#v3BrokerTransactionPreview");
+  if (!alvo) return;
+  if (v3State.integracoes?.belvo?.configurada !== true) {
+    alvo.textContent = "Compras e proventos automáticos: aguardando autorização de integração Nubank/Belvo.";
+    return;
+  }
+  alvo.textContent = "Consultando transações de investimentos da corretora (somente leitura)…";
+  try {
+    const dados = await v3Api("/api/v3/integracoes/belvo/transacoes-investimentos/preview");
+    const externas = Array.isArray(dados.transacoes) ? dados.transacoes : [];
+    const operacoes = v3State.investimentos.operacoes || [];
+    const dividendos = v3State.investimentos.dividendos || [];
+    const lista = externas.map(item => {
+      const compraVenda = item.tipo === "COMPRA" || item.tipo === "VENDA";
+      const provento = item.tipo === "DIVIDENDOS" || item.tipo === "JCP";
+      const quantidadeValida = Number(item.quantidade) > 0 && Number(item.precoUnitario) > 0;
+      const valor = Number.isFinite(Number(item.valorLiquido)) ? Number(item.valorLiquido) : Number(item.valorBruto || 0);
+      const duplicada = compraVenda && item.ticker && quantidadeValida && operacoes.some(op =>
+        op.ticker === item.ticker && op.tipo === item.tipo && op.data === item.data &&
+        Math.abs(Number(op.quantidade) - Number(item.quantidade)) < 0.000001 &&
+        Math.abs(Number(op.preco_unitario) - Number(item.precoUnitario)) < 0.011);
+      const recebidoRegistrado = provento && item.ticker && dividendos.some(d =>
+        d.ticker === item.ticker && d.data_pagamento === item.data &&
+        Math.abs(Number(d.valor) - Math.abs(valor)) < 0.011);
+      const status = duplicada || recebidoRegistrado ? "Possivelmente já registrado"
+        : !item.ticker ? "Ticker não identificado"
+        : compraVenda && !quantidadeValida ? "Quantidade/preço incompletos"
+        : provento && !(valor > 0) ? "Valor do provento incompleto"
+        : compraVenda ? "Compra/venda nova: conferir com posição"
+        : provento ? "Provento possível: conferir recebimento"
+        : "Outros movimentos";
+      return { ...item, status };
+    });
+    const pendentes = lista.filter(x => x.status.startsWith("Compra/venda nova") || x.status.startsWith("Provento possível"));
+    const jaRegistrados = lista.filter(x => x.status === "Possivelmente já registrado").length;
+    alvo.innerHTML = `<strong>Transações da corretora · prévia automática</strong>
+      <div class="v3-reconcile-results">
+        <span>${lista.length} movimento(s) retornado(s)</span>
+        <span>${pendentes.length} exigem conferência</span>
+        <span>${jaRegistrados} possivelmente já cadastrado(s)</span>
+      </div>
+      ${dados.incompleto ? '<p>A consulta alcançou o limite de páginas; o histórico pode estar incompleto.</p>' : ""}
+      <div class="v3-scroll"><table class="v3-mini-table">
+        <thead><tr><th>Data</th><th>Tipo</th><th>Ativo</th><th>Valor</th><th>Situação</th></tr></thead>
+        <tbody>${lista.slice(0,60).map(x => `<tr><td>${v3Escapar(x.data)}</td>
+          <td>${v3Escapar(x.tipo)}</td><td>${v3Escapar(x.ticker || x.produto || "Não identificado")}</td>
+          <td>${Number.isFinite(Number(x.valorLiquido)) && x.valorLiquido !== null ? v3Dinheiro(x.valorLiquido) : x.valorBruto !== null ? v3Dinheiro(x.valorBruto) : "—"}</td>
+          <td>${v3Escapar(x.status)}</td></tr>`).join("") || '<tr><td colspan="5">Nenhuma transação disponível na fonte.</td></tr>'}</tbody>
+      </table></div>
+      <small>Não há importação automática de operações nesta etapa. Uma transação identificada como nova pode já estar incluída em uma posição cadastrada; a conciliação precisa validar o histórico completo antes de gravar.</small>`;
+  } catch (erro) {
+    alvo.textContent = "Histórico detalhado indisponível: " + erro.message + ". Nenhum lançamento foi alterado.";
   }
 }
 
@@ -1880,7 +1938,7 @@ async function v3B3PreviewFile(file) {
 function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
   document.querySelector("#v3FindPierreDividends")?.addEventListener("click", v3ProcurarProventosPierre);
-  document.querySelector("#v3PortfolioReconcileRefresh")?.addEventListener("click", v3ConferirPosicoesSemAlterar);
+  document.querySelector("#v3PortfolioReconcileRefresh")?.addEventListener("click", async () => { await v3ConferirPosicoesSemAlterar(); await v3ConferirOperacoesBelvo(); });
   document.querySelector("#v3B3File")?.addEventListener("change", e => {
     const files = [...(e.target.files || [])];
     if (!files.length) return;
@@ -2068,6 +2126,7 @@ async function v3CarregarTudo() {
   ]);
 
   await v3ConferirPosicoesSemAlterar();
+  await v3ConferirOperacoesBelvo();
   await v3AtualizarDashboard();
 }
 
