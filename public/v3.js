@@ -2044,8 +2044,54 @@ function v3NuAnalisarPagamentos(texto){
   });
 }
 let v3NuPagamentosProntos = [];
+function v3NuPreviaPagamentos(){
+ const alvo=document.querySelector("#v3NuPayoutPreview"),botao=document.querySelector("#v3NuPayoutImportBtn");
+ if(!alvo||!botao)return;
+ botao.disabled=true;v3NuPagamentosProntos=[];
+ try{
+  const pagamentos=v3NuAnalisarPagamentos(document.querySelector("#v3NuPayoutText").value);
+  const existentes=v3State.investimentos.dividendos||[];
+  const posicoes=new Set((v3State.investimentos.posicoes||[]).map(x=>String(x.ticker).toUpperCase()));
+  const seen=new Set();
+  const classificados=pagamentos.map(p=>{
+   const k=p.ticker+":"+p.dataPagamento+":"+p.valor.toFixed(2);
+   const duplicado=seen.has(k)||existentes.some(x=>x.recebido===true&&x.ticker===p.ticker&&x.data_pagamento===p.dataPagamento&&Math.abs(Number(x.valor)-p.valor)<0.011);
+   seen.add(k);return {...p,duplicado,conhecido:posicoes.has(p.ticker)};
+  });
+  const invalidos=classificados.filter(x=>!x.conhecido);
+  const duplicados=classificados.filter(x=>x.duplicado);
+  const validos=classificados.filter(x=>x.conhecido&&!x.duplicado);
+  if(!invalidos.length && !duplicados.length)v3NuPagamentosProntos=validos.map(({duplicado,conhecido,...x})=>x);
+  const rows=classificados.map(x=>`<tr><td>${v3Escapar(x.dataPagamento)}</td><td>${v3Escapar(x.ticker)}</td><td>${v3Escapar(x.tipo)}</td><td>${v3Dinheiro(x.valor)}</td><td>${x.duplicado?"Possível duplicata":!x.conhecido?"Ativo não cadastrado":"Aguardando confirmação"}</td></tr>`).join("");
+  alvo.innerHTML=`<strong>${classificados.length} pagamento(s) analisado(s)</strong><div class="v3-reconcile-results"><span>${validos.length} novo(s)</span><span>${duplicados.length} duplicado(s)</span><span>${invalidos.length} sem posição cadastrada</span></div><div class="v3-scroll"><table class="v3-mini-table"><thead><tr><th>Data</th><th>Ativo</th><th>Tipo</th><th>Valor</th><th>Situação</th></tr></thead><tbody>${rows}</tbody></table></div><small>Somente importe proventos comprovados no extrato da Nubank. Se houver linhas repetidas, revise e confira antes.</small>`;
+  botao.disabled=!v3NuPagamentosProntos.length;
+ }catch(e){alvo.textContent=e.message;}
+}
+
+async function v3NuImportarPagamentos(){
+ const btn=document.querySelector("#v3NuPayoutImportBtn"),alvo=document.querySelector("#v3NuPayoutPreview");
+ if(!btn||btn.disabled||!v3NuPagamentosProntos.length||!alvo)return;
+ btn.disabled=true;
+ try{
+  const response=await v3Api("/api/v3/investimentos/dividendos/importar",{
+   method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pagamentos:v3NuPagamentosProntos}),
+  });
+  v3NuPagamentosProntos=[];
+  document.querySelector("#v3NuPayoutText").value="";
+  alvo.textContent=`Importados: ${response.importados||0}. Já registrados: ${response.ignorados||0}. Carteira preservada.`;
+  await v3CarregarInvestimentos();
+ }catch(e){alvo.textContent="Não foi possível importar: "+e.message+". Confira os registros antes de tentar novamente.";}
+}
+
 function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
+  document.querySelector("#v3NuPayoutPreviewBtn")?.addEventListener("click",v3NuPreviaPagamentos);
+  document.querySelector("#v3NuPayoutImportBtn")?.addEventListener("click",v3NuImportarPagamentos);
+  document.querySelector("#v3NuPayoutText")?.addEventListener("input",()=>{
+    v3NuPagamentosProntos=[];
+    const btn=document.querySelector("#v3NuPayoutImportBtn");
+    if(btn)btn.disabled=true;
+  });
   document.querySelector("#v3FindPierreDividends")?.addEventListener("click", v3ProcurarProventosPierre);
   document.querySelector("#v3PortfolioReconcileRefresh")?.addEventListener("click", async () => { await v3ConferirPosicoesSemAlterar(); await v3ConferirOperacoesBelvo(); });
   document.querySelector("#v3B3File")?.addEventListener("change", e => {
