@@ -1151,3 +1151,94 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 #v3NetWorthCard strong, #v3DashboardInvestments, #v3DashboardUsd { overflow-wrap: anywhere; font-size: clamp(1.05rem, 1.5vw, 1.6rem); }
 .v3-dashboard-row .v3-panel { min-width: 0; }
 @media (max-width: 900px) { .v3-dashboard-row { grid-template-columns: 1fr; } }
+
+
+/* Contas fixas — contraste Black Premium (somente apresentação). */
+#fixas #fixedList .fixed-item {
+  background: linear-gradient(140deg, #202033 0%, #171725 100%) !important;
+  border: 1px solid rgba(167, 139, 250, .24) !important;
+  border-radius: 16px;
+  padding: 18px 20px;
+  color: #f5f5fa !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+}
+#fixas #fixedList .fixed-item:hover {
+  border-color: rgba(167, 139, 250, .48) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .22);
+}
+#fixas #fixedList .fixed-item > div:first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}
+#fixas #fixedList .fixed-item > div:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  min-width: 0;
+}
+#fixas #fixedList .fixed-item strong {
+  color: #fcfbff !important;
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+#fixas #fixedList .fixed-item > div:last-child > strong {
+  font-size: 19px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+#fixas #fixedList .fixed-item small {
+  color: #c4c0d3 !important;
+  font-size: 13px;
+  line-height: 1.6;
+}
+#fixas #fixedList .fixed-item .primary {
+  background: linear-gradient(110deg, #7732e6, #6321bf) !important;
+  color: #fff !important;
+  border: 1px solid rgba(202, 176, 255, .25);
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 10px 15px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: normal;
+  box-shadow: none;
+}
+#fixas #fixedList .fixed-item .primary:hover {
+  background: linear-gradient(110deg, #8b48f2, #7430d2) !important;
+}
+#fixas #fixedList .fixed-item .delete-btn {
+  color: #ff929c !important;
+  font-size: 14px;
+  padding: 9px 8px;
+  border-radius: 8px;
+}
+#fixas #fixedList .fixed-item .delete-btn:hover {
+  background: rgba(255, 112, 128, .1);
+  color: #ffc0c7 !important;
+}
+#fixas #fixedList .fixed-item :is(button, a):focus-visible {
+  outline: 3px solid #c4a5ff;
+  outline-offset: 3px;
+}
+@media (max-width: 850px) {
+  #fixas #fixedList .fixed-item {
+    padding: 16px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+  #fixas #fixedList .fixed-item > div:last-child {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+@media (max-width: 480px) {
+  #fixas #fixedList .fixed-item > div:last-child > strong {
+    width: 100%;
+  }
+  #fixas #fixedList .fixed-item .primary {
+    flex: 1 1 180px;
+  }
+}
