@@ -878,6 +878,7 @@ function v3RenderizarTabelaInvestimentos() {
           <th>Classe</th>
           <th>Qtd.</th>
           <th>Preço médio</th>
+          <th>Total investido</th>
           <th>Cotação</th>
           <th>Var. dia</th>
           <th>Valor atual</th>
@@ -905,6 +906,7 @@ function v3RenderizarTabelaInvestimentos() {
               <td>${v3Escapar(posicao.classe || "OUTRO")}</td>
               <td>${v3Numero(qtd, 4)}</td>
               <td>${v3Dinheiro(pm)}</td>
+              <td class="v3-cost-cell">${v3Dinheiro(custo)}</td>
               <td>${preco > 0 ? v3Dinheiro(preco) : "Indisponível"}</td>
               <td class="${preco > 0 ? v3ClasseVariacao(variacaoPct) : ""}">
                 ${preco > 0 ? `${variacaoPct >= 0 ? "+" : ""}${v3Numero(variacaoPct, 2)}%` : "—"}
@@ -962,7 +964,7 @@ function v3RenderizarInvestimentos() {
                 <div><button type="button" data-v3-ticker="${v3Escapar(posicao.ticker)}"><strong>${v3Escapar(posicao.ticker)}</strong></button><div class="meta">${v3Escapar(posicao.classe || "OUTRO")} · Nubank</div></div>
                 <div style="text-align:right"><strong>${atual ? v3Dinheiro(valorAtual) : "Cotação indisponível"}</strong><div class="meta ${retorno == null ? "" : v3ClasseVariacao(retorno)}">${retorno == null ? "" : `${retorno >= 0 ? "+" : ""}${v3Dinheiro(retorno)}`}</div></div>
               </div>
-              <div class="meta" style="margin-top:8px">${v3Numero(qtd, 4)} cota(s) · PM ${v3Dinheiro(pm)}${atual ? ` · Atual ${v3Dinheiro(atual)}` : ""}</div>
+              <div class="meta" style="margin-top:8px">${v3Numero(qtd, 4)} cota(s) · PM ${v3Dinheiro(pm)} · <strong class="v3-holding-paid">Total investido ${v3Dinheiro(valorCusto)}</strong>${atual ? ` · Cotação ${v3Dinheiro(atual)}` : ""}</div>
             </div>`;
         }).join("")
       : '<div class="v3-note">Nenhuma posição cadastrada.</div>';
