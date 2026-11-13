@@ -1292,3 +1292,37 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
     font-size: 13px;
   }
 }
+
+
+/* Investimentos: acompanhamento de reinvestimento para aposentadoria. */
+#investimentos .v3-reinvest-panel {
+  background: linear-gradient(135deg, #191f2d, #171525) !important;
+  border: 1px solid rgba(119, 212, 158, .25) !important;
+  color: #f6f6fa !important;
+}
+#investimentos .v3-reinvest-panel h3 { color: #f4fbf7 !important; }
+#investimentos .v3-reinvest-panel p,
+#investimentos .v3-reinvest-panel small {
+  display: block;
+  color: #cbc9d4 !important;
+  line-height: 1.6;
+}
+#investimentos .v3-reinvest-progress {
+  width: 100%;
+  height: 12px;
+  margin: 16px 0 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #343345;
+  border: 1px solid rgba(255, 255, 255, .09);
+}
+#investimentos .v3-reinvest-progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #34b78c, #8ddd9c);
+  transition: width .25s ease;
+}
+#investimentos #v3InvestAvailable,
+#investimentos #v3InvestReinvested { color: #9fe4b8 !important; }
