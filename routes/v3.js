@@ -677,6 +677,13 @@ function criarRouterV3({ supabaseAdmin }) {
       const precoUnitario = numeroPositivo(req.body.precoUnitario, "Preço unitário");
       const taxas = Math.max(0, Number(req.body.taxas || 0));
       const data = dataIsoOuHoje(req.body.data);
+      const origemRecursos = String(req.body.origemRecursos || "APORTE").toUpperCase();
+      if (!["APORTE", "DIVIDENDOS"].includes(origemRecursos)) {
+        return res.status(400).json({ sucesso: false, erro: "Origem dos recursos inválida." });
+      }
+      if (tipo !== "COMPRA" && origemRecursos === "DIVIDENDOS") {
+        return res.status(400).json({ sucesso: false, erro: "Somente compras podem ser marcadas como reinvestimento." });
+      }
 
       if (!["COMPRA", "VENDA"].includes(tipo)) {
         return res.status(400).json({ sucesso: false, erro: "Tipo de operação inválido." });
@@ -690,6 +697,26 @@ function criarRouterV3({ supabaseAdmin }) {
         .maybeSingle();
 
       if (erroAtual) return responderErroBanco(res, erroAtual);
+
+      if (origemRecursos === "DIVIDENDOS") {
+        const [recebidos, comprasReinvestidas] = await Promise.all([
+          supabaseAdmin.from("investimentos_dividendos").select("valor")
+            .eq("user_id", req.usuario.id).eq("recebido", true),
+          supabaseAdmin.from("investimentos_operacoes").select("quantidade,preco_unitario,taxas")
+            .eq("user_id", req.usuario.id).eq("tipo", "COMPRA").eq("origem_recursos", "DIVIDENDOS"),
+        ]);
+        if (recebidos.error || comprasReinvestidas.error) {
+          return responderErroBanco(res, recebidos.error || comprasReinvestidas.error);
+        }
+        const ganhos = (recebidos.data || []).reduce((s, d) => s + Number(d.valor || 0), 0);
+        const jaReinvestido = (comprasReinvestidas.data || []).reduce(
+          (s, op) => s + Number(op.quantidade || 0) * Number(op.preco_unitario || 0) + Number(op.taxas || 0), 0);
+        const custoCompra = quantidade * precoUnitario + taxas;
+        if (custoCompra > Math.max(0, ganhos - jaReinvestido) + 0.005) {
+          return res.status(400).json({ sucesso: false,
+            erro: "Reinvestimento maior que os dividendos recebidos ainda não reinvestidos. Confira os registros." });
+        }
+      }
 
       const nova = aplicarOperacaoInvestimento(
         {
@@ -709,6 +736,7 @@ function criarRouterV3({ supabaseAdmin }) {
           preco_unitario: precoUnitario,
           taxas,
           data,
+          origem_recursos: origemRecursos,
         })
         .select()
         .single();
