@@ -908,6 +908,44 @@ function normalizarTexto(texto) {
     .trim();
 }
 
+// Pré-diagnóstico Pierre — leitura estrita; não altera a carteira.
+app.get("/api/investments/pierre-capabilities", exigirAdmin, async (_req, res) => {
+  try {
+    const retorno = await pierreRequest("get-accounts");
+    const contas = Array.isArray(retorno?.data) ? retorno.data : [];
+    const investimentos = contas.filter(c => c?.type === "INVESTMENT" && c.itemIsActive !== false);
+    // Um saldo não comprova as compras individuais; só identificar dados
+    // de posições se a própria fonte fornecer explicitamente os campos.
+    const posicoes = investimentos.flatMap(c => {
+      const colecoes = [c.holdings, c.positions, c.investments, c.investmentData?.holdings]
+        .filter(Array.isArray);
+      return colecoes.flatMap(lista => lista).map(p => {
+        const ticker = String(p.ticker || p.symbol || "").toUpperCase().trim();
+        const quantidade = Number(p.quantity ?? p.quantidade);
+        const precoMedio = Number(p.averagePurchasePrice ?? p.average_price ?? p.purchaseUnitPrice);
+        return { ticker, quantidade, precoMedio };
+      }).filter(p => /^[A-Z]{4}\d{1,2}$/.test(p.ticker) && Number.isFinite(p.quantidade) && p.quantidade > 0 && Number.isFinite(p.precoMedio) && p.precoMedio > 0);
+    });
+    res.json({
+      sucesso: true,
+      fonte: "Pierre get-accounts",
+      contasInvestimento: investimentos.length,
+      posicoesDetalhadas: posicoes.length,
+      contasComSaldo: investimentos.filter(c => Number.isFinite(Number(c.balance))).length,
+      diagnostico: investimentos.length === 0
+        ? "A API não retornou contas INVESTMENT ativas nesta consulta."
+        : posicoes.length
+          ? "Há dados detalhados candidatos à comparação; nenhuma posição foi alterada."
+          : "O Pierre trouxe contas de investimento, mas não forneceu posições com ticker, quantidade e custo verificáveis. Não é seguro importar compras.",
+      // Evita vazamento de saldos e dados bancários neste diagnóstico.
+      verificadoEm: new Date().toISOString(),
+    });
+  } catch (erro) {
+    res.status(502).json({ sucesso: false, codigo: "PIERRE_CAPABILITIES_ERROR",
+      erro: "Não foi possível conferir os dados de investimento retornados pelo Pierre." });
+  }
+});
+
 // ==========================================
 // CONTAS
 // ==========================================
