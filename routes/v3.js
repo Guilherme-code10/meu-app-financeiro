@@ -1231,10 +1231,22 @@ function criarRouterV3({ supabaseAdmin }) {
           continue;
         }
 
+        // Não reescreve posições já existentes: a integração não comprova
+        // equivalência entre posição manual, operações e preço médio.
+        if (existente) {
+          ignorados.push({
+            ticker: item.ticker,
+            motivo: "Posição já cadastrada e preservada. Confira divergências antes de qualquer alteração.",
+            quantidadeFonte: item.quantidade,
+            quantidadeRegistrada: Number(existente.quantidade || 0),
+          });
+          continue;
+        }
+
         const payload = {
           user_id: req.usuario.id,
           ticker: item.ticker,
-          classe: existente?.classe || item.classe || "OUTRO",
+          classe: item.classe || "OUTRO",
           quantidade: item.quantidade,
           preco_medio: existente
             ? Number(existente.preco_medio || 0)
