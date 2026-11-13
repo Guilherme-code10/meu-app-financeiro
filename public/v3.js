@@ -1755,7 +1755,7 @@ async function v3NuNotasPDF(files) {
   const alvo = document.querySelector("#v3B3Preview");
   if (!alvo || !files?.length) return;
   const documentos = [...files];
-  if (documentos.some(f => !/\\.pdf$/i.test(f.name) || f.size > 8 * 1024 * 1024)) {
+  if (documentos.some(f => !/\.pdf$/i.test(f.name) || f.size > 8 * 1024 * 1024)) {
     alvo.textContent = "Envie somente notas PDF com até 8 MB por arquivo."; return;
   }
   alvo.textContent = "Lendo notas da Nubank localmente, sem alterar seus dados…";
@@ -1770,7 +1770,7 @@ async function v3NuNotasPDF(files) {
     const todos = [];
     const problemas = [];
     const notasLidas = new Set();
-    const parseValor = t => Number(String(t || "").replace(/\\./g, "").replace(",", "."));
+    const parseValor = t => Number(String(t || "").replace(/\./g, "").replace(",", "."));
     for (const arquivo of documentos) {
       const data = new Uint8Array(await arquivo.arrayBuffer());
       const doc = await pdfjs.getDocument({data}).promise;
@@ -1789,17 +1789,17 @@ async function v3NuNotasPDF(files) {
         rows.sort((a,b)=>b.y-a.y);
         const lines = rows.map(r=>r.parts.sort((a,b)=>a.x-b.x).map(x=>x.s).join(" "));
         const full = lines.join("\n");
-        const numero = full.match(/(?:Nr\\.?\\s*Nota|N[º°]\\s*Nota)[\\s\\S]{0,140}?(\\d{4,9})/i)?.[1] || "";
-        const dataNota = full.match(/\\b\\d{2}\\/\\d{2}\\/\\d{4}\\b/)?.[0] || "";
+        const numero = full.match(/(?:Nr\.?\s*Nota|N[º°]\s*Nota)[\s\S]{0,140}?(\d{4,9})/i)?.[1] || "";
+        const dataNota = full.match(/\b\d{2}\/\d{2}\/\d{4}\b/)?.[0] || "";
         const identidade = numero ? numero+":"+dataNota : arquivo.name+":"+pageNo;
         if(notasLidas.has(identidade)) continue;
         notasLidas.add(identidade);
         let encontradas = 0;
         for(const linha of lines) {
-          const match = linha.match(/B3\\s+RV\\s+LISTADO\\s+([CV])\\s+(?:VISTA|FRACIONARIO)\\s+(.+?)\\s+[@#]\\s+(\\d+)\\s+([\\d.,]+)\\s+([\\d.,]+)\\s+[DC]\\b/i);
+          const match = linha.match(/B3\s+RV\s+LISTADO\s+([CV])\s+(?:VISTA|FRACIONARIO)\s+(.+?)\s+[@#]\s+(\d+)\s+([\d.,]+)\s+([\d.,]+)\s+[DC]\b/i);
           if(!match) continue;
-          const produto = match[2].toUpperCase().replace(/\\s+/g," ").trim();
-          const ticker = nomes.find(n=>produto.includes(n[0]))?.[1] || produto.match(/\\b[A-Z]{4}\\d{1,2}\\b/)?.[0] || null;
+          const produto = match[2].toUpperCase().replace(/\s+/g," ").trim();
+          const ticker = nomes.find(n=>produto.includes(n[0]))?.[1] || produto.match(/\b[A-Z]{4}\d{1,2}\b/)?.[0] || null;
           const qtd = Number(match[3]);const preco=parseValor(match[4]);const valor=parseValor(match[5]);
           if(!ticker || !Number.isFinite(qtd) || qtd<=0 || !Number.isFinite(valor) || valor<=0) {
             problemas.push("Linha sem ticker ou valores verificáveis: "+produto);continue;
@@ -1884,8 +1884,8 @@ function v3ConfigurarEventos() {
   document.querySelector("#v3B3File")?.addEventListener("change", e => {
     const files = [...(e.target.files || [])];
     if (!files.length) return;
-    if (files.every(f => /\\.pdf$/i.test(f.name))) v3NuNotasPDF(files);
-    else if (files.length === 1 && /\\.csv$/i.test(files[0].name)) v3B3PreviewFile(files[0]);
+    if (files.every(f => /\.pdf$/i.test(f.name))) v3NuNotasPDF(files);
+    else if (files.length === 1 && /\.csv$/i.test(files[0].name)) v3B3PreviewFile(files[0]);
     else {
       const alvo = document.querySelector("#v3B3Preview");
       if (alvo) alvo.textContent = "Selecione somente PDFs da Nubank ou apenas um CSV da B3 por vez.";
