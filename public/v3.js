@@ -634,20 +634,22 @@ async function v3ConferirOperacoesBelvo() {
     const dividendos = v3State.investimentos.dividendos || [];
     const lista = externas.map(item => {
       const compraVenda = item.tipo === "COMPRA" || item.tipo === "VENDA";
-      const provento = item.tipo === "DIVIDENDOS" || item.tipo === "JCP";
+      const provento = ["DIVIDENDOS", "JCP", "PAGAMENTO_JUROS"].includes(item.tipo);
       const quantidadeValida = Number(item.quantidade) > 0 && Number(item.precoUnitario) > 0;
-      const valor = Number.isFinite(Number(item.valorLiquido)) ? Number(item.valorLiquido) : Number(item.valorBruto || 0);
+      const valorFonte = item.valorLiquido ?? item.valorBruto ?? item.valorOperacao;
+      const valor = valorFonte == null ? null : Math.abs(Number(valorFonte));
       const duplicada = compraVenda && item.ticker && quantidadeValida && operacoes.some(op =>
         op.ticker === item.ticker && op.tipo === item.tipo && op.data === item.data &&
         Math.abs(Number(op.quantidade) - Number(item.quantidade)) < 0.000001 &&
         Math.abs(Number(op.preco_unitario) - Number(item.precoUnitario)) < 0.011);
-      const recebidoRegistrado = provento && item.ticker && dividendos.some(d =>
+      const recebidoRegistrado = provento && item.tipo !== "PAGAMENTO_JUROS" &&
+        item.ticker && valor !== null && dividendos.some(d =>
         d.ticker === item.ticker && d.data_pagamento === item.data &&
-        Math.abs(Number(d.valor) - Math.abs(valor)) < 0.011);
+        Math.abs(Number(d.valor) - valor) < 0.011);
       const status = duplicada || recebidoRegistrado ? "Possivelmente já registrado"
         : !item.ticker ? "Ticker não identificado"
         : compraVenda && !quantidadeValida ? "Quantidade/preço incompletos"
-        : provento && !(valor > 0) ? "Valor do provento incompleto"
+        : provento && !(valor > 0) ? "Valor do rendimento incompleto"
         : compraVenda ? "Compra/venda nova: conferir com posição"
         : provento ? "Provento possível: conferir recebimento"
         : "Outros movimentos";
@@ -666,7 +668,7 @@ async function v3ConferirOperacoesBelvo() {
         <thead><tr><th>Data</th><th>Tipo</th><th>Ativo</th><th>Valor</th><th>Situação</th></tr></thead>
         <tbody>${lista.slice(0,60).map(x => `<tr><td>${v3Escapar(x.data)}</td>
           <td>${v3Escapar(x.tipo)}</td><td>${v3Escapar(x.ticker || x.produto || "Não identificado")}</td>
-          <td>${Number.isFinite(Number(x.valorLiquido)) && x.valorLiquido !== null ? v3Dinheiro(x.valorLiquido) : x.valorBruto !== null ? v3Dinheiro(x.valorBruto) : "—"}</td>
+          <td>${x.valorLiquido != null ? v3Dinheiro(x.valorLiquido) : x.valorBruto != null ? v3Dinheiro(x.valorBruto) : x.valorOperacao != null ? v3Dinheiro(x.valorOperacao) : "—"}</td>
           <td>${v3Escapar(x.status)}</td></tr>`).join("") || '<tr><td colspan="5">Nenhuma transação disponível na fonte.</td></tr>'}</tbody>
       </table></div>
       <small>Não há importação automática de operações nesta etapa. Uma transação identificada como nova pode já estar incluída em uma posição cadastrada; a conciliação precisa validar o histórico completo antes de gravar.</small>`;
