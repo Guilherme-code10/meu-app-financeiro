@@ -203,6 +203,11 @@ function v3InjetarSecoes() {
       <div class="v3-panel v3-span-6">
         <h3>Dividendos</h3>
         <p>Registre recebidos ou anunciados. Eventos da Brapi aparecem separados quando disponíveis.</p>
+        <div class="v3-import-actions">
+          <button type="button" id="v3FindPierreDividends">Procurar proventos no Pierre</button>
+          <small>Pré-análise do extrato bancário dos últimos 90 dias. Confira os resultados com o extrato da Nubank antes de registrar. Nenhum lançamento é criado automaticamente.</small>
+        </div>
+        <div id="v3PierreDividendCandidates" aria-live="polite"></div>
         <form id="v3DividendForm" class="v3-form-grid">
           <label><span>Ticker</span><input name="ticker" required placeholder="MXRF11"></label>
           <label><span>Valor total (R$)</span><input name="valor" type="number" step="0.01" min="0.01" required></label>
@@ -1572,8 +1577,71 @@ function v3IniciarAtualizacaoAutomatica() {
   }, 15 * 60 * 1000);
 }
 
+/* Pré-conciliação não destrutiva: o Pierre entrega transações bancárias,
+   não garante identificação inequívoca do ativo que pagou cada provento. */
+async function v3ProcurarProventosPierre() {
+  const alvo = document.querySelector("#v3PierreDividendCandidates");
+  const botao = document.querySelector("#v3FindPierreDividends");
+  if (!alvo) return;
+  if (botao) botao.disabled = true;
+  alvo.innerHTML = '<p class="v3-note">Consultando lançamentos bancários no Pierre…</p>';
+  try {
+    const hoje = new Date();
+    const inicio = new Date(hoje);
+    inicio.setDate(inicio.getDate() - 90);
+    const dataInicio = inicio.toISOString().slice(0, 10);
+    const dataFim = new Date(hoje.getTime() + 86400000).toISOString().slice(0, 10);
+    const dados = await v3Api(`/api/transactions?startDate=${dataInicio}&endDate=${dataFim}`);
+    const regex = /dividend|dividendo|provento|rendimento(s)?\s+(fii|fundo imobili|a[cç][aã]o)|juros\s+sobre\s+capital|\bjcp\b|\bjs?cp\b/i;
+    const proibidos = /pix|transfer[eê]ncia|resgate|aporte|sal[aá]rio|estorno|cashback/i;
+    const candidatos = (dados.transacoes || []).filter(t => {
+      const desc = [t.descricao, t.originalDescription, t.categoria].filter(Boolean).join(" ");
+      const tipo = String(t.tipo || "").toUpperCase();
+      const valor = Number(t.valor || 0);
+      return valor > 0 && !["DEBITO", "DEBIT", "OUT"].includes(tipo)
+        && regex.test(desc) && !proibidos.test(desc)
+        && !/CREDIT_CARD|CREDIT/.test(String(t.tipoConta || "").toUpperCase());
+    });
+    if (!candidatos.length) {
+      alvo.innerHTML = '<div class="v3-note">Nenhum possível provento foi identificado nos últimos 90 dias. Isso não confirma ausência de rendimentos: a Nubank pode não enviar a descrição ou os créditos podem não estar disponíveis no Pierre.</div>';
+      return;
+    }
+    alvo.innerHTML = `<p class="v3-subtitle">${candidatos.length} lançamento(s) possível(is), aguardando conferência</p>
+      <div class="v3-scroll"><table class="v3-mini-table">
+        <thead><tr><th>Data</th><th>Descrição do extrato</th><th>Valor</th><th>Ação</th></tr></thead>
+        <tbody>${candidatos.slice(0, 50).map((t,i) => `<tr>
+          <td>${v3Escapar(v3DataCurta(t.data))}</td>
+          <td>${v3Escapar(t.descricao || t.originalDescription || "Crédito")}</td>
+          <td>${v3Dinheiro(t.valor)}</td>
+          <td><button type="button" data-v3-pierre-candidate="${i}">Conferir</button></td>
+        </tr>`).join("")}</tbody></table></div>
+      <small>Os possíveis proventos ainda não entram nos totais. Informe o ticker correto após conferir na Nubank; não registre o mesmo pagamento duas vezes.</small>`;
+    alvo.querySelectorAll("[data-v3-pierre-candidate]").forEach(botao => {
+      botao.addEventListener("click", () => {
+        const t = candidatos[Number(botao.dataset.v3PierreCandidate)];
+        if (!t) return;
+        const form = document.querySelector("#v3DividendForm");
+        if (!form) return;
+        const tickerMatch = String(t.descricao || "").toUpperCase().match(/\b[A-Z]{4}\d{1,2}\b/);
+        form.elements.ticker.value = tickerMatch?.[0] || "";
+        form.elements.valor.value = Number(t.valor).toFixed(2);
+        form.elements.dataPagamento.value = String(t.data || "").slice(0,10);
+        form.elements.status.value = "RECEBIDO";
+        form.scrollIntoView({ behavior: "smooth", block: "center" });
+        form.elements.ticker.focus();
+        alvo.insertAdjacentHTML("afterbegin", '<p class="v3-note">Confira o ticker, a data e o valor na Nubank antes de clicar em “Registrar dividendo”. A sugestão não foi salva.</p>');
+      });
+    });
+  } catch (erro) {
+    alvo.innerHTML = `<div class="v3-note">Não foi possível consultar o Pierre: ${v3Escapar(erro.message)}. Nenhum dado foi alterado.</div>`;
+  } finally {
+    if (botao) botao.disabled = false;
+  }
+}
+
 function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
+  document.querySelector("#v3FindPierreDividends")?.addEventListener("click", v3ProcurarProventosPierre);
 
   const hoje = new Date().toISOString().slice(0, 10);
   ["#v3OperationForm input[name='data']", "#v3DividendForm input[name='dataPagamento']", "#v3FxMovementForm input[name='data']", "#v3FxTransferForm input[name='data']"].forEach(seletor => {
