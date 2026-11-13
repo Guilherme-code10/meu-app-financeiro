@@ -11185,6 +11185,31 @@ function mostrarParcelas() {
     return true;
   });
 
+  // Ordenação apenas visual: não altera parcelas nem cálculos.
+  const ordenacao = document.querySelector("#parcelasOrdenacao")?.value || "VALOR_DESC";
+  const obterRestantes = (compra) => {
+    const parcelas = compra.parcelas || [];
+    const noMes = mesSelecionado === "TODOS" ? null : parcelas.find((p) =>
+      String(p.vencimento || p.dueDate || "").substring(0, 7) === mesSelecionado
+    );
+    if (noMes) {
+      const total = Number(noMes.totalParcelas || compra.totalParcelas || 0);
+      const atual = Number(noMes.parcelaAtual || 0);
+      return total > 0 && atual > 0 ? Math.max(total - atual, 0) : Infinity;
+    }
+    const pendentes = parcelas.filter((p) => !parcelaEstaPaga(p));
+    return pendentes.length || (compra.finalizada ? 0 : Infinity);
+  };
+  comprasFiltradas.sort((a, b) => {
+    const valorA = Number(a.valorRestante || 0);
+    const valorB = Number(b.valorRestante || 0);
+    const faltamA = obterRestantes(a);
+    const faltamB = obterRestantes(b);
+    if (ordenacao === "MENOS_RESTANTES") return (faltamA - faltamB) || (valorB - valorA);
+    if (ordenacao === "VALOR_ASC") return (valorA - valorB) || (faltamA - faltamB);
+    return (valorB - valorA) || (faltamA - faltamB);
+  });
+
   // ==========================================
   // STATUS
   // ==========================================
@@ -12356,7 +12381,8 @@ document.addEventListener(
 document.addEventListener("change", (evento) => {
   if (
     evento.target?.id === "parcelasFiltroConta" ||
-    evento.target?.id === "parcelasFiltroMes"
+    evento.target?.id === "parcelasFiltroMes" ||
+    evento.target?.id === "parcelasOrdenacao"
   ) {
     mostrarParcelas();
   }
