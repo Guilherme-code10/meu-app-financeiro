@@ -873,6 +873,51 @@ function v3RenderizarDistribuicaoInvestimentos() {
   }
 }
 
+
+function v3CategoriaRendimento(ticker) {
+  const codigo = String(ticker || "").toUpperCase();
+  const posicao = (v3State.investimentos.posicoes || []).find(p => String(p.ticker).toUpperCase() === codigo);
+  const classe = String(posicao?.classe || "").toUpperCase();
+  if (classe === "FII" || /^[A-Z]{4}11$/.test(codigo) && classe !== "ETF") return "FII";
+  if (classe === "AÇÃO" || classe === "ACAO" || /^[A-Z]{4}[3456]$/.test(codigo)) return "Ação";
+  if (classe === "ETF") return "ETF";
+  if (classe === "BDR") return "BDR";
+  if (classe === "TESOURO") return "Tesouro";
+  return "Não classificado";
+}
+
+let v3RendimentoFiltro = "Todos";
+
+function v3RenderizarDetalheRendimentos() {
+  const filtros = document.querySelector("#v3YieldTypeFilters");
+  const resumo = document.querySelector("#v3YieldSummary");
+  const tabela = document.querySelector("#v3YieldRows");
+  if (!filtros || !resumo || !tabela) return;
+  const recebidos = (v3State.investimentos.dividendos || [])
+    .filter(d => d.recebido === true)
+    .map(d => ({...d, categoria: v3CategoriaRendimento(d.ticker)}))
+    .sort((a,b)=>String(b.data_pagamento||"").localeCompare(String(a.data_pagamento||"")));
+  const total = recebidos.reduce((sum,d)=>sum+Number(d.valor||0),0);
+  const tipos = [...new Set(recebidos.map(d=>d.categoria))].sort();
+  const opcoes = ["Todos",...tipos];
+  if(!opcoes.includes(v3RendimentoFiltro)) v3RendimentoFiltro="Todos";
+  filtros.innerHTML = opcoes.map(tipo=>`<button type="button" data-v3-rendimento-filtro="${v3Escapar(tipo)}" class="${tipo===v3RendimentoFiltro?"active":""}">${v3Escapar(tipo)}</button>`).join("");
+  const vistos = v3RendimentoFiltro === "Todos" ? recebidos : recebidos.filter(d=>d.categoria===v3RendimentoFiltro);
+  resumo.innerHTML = `<span>Total recebido na bolsa: <strong>${v3Dinheiro(total)}</strong></span>
+    <span>${recebidos.length} pagamento(s) registrado(s)</span>
+    <span>${vistos.length} exibido(s)</span>`;
+  tabela.innerHTML = vistos.length
+    ? `<table class="v3-mini-table"><thead><tr><th>Data</th><th>Origem</th><th>Tipo</th><th>Valor recebido</th></tr></thead>
+      <tbody>${vistos.map(d=>`<tr><td>${v3DataCurta(d.data_pagamento)}</td>
+      <td><strong>${v3Escapar(d.ticker)}</strong></td>
+      <td><span class="v3-yield-type">${v3Escapar(d.categoria)}</span></td>
+      <td class="v3-positive"><strong>${v3Dinheiro(d.valor)}</strong></td></tr>`).join("")}</tbody></table>`
+    : '<div class="v3-history-empty">Nenhum rendimento recebido registrado nesta categoria. A ausência de registros não significa que o banco não pagou.</div>';
+  filtros.querySelectorAll("[data-v3-rendimento-filtro]").forEach(btn=>{
+    btn.addEventListener("click",()=>{v3RendimentoFiltro=btn.dataset.v3RendimentoFiltro;v3RenderizarDetalheRendimentos();});
+  });
+}
+
 function v3RenderizarHistoricoInvestimentos() {
   const operacoesAlvo = document.querySelector("#v3OperationHistory");
   const dividendosAlvo = document.querySelector("#v3DividendHistory");
@@ -1137,7 +1182,7 @@ function v3RenderizarInvestimentos() {
   }
 
   const dividendos = (v3State.investimentos.dividendos || [])
-    .filter(d => d.recebido !== false)
+    .filter(d => d.recebido === true)
     .reduce((s, d) => s + Number(d.valor || 0), 0);
 
   const completas = posicoes.length > 0 && posicoes.every(p => Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0) > 0);
@@ -1178,6 +1223,7 @@ function v3RenderizarInvestimentos() {
     ? `${percentual}% dos dividendos recebidos foram reinvestidos em compras registradas. Saldo informativo, não saldo bancário disponível.`
     : "Ainda não há dividendos recebidos registrados. Eventos anunciados não entram nesse total.";
 
+  v3RenderizarDetalheRendimentos();
   v3RenderizarTabelaInvestimentos();
   v3RenderizarDistribuicaoInvestimentos();
   v3RenderizarHistoricoInvestimentos();
@@ -1964,6 +2010,16 @@ async function v3B3PreviewFile(file) {
 
 function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
+  document.querySelector("#v3YieldToggle")?.addEventListener("click", () => {
+    const painel = document.querySelector("#v3YieldBreakdown");
+    const botao = document.querySelector("#v3YieldToggle");
+    if (!painel || !botao) return;
+    painel.hidden = !painel.hidden;
+    botao.setAttribute("aria-expanded", String(!painel.hidden));
+    const seta = document.querySelector("#v3YieldChevron");
+    if (seta) seta.textContent = painel.hidden ? "⌄" : "⌃";
+    if (!painel.hidden) v3RenderizarDetalheRendimentos();
+  });
   document.querySelector("#v3FindPierreDividends")?.addEventListener("click", v3ProcurarProventosPierre);
   document.querySelector("#v3PortfolioReconcileRefresh")?.addEventListener("click", async () => { await v3ConferirPosicoesSemAlterar(); await v3ConferirOperacoesBelvo(); });
   document.querySelector("#v3B3File")?.addEventListener("change", e => {
