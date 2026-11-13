@@ -1408,3 +1408,21 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 #investimentos .v3-pierre-summary-item span {color:#bcb2d0;font-size:12px;}
 #investimentos .v3-pierre-summary-item strong {color:#ead9ff;font-size:13px;line-height:1.4;}
 #investimentos .v3-pierre-summary small {color:#beb0cb;}
+
+/* Nu proventos importer: secondary accordion, legible compact input. */
+#investimentos .v3-nu-payout-import,
+#investimentos details.v3-dividend-details:has(#v3NuPayoutText) {
+ border:1px solid rgba(167,139,250,.27);border-radius:12px;
+ background:#171421;padding:13px 16px;
+}
+#investimentos details:has(#v3NuPayoutText) > summary {
+ cursor:pointer;color:#ddc7ff;font-weight:700;
+}
+#investimentos #v3NuPayoutText {
+ display:block;width:100%;box-sizing:border-box;min-height:100px;
+ margin:10px 0;padding:12px;border-radius:10px;
+ background:#0f0e18;color:#faf9ff;border:1px solid #4d3c6a;
+ font:14px/1.6 ui-monospace,monospace;resize:vertical;
+}
+#investimentos #v3NuPayoutPreview {margin:12px 0;line-height:1.5;}
+#investimentos #v3NuPayoutImportBtn:disabled {opacity:.5;cursor:not-allowed;}
