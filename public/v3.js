@@ -610,7 +610,20 @@ async function v3ConferirPosicoesSemAlterar() {
   try {
     const configurada = v3State.integracoes?.belvo?.configurada === true;
     if (!configurada) {
-      alvo.textContent = "Conexão detalhada Nubank/Belvo não configurada. Pierre pode informar saldos, mas não há confirmação de histórico de compras e dividendos por ativo. Sua carteira cadastrada permanece intacta.";
+      alvo.textContent = "Belvo não configurada. Verificando o que o Pierre disponibiliza, sem alterar a carteira…";
+      try {
+        const diagnostico = await v3Api("/api/investments/pierre-capabilities");
+        alvo.innerHTML = `<strong>Pierre — conferência automática</strong>
+          <div class="v3-reconcile-results">
+            <span>${Number(diagnostico.contasInvestimento || 0)} conta(s) de investimento</span>
+            <span>${Number(diagnostico.contasComSaldo || 0)} conta(s) com saldo</span>
+            <span>${Number(diagnostico.posicoesDetalhadas || 0)} posição(ões) detalhadas</span>
+          </div>
+          <p>${v3Escapar(diagnostico.diagnostico || "Disponibilidade desconhecida.")}</p>
+          <small>Conexão Nubank/Belvo não configurada. Nenhuma quantidade, preço médio, compra ou dividendo foi modificado. A busca de proventos é uma conferência assistida no botão “Procurar proventos no Pierre”.</small>`;
+      } catch (erroPierre) {
+        alvo.textContent = "Sem conexão detalhada Nubank/Belvo. Diagnóstico Pierre indisponível: " + erroPierre.message + ". Todos os dados cadastrados foram preservados.";
+      }
       return;
     }
     alvo.textContent = "Conferindo posições do conector, sem gravar alterações…";
