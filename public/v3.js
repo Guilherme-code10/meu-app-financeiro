@@ -116,9 +116,9 @@ function v3InjetarSecoes() {
 
     <div class="v3-panel" id="v3B3ImportPanel" style="margin-top:14px">
       <h3>Conferir extrato da B3</h3>
-      <p>Analise compras, vendas e proventos a partir de um CSV exportado da Área do Investidor, sem alterar seus investimentos.</p>
-      <label class="v3-b3-upload"><span>Selecionar extrato CSV</span><input id="v3B3File" type="file" accept=".csv,.pdf,text/csv,application/pdf" multiple></label>
-      <div id="v3B3Preview" class="v3-note" aria-live="polite">Nenhum arquivo selecionado. Para usar Excel da B3, salve uma cópia em CSV UTF-8.</div>
+      <p>Selecione as notas de corretagem da Nubank em PDF (vários arquivos ao mesmo tempo) ou um CSV da B3. Compare o custo das compras com suas posições cadastradas, sem sobrescrever dados.</p>
+      <label class="v3-b3-upload"><span>Selecionar PDFs Nubank ou CSV B3</span><input id="v3B3File" type="file" accept=".csv,.pdf,text/csv,application/pdf" multiple></label>
+      <div id="v3B3Preview" class="v3-note" aria-live="polite">Nenhum arquivo selecionado. Selecione as notas PDF da Nubank para conferir quanto pagou por ativo.</div>
       <small>O arquivo é analisado localmente neste navegador e não é enviado ao servidor.</small>
     </div>
     <div class="v3-kpis" style="margin-top:18px">
