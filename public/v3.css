@@ -1349,3 +1349,17 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 #investimentos .v3-market-table .v3-cost-cell,
 #investimentos .v3-holding-paid { color: #c7afff !important; font-weight: 700; }
 #investimentos .v3-holding-paid { display: inline; font-size: inherit; }
+
+
+/* Conferência de investimentos — leitura sem alteração de dados. */
+#investimentos #v3PortfolioReconcilePanel {
+  background: linear-gradient(135deg, #191b29, #141622);
+  border: 1px solid rgba(167, 139, 250, .20);
+}
+#investimentos #v3PortfolioReconcileStatus { margin-top: 12px; color: #d6d2e2; line-height: 1.6; }
+#investimentos .v3-reconcile-results { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+#investimentos .v3-reconcile-results span {
+  border: 1px solid rgba(167, 139, 250, .25); border-radius: 9px; padding: 8px 11px;
+  background: #222237; color: #f1edfc;
+}
+#investimentos #v3PortfolioReconcileStatus small { display: block; color: #bdb8cd; }
