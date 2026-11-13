@@ -1363,3 +1363,33 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
   background: #222237; color: #f1edfc;
 }
 #investimentos #v3PortfolioReconcileStatus small { display: block; color: #bdb8cd; }
+
+/* Investments: clean summary first, advanced tools after portfolio. */
+#investimentos .v3-yield-toggle {
+  display:flex; flex-direction:column; align-items:flex-start; justify-content:center;
+  width:100%; text-align:left; cursor:pointer; font:inherit; border:1px solid rgba(167,139,250,.32);
+  background:linear-gradient(130deg,#1c172c,#14121e); color:#f8f6ff;
+}
+#investimentos .v3-yield-toggle > span {color:#bdb3ce}
+#investimentos .v3-yield-toggle strong {color:#f8f6ff}
+#investimentos .v3-yield-toggle small {color:#c6a8ff; font-size:12px; margin-top:9px}
+#investimentos .v3-yield-toggle:hover,
+#investimentos .v3-yield-toggle:focus-visible {border-color:#a789f3; outline-offset:2px}
+#investimentos .v3-yield-panel {margin-top:12px; background:#12121c; border:1px solid #403153;}
+#investimentos .v3-yield-panel[hidden] {display:none !important}
+#investimentos .v3-yield-filters {display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;}
+#investimentos .v3-yield-filters button {border:1px solid #554467; border-radius:30px;
+  background:#231e30; padding:7px 14px; color:#ded5ed; cursor:pointer;}
+#investimentos .v3-yield-filters button.active {background:#6c3dd1; border-color:#a882ff; color:#fff;}
+#investimentos .v3-yield-type {color:#d0b3ff; font-size:12px; padding:5px 8px; border-radius:7px;background:#2a203b}
+#investimentos .v3-yield-panel small {color:#a9a2b8;display:block;margin-top:12px;line-height:1.5}
+#investimentos details.v3-tools-details {margin-top:28px;border:1px solid #383148;border-radius:16px;background:#12121c;padding:16px}
+#investimentos details.v3-tools-details > summary,
+#investimentos details.v3-old-history > summary {cursor:pointer;display:list-item;color:#e8ddfa;font-weight:700}
+#investimentos details.v3-tools-details > summary span {color:#a9a2b8;font-weight:400;font-size:12px;margin-left:10px}
+#investimentos details.v3-tools-details > .v3-panel {margin-top:14px}
+#investimentos details.v3-old-history {border:1px solid #393047;border-radius:10px;padding:12px}
+#investimentos details.v3-old-history > summary {font-size:13px}
+@media (max-width:700px) {
+  #investimentos details.v3-tools-details > summary span {display:block;margin:5px 0 0}
+}
