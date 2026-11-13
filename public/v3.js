@@ -107,7 +107,15 @@ function v3InjetarSecoes() {
       <div class="v3-kpi"><span>Patrimônio investido</span><strong id="v3InvestTotal">—</strong></div>
       <div class="v3-kpi"><span>Custo da carteira</span><strong id="v3InvestCost">—</strong></div>
       <div class="v3-kpi"><span>Rentabilidade</span><strong id="v3InvestReturn">—</strong></div>
-      <div class="v3-kpi"><span>Dividendos registrados</span><strong id="v3InvestDividends">—</strong></div>
+      <div class="v3-kpi"><span>Dividendos recebidos</span><strong id="v3InvestDividends">—</strong></div>
+      <div class="v3-kpi"><span>Dividendos reinvestidos</span><strong id="v3InvestReinvested">—</strong></div>
+      <div class="v3-kpi"><span>Disponível para reinvestir</span><strong id="v3InvestAvailable">—</strong></div>
+    </div>
+    <div class="v3-panel v3-reinvest-panel" style="margin-top:14px">
+      <h3>Plano de aposentadoria · reinvestimento</h3>
+      <p>Meta: reinvestir 100% dos dividendos efetivamente recebidos e aportar pelo menos R$ 100 por mês. Compre pela corretora e marque a operação como “Dividendos recebidos” abaixo para acompanhar. Este painel não movimenta seu dinheiro nem executa ordens na Nubank.</p>
+      <div class="v3-reinvest-progress" role="progressbar" aria-label="Percentual de dividendos reinvestidos" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="v3ReinvestBar"></span></div>
+      <small id="v3ReinvestHint">O acompanhamento começa quando você registrar dividendos efetivamente recebidos.</small>
     </div>
 
     <div class="v3-panel v3-live-table-panel" style="margin-top:18px">
@@ -180,6 +188,7 @@ function v3InjetarSecoes() {
           <label><span>Preço unitário</span><input name="precoUnitario" type="number" step="0.01" min="0.01" required></label>
           <label><span>Taxas</span><input name="taxas" type="number" step="0.01" min="0" value="0"></label>
           <label><span>Data</span><input name="data" type="date"></label>
+          <label><span>Origem do dinheiro (compras)</span><select name="origemRecursos"><option value="APORTE">Aporte próprio</option><option value="DIVIDENDOS">Dividendos recebidos · reinvestimento</option></select></label>
           <button class="full" type="submit">Registrar operação</button>
         </form>
       </div>
@@ -719,7 +728,7 @@ function v3RenderizarHistoricoInvestimentos() {
   if (operacoesAlvo) {
     operacoesAlvo.innerHTML = operacoes.length
       ? `<table class="v3-mini-table">
-          <thead><tr><th>Data</th><th>Ticker</th><th>Tipo</th><th>Quantidade</th><th>Preço</th><th>Taxas</th><th>Total</th></tr></thead>
+          <thead><tr><th>Data</th><th>Ticker</th><th>Tipo</th><th>Origem</th><th>Quantidade</th><th>Preço</th><th>Taxas</th><th>Total</th></tr></thead>
           <tbody>${operacoes.map(op => {
             const qtd = Number(op.quantidade || 0);
             const preco = Number(op.preco_unitario || 0);
@@ -729,6 +738,7 @@ function v3RenderizarHistoricoInvestimentos() {
               <td>${v3DataCurta(op.data)}</td>
               <td><strong>${v3Escapar(op.ticker)}</strong></td>
               <td>${v3Escapar(op.tipo)}</td>
+              <td>${op.origem_recursos === "DIVIDENDOS" ? "♻ Dividendos" : "Aporte"}</td>
               <td>${v3Numero(qtd,4)}</td>
               <td>${v3Dinheiro(preco)}</td>
               <td>${v3Dinheiro(taxas)}</td>
@@ -989,6 +999,26 @@ function v3RenderizarInvestimentos() {
     returnEl.className = completas ? v3ClasseVariacao(retorno) : "";
   }
   if (divEl) divEl.textContent = v3Dinheiro(dividendos);
+
+  // Reinvestimento é uma compra REAL registrada como paga com proventos,
+  // não valorização de mercado, promessa de rendimento ou ordem automática.
+  const reinvestido = (v3State.investimentos.operacoes || [])
+    .filter(op => op.tipo === "COMPRA" && op.origem_recursos === "DIVIDENDOS")
+    .reduce((s, op) => s + Number(op.quantidade || 0) * Number(op.preco_unitario || 0) + Number(op.taxas || 0), 0);
+  const disponivel = Math.max(0, dividendos - reinvestido);
+  const percentual = dividendos > 0 ? Math.min(100, Math.round(reinvestido / dividendos * 100)) : 0;
+  const reinvestEl = document.querySelector("#v3InvestReinvested");
+  const availableEl = document.querySelector("#v3InvestAvailable");
+  const barEl = document.querySelector("#v3ReinvestBar");
+  const barContainer = barEl?.parentElement;
+  const hintEl = document.querySelector("#v3ReinvestHint");
+  if (reinvestEl) reinvestEl.textContent = v3Dinheiro(reinvestido);
+  if (availableEl) availableEl.textContent = v3Dinheiro(disponivel);
+  if (barEl) barEl.style.width = percentual + "%";
+  if (barContainer) barContainer.setAttribute("aria-valuenow", String(percentual));
+  if (hintEl) hintEl.textContent = dividendos > 0
+    ? `${percentual}% dos dividendos recebidos foram reinvestidos em compras registradas. Saldo informativo, não saldo bancário disponível.`
+    : "Ainda não há dividendos recebidos registrados. Eventos anunciados não entram nesse total.";
 
   v3RenderizarTabelaInvestimentos();
   v3RenderizarDistribuicaoInvestimentos();
