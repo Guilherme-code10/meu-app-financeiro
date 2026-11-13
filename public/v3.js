@@ -213,7 +213,19 @@ function v3InjetarSecoes() {
           <div id="v3PierreDividendCandidates" aria-live="polite"><p class="v3-note">A consulta identifica candidatos no extrato, não confirma dividendos recebidos.</p></div>
         </details>
         <div id="v3PierreRendimentoResumo" class="v3-pierre-summary" aria-live="polite"></div>
-        <form id="v3DividendForm" class="v3-form-grid">
+        <details class="v3-dividend-details" style="margin:14px 0">
+  <summary>Importar proventos confirmados da Nubank</summary>
+  <p style="margin-top:12px">Cole os pagamentos do extrato da corretora: DATA;ATIVO;TIPO;VALOR, um por linha.</p>
+  <p class="v3-note">Exemplo ilustrativo: 10/11/2026;MXRF11;RENDIMENTO_FII;1,50</p>
+  <textarea id="v3NuPayoutText" rows="5" placeholder="DATA;ATIVO;TIPO;VALOR"></textarea>
+  <div class="v3-import-actions">
+    <button type="button" id="v3NuPayoutPreviewBtn">Conferir pagamentos</button>
+    <button type="button" id="v3NuPayoutImportBtn" disabled>Confirmar e importar</button>
+  </div>
+  <div id="v3NuPayoutPreview" class="v3-note" aria-live="polite">Sem pagamentos informados. Não utilize créditos bancários genéricos como dividendos.</div>
+  <small>Tipos: DIVIDENDO, JCP, RENDIMENTO_FII. Não altera sua carteira de ações.</small>
+</details>
+<form id="v3DividendForm" class="v3-form-grid">
           <label><span>Ticker</span><input name="ticker" required placeholder="MXRF11"></label>
           <label><span>Valor total (R$)</span><input name="valor" type="number" step="0.01" min="0.01" required></label>
           <label><span>Data de pagamento</span><input name="dataPagamento" type="date" required></label>
@@ -2003,6 +2015,35 @@ async function v3B3PreviewFile(file) {
   }catch(err){alvo.textContent="Não foi possível ler o arquivo: "+err.message;}
 }
 
+function v3NuDataIso(valor){
+  const x=String(valor||"").trim();
+  let y,m,d;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(x)){[y,m,d]=x.split("-").map(Number);}
+  else if(/^\d{2}\/\d{2}\/\d{4}$/.test(x)){[d,m,y]=x.split("/").map(Number);}
+  else throw Error("Data inválida: "+x);
+  const test=new Date(Date.UTC(y,m-1,d));
+  if(test.getUTCFullYear()!==y||test.getUTCMonth()!==m-1||test.getUTCDate()!==d)throw Error("Data inexistente");
+  return [y,String(m).padStart(2,"0"),String(d).padStart(2,"0")].join("-");
+}
+function v3NuAnalisarPagamentos(texto){
+  const linhas=String(texto||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean).filter(x=>!/^DATA\s*[;\t]\s*ATIVO/i.test(x));
+  if(!linhas.length||linhas.length>100)throw Error("Informe entre 1 e 100 pagamentos.");
+  return linhas.map((linha,i)=>{
+    const campos=linha.includes(";")?linha.split(";"):linha.split("\t");
+    if(campos.length!==4)throw Error("Linha "+(i+1)+": use DATA;ATIVO;TIPO;VALOR.");
+    const [date,tickerInput,typeInput,valueInput]=campos.map(x=>x.trim());
+    const ticker=tickerInput.toUpperCase();
+    const tipo=typeInput.toUpperCase().replace(/\s+/g,"_");
+    if(!/^[A-Z]{4}\d{1,2}$/.test(ticker))throw Error("Ticker inválido na linha "+(i+1));
+    if(!["DIVIDENDO","JCP","RENDIMENTO_FII"].includes(tipo))throw Error("Tipo inválido na linha "+(i+1));
+    let raw=valueInput.replace(/R\$|\s/g,"");
+    if(raw.includes(","))raw=raw.replace(/\./g,"").replace(",",".");
+    const valor=Number(raw);
+    if(!Number.isFinite(valor)||valor<=0||Math.abs(valor*100-Math.round(valor*100))>0.00001)throw Error("Valor inválido na linha "+(i+1));
+    return {dataPagamento:v3NuDataIso(date),ticker,tipo,valor:Number(valor.toFixed(2))};
+  });
+}
+let v3NuPagamentosProntos = [];
 function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
   document.querySelector("#v3FindPierreDividends")?.addEventListener("click", v3ProcurarProventosPierre);
