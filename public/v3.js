@@ -103,6 +103,17 @@ function v3InjetarSecoes() {
       <button type="button" id="v3SyncBelvo" class="v3-sync-btn" disabled>Sincronizar Nubank</button>
     </div>
 
+    <div class="v3-panel" style="margin-top:14px" id="v3PortfolioReconcilePanel">
+      <div class="v3-row-between">
+        <div>
+          <h3>Conferência automática da carteira</h3>
+          <p>Compara dados do conector disponível com suas posições cadastradas. Nunca substitui quantidades, custos ou preços médios.</p>
+        </div>
+        <button type="button" id="v3PortfolioReconcileRefresh" class="v3-sync-btn">Conferir agora</button>
+      </div>
+      <div id="v3PortfolioReconcileStatus" class="v3-note" aria-live="polite">Aguardando consulta da integração.</div>
+    </div>
+
     <div class="v3-kpis" style="margin-top:18px">
       <div class="v3-kpi"><span>Patrimônio investido</span><strong id="v3InvestTotal">—</strong></div>
       <div class="v3-kpi"><span>Custo da carteira</span><strong id="v3InvestCost">—</strong></div>
@@ -588,6 +599,49 @@ async function v3BuscarMercado(ticker = v3State.mercado.ticker, periodo = v3Stat
     if (chart) chart.innerHTML = `<div class="v3-chart-empty">${v3Escapar(erro.message)}</div>`;
     const meta = document.querySelector("#v3MarketMeta");
     if (meta) meta.textContent = erro.message;
+  }
+}
+
+async function v3ConferirPosicoesSemAlterar() {
+  const alvo = document.querySelector("#v3PortfolioReconcileStatus");
+  const btn = document.querySelector("#v3PortfolioReconcileRefresh");
+  if (!alvo) return;
+  if (btn) btn.disabled = true;
+  try {
+    const configurada = v3State.integracoes?.belvo?.configurada === true;
+    if (!configurada) {
+      alvo.textContent = "Conexão detalhada Nubank/Belvo não configurada. Pierre pode informar saldos, mas não há confirmação de histórico de compras e dividendos por ativo. Sua carteira cadastrada permanece intacta.";
+      return;
+    }
+    alvo.textContent = "Conferindo posições do conector, sem gravar alterações…";
+    const dados = await v3Api("/api/v3/integracoes/belvo/investimentos/preview");
+    const remotas = Array.isArray(dados.reconhecidos) ? dados.reconhecidos : [];
+    const locais = v3State.investimentos.posicoes || [];
+    const divergentes = [];
+    const novos = [];
+    let iguais = 0;
+    for (const item of remotas) {
+      if (!item.ticker || !Number.isFinite(Number(item.quantidade)) || Number(item.quantidade) <= 0) continue;
+      const atual = locais.find(p => String(p.ticker).toUpperCase() === String(item.ticker).toUpperCase());
+      if (!atual) { novos.push(item.ticker); continue; }
+      if (Math.abs(Number(atual.quantidade) - Number(item.quantidade)) > 0.000001) {
+        divergentes.push({ticker:item.ticker,local:Number(atual.quantidade),remota:Number(item.quantidade)});
+      } else iguais++;
+    }
+    const pendentes = Array.isArray(dados.pendentesMapeamento) ? dados.pendentesMapeamento.length : 0;
+    alvo.innerHTML = `<strong>Última conferência: ${v3Escapar(new Date().toLocaleString("pt-BR"))}</strong>
+      <div class="v3-reconcile-results">
+      <span>${iguais} posição(ões) compatíveis</span>
+      <span>${divergentes.length} divergência(s)</span>
+      <span>${novos.length} ativo(s) não cadastrado(s)</span>
+      <span>${pendentes} sem identificação suficiente</span></div>
+      ${divergentes.length ? `<p>Diferenças (sem alterações): ${divergentes.slice(0, 12).map(d => `${v3Escapar(d.ticker)} — cadastrado ${v3Numero(d.local,4)}, fonte ${v3Numero(d.remota,4)}`).join("; ")}</p>` : ""}
+      ${novos.length ? `<p>Encontrados apenas na fonte: ${novos.slice(0, 12).map(v3Escapar).join(", ")}.</p>` : ""}
+      <small>Conferência de quantidade, não de compras históricas, custo ou dividendos. Nada foi salvo.</small>`;
+  } catch (erro) {
+    alvo.textContent = "Conferência indisponível: " + erro.message + ". Seus registros foram mantidos.";
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -1644,6 +1698,7 @@ async function v3ProcurarProventosPierre() {
 function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
   document.querySelector("#v3FindPierreDividends")?.addEventListener("click", v3ProcurarProventosPierre);
+  document.querySelector("#v3PortfolioReconcileRefresh")?.addEventListener("click", v3ConferirPosicoesSemAlterar);
 
   const hoje = new Date().toISOString().slice(0, 10);
   ["#v3OperationForm input[name='data']", "#v3DividendForm input[name='dataPagamento']", "#v3FxMovementForm input[name='data']", "#v3FxTransferForm input[name='data']"].forEach(seletor => {
@@ -1820,6 +1875,7 @@ async function v3CarregarTudo() {
     v3BuscarMercado(v3State.mercado.ticker, v3State.mercado.periodo),
   ]);
 
+  await v3ConferirPosicoesSemAlterar();
   await v3AtualizarDashboard();
 }
 
