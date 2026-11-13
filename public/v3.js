@@ -104,25 +104,6 @@ function v3InjetarSecoes() {
       <button type="button" id="v3SyncBelvo" class="v3-sync-btn" disabled>Sincronizar Nubank</button>
     </div>
 
-    <div class="v3-panel" style="margin-top:14px" id="v3PortfolioReconcilePanel">
-      <div class="v3-row-between">
-        <div>
-          <h3>Conferência automática da carteira</h3>
-          <p>Compara dados do conector disponível com suas posições cadastradas. Nunca substitui quantidades, custos ou preços médios.</p>
-        </div>
-        <button type="button" id="v3PortfolioReconcileRefresh" class="v3-sync-btn">Conferir agora</button>
-      </div>
-      <div id="v3PortfolioReconcileStatus" class="v3-note" aria-live="polite">Aguardando consulta da integração.</div>
-      <div id="v3BrokerTransactionPreview" class="v3-note" aria-live="polite"></div>
-    </div>
-
-    <div class="v3-panel" id="v3B3ImportPanel" style="margin-top:14px">
-      <h3>Conferir extrato da B3</h3>
-      <p>Selecione as notas de corretagem da Nubank em PDF (vários arquivos ao mesmo tempo) ou um CSV da B3. Compare o custo das compras com suas posições cadastradas, sem sobrescrever dados.</p>
-      <label class="v3-b3-upload"><span>Selecionar PDFs Nubank ou CSV B3</span><input id="v3B3File" type="file" accept=".csv,.pdf,text/csv,application/pdf" multiple></label>
-      <div id="v3B3Preview" class="v3-note" aria-live="polite">Nenhum arquivo selecionado. Selecione as notas PDF da Nubank para conferir quanto pagou por ativo.</div>
-      <small>O arquivo é analisado localmente neste navegador e não é enviado ao servidor.</small>
-    </div>
     <div class="v3-kpis" style="margin-top:18px">
       <div class="v3-kpi"><span>Patrimônio investido</span><strong id="v3InvestTotal">—</strong></div>
       <div class="v3-kpi"><span>Custo da carteira</span><strong id="v3InvestCost">—</strong></div>
@@ -271,6 +252,25 @@ function v3InjetarSecoes() {
           <div class="v3-kpi"><span>Premissa</span><strong id="v3SimAssumption">8% a.a.</strong></div>
         </div>
       </div>
+    </div>
+    <div class="v3-panel" style="margin-top:14px" id="v3PortfolioReconcilePanel">
+      <div class="v3-row-between">
+        <div>
+          <h3>Conferência automática da carteira</h3>
+          <p>Compara dados do conector disponível com suas posições cadastradas. Nunca substitui quantidades, custos ou preços médios.</p>
+        </div>
+        <button type="button" id="v3PortfolioReconcileRefresh" class="v3-sync-btn">Conferir agora</button>
+      </div>
+      <div id="v3PortfolioReconcileStatus" class="v3-note" aria-live="polite">Aguardando consulta da integração.</div>
+      <div id="v3BrokerTransactionPreview" class="v3-note" aria-live="polite"></div>
+    </div>
+
+    <div class="v3-panel" id="v3B3ImportPanel" style="margin-top:14px">
+      <h3>Conferir extrato da B3</h3>
+      <p>Selecione as notas de corretagem da Nubank em PDF (vários arquivos ao mesmo tempo) ou um CSV da B3. Compare o custo das compras com suas posições cadastradas, sem sobrescrever dados.</p>
+      <label class="v3-b3-upload"><span>Selecionar PDFs Nubank ou CSV B3</span><input id="v3B3File" type="file" accept=".csv,.pdf,text/csv,application/pdf" multiple></label>
+      <div id="v3B3Preview" class="v3-note" aria-live="polite">Nenhum arquivo selecionado. Selecione as notas PDF da Nubank para conferir quanto pagou por ativo.</div>
+      <small>O arquivo é analisado localmente neste navegador e não é enviado ao servidor.</small>
     </div>
   `;
 
