@@ -1401,3 +1401,10 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 #investimentos .v3-pierre-candidates-details[open] .v3-pierre-hint { display: none; }
 #investimentos #v3PierreDividendCandidates { padding: 12px 16px 16px; border-top: 1px solid #38304a; }
 #investimentos #v3PierreDividendCandidates .v3-scroll { max-height: 460px; overflow: auto; }
+
+/* Somatório classificado a partir do extrato, separado dos dividendos confirmados. */
+#investimentos .v3-pierre-summary {display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin:12px 0 16px;}
+#investimentos .v3-pierre-summary-item {background:#171522;border:1px solid #423250;border-radius:11px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}
+#investimentos .v3-pierre-summary-item span {color:#bcb2d0;font-size:12px;}
+#investimentos .v3-pierre-summary-item strong {color:#ead9ff;font-size:13px;line-height:1.4;}
+#investimentos .v3-pierre-summary small {color:#beb0cb;}
