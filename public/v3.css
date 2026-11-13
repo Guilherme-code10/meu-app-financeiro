@@ -1242,3 +1242,53 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
     flex: 1 1 180px;
   }
 }
+
+
+/* Contas fixas — navegação de mês sempre legível no tema escuro. */
+#fixas #fixedMonthPanel #fixedPreviousMonth,
+#fixas #fixedMonthPanel #fixedNextMonth {
+  background: #252139 !important;
+  color: #f6f2ff !important;
+  border: 1px solid #7560a8 !important;
+  border-radius: 12px !important;
+  padding: 12px 18px !important;
+  min-height: 48px;
+  font-size: 15px;
+  font-weight: 700;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+}
+#fixas #fixedMonthPanel #fixedPreviousMonth:not(:disabled):hover,
+#fixas #fixedMonthPanel #fixedNextMonth:not(:disabled):hover {
+  background: #382a60 !important;
+  border-color: #ac8bff !important;
+  color: #fff !important;
+}
+#fixas #fixedMonthPanel #fixedPreviousMonth:disabled,
+#fixas #fixedMonthPanel #fixedNextMonth:disabled {
+  background: #24242e !important;
+  border-color: #555365 !important;
+  color: #c8c5d2 !important;
+  opacity: 1 !important;
+  cursor: not-allowed;
+}
+#fixas #fixedMonthPanel #fixedMonthTitle {
+  color: #fcfbff !important;
+}
+#fixas #fixedMonthPanel #fixedMonthSubtitle {
+  color: #bdb8cd !important;
+}
+#fixas #fixedMonthPanel button:focus-visible {
+  outline: 3px solid #b596ff !important;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  #fixas #fixedMonthPanel .panel-head { gap: 12px; }
+  #fixas #fixedMonthPanel #fixedPreviousMonth,
+  #fixas #fixedMonthPanel #fixedNextMonth {
+    padding: 10px 12px !important;
+    min-height: 44px;
+    font-size: 13px;
+  }
+}
