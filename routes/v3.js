@@ -9,6 +9,7 @@ const {
   belvoConfigurada,
   buscarSaldosWise,
   buscarInvestimentosBelvo,
+  buscarTransacoesInvestimentosBelvo,
 } = require("../lib/v3-integrations");
 
 const BRAPI_URL = "https://brapi.dev/api/quote";
@@ -1174,6 +1175,18 @@ function criarRouterV3({ supabaseAdmin }) {
       res.status(erro.status || 502).json({
         sucesso: false,
         codigo: erro.codigo || "WISE_SYNC_ERROR",
+        erro: erro.message,
+      });
+    }
+  });
+
+  router.get("/integracoes/belvo/transacoes-investimentos/preview", async (_req, res) => {
+    try {
+      const dados = await buscarTransacoesInvestimentosBelvo();
+      res.json({ sucesso: true, ...dados });
+    } catch (erro) {
+      res.status(erro.status || 502).json({
+        sucesso: false, codigo: erro.codigo || "BELVO_TRANSACTIONS_ERROR",
         erro: erro.message,
       });
     }
