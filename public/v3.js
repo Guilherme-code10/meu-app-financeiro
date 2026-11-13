@@ -16,6 +16,7 @@ const v3State = {
 
 let v3TimerCambio = null;
 let v3TimerInvestimentos = null;
+let v3UltimaBuscaPierreProventos = 0;
 
 function v3Dinheiro(valor, moeda = "BRL") {
   return new Intl.NumberFormat("pt-BR", {
@@ -1713,6 +1714,14 @@ function v3IniciarAtualizacaoAutomatica() {
 
 /* Pré-conciliação não destrutiva: o Pierre entrega transações bancárias,
    não garante identificação inequívoca do ativo que pagou cada provento. */
+async function v3BuscaAutomaticaPierreQuandoInvestimentos() {
+  const secao = document.querySelector("#investimentos");
+  if (!secao || !secao.classList.contains("active")) return;
+  if (Date.now() - v3UltimaBuscaPierreProventos < 60 * 60 * 1000) return;
+  v3UltimaBuscaPierreProventos = Date.now();
+  await v3ProcurarProventosPierre();
+}
+
 async function v3ProcurarProventosPierre() {
   const alvo = document.querySelector("#v3PierreDividendCandidates");
   const botao = document.querySelector("#v3FindPierreDividends");
@@ -2127,6 +2136,7 @@ async function v3CarregarTudo() {
 
   await v3ConferirPosicoesSemAlterar();
   await v3ConferirOperacoesBelvo();
+  await v3BuscaAutomaticaPierreQuandoInvestimentos();
   await v3AtualizarDashboard();
 }
 
@@ -2142,6 +2152,7 @@ if (typeof navegar === "function") {
     v3NavegarBase(secao);
     const titulo = document.querySelector("#pageTitle");
     if (titulo && secao === "investimentos") titulo.textContent = "Investimentos Nubank";
+    if (secao === "investimentos") v3BuscaAutomaticaPierreQuandoInvestimentos().catch(() => {});
     if (titulo && secao === "moedas") titulo.textContent = "Bancos internacionais";
   };
 }
