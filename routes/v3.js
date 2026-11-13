@@ -819,7 +819,7 @@ function criarRouterV3({ supabaseAdmin }) {
       if(!novos.length) return res.json({sucesso:true,importados:0,ignorados:ignorados.length,mensagem:"Todos os pagamentos já estavam cadastrados."});
       const payload=novos.map(p=>({
         user_id:req.usuario.id,ticker:p.ticker,valor:p.valor,data_pagamento:p.data_pagamento,
-        anunciado:false,recebido:true,origem:"NUBANK_EXTRATO"
+        anunciado:false,recebido:true,origem:"NUBANK_"+p.tipo
       }));
       const {data:salvos,error:erroSalvar}=await supabaseAdmin.from("investimentos_dividendos")
         .insert(payload).select("id");
