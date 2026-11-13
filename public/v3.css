@@ -1377,3 +1377,27 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
   cursor: pointer;
 }
 #investimentos .v3-dividend-details[open] > summary { margin-bottom: 10px; }
+
+/* Resultado da busca Pierre compacto: lista aberta somente sob demanda. */
+#investimentos .v3-pierre-candidates-details {
+  margin: 12px 0 16px;
+  border: 1px solid rgba(167,139,250,.28);
+  background: #181424;
+  border-radius: 12px;
+  overflow: hidden;
+}
+#investimentos .v3-pierre-candidates-details > summary {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 13px 16px;
+  cursor: pointer; color: #e4d6ff; font-weight: 700;
+  list-style: none;
+}
+#investimentos .v3-pierre-candidates-details > summary::-webkit-details-marker { display: none; }
+#investimentos .v3-pierre-candidates-details > summary::before {
+  content: "▸"; color: #b38cff; font-size: 16px;
+}
+#investimentos .v3-pierre-candidates-details[open] > summary::before { content: "▾"; }
+#investimentos .v3-pierre-hint { margin-left: auto; color: #b4a7c8; font-size: 12px; font-weight: 500; }
+#investimentos .v3-pierre-candidates-details[open] .v3-pierre-hint { display: none; }
+#investimentos #v3PierreDividendCandidates { padding: 12px 16px 16px; border-top: 1px solid #38304a; }
+#investimentos #v3PierreDividendCandidates .v3-scroll { max-height: 460px; overflow: auto; }
