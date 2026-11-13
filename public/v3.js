@@ -104,26 +104,32 @@ function v3InjetarSecoes() {
       <button type="button" id="v3SyncBelvo" class="v3-sync-btn" disabled>Sincronizar Nubank</button>
     </div>
 
+    <div class="v3-panel" style="margin-top:14px" id="v3PortfolioReconcilePanel">
+      <div class="v3-row-between">
+        <div>
+          <h3>Conferência automática da carteira</h3>
+          <p>Compara dados do conector disponível com suas posições cadastradas. Nunca substitui quantidades, custos ou preços médios.</p>
+        </div>
+        <button type="button" id="v3PortfolioReconcileRefresh" class="v3-sync-btn">Conferir agora</button>
+      </div>
+      <div id="v3PortfolioReconcileStatus" class="v3-note" aria-live="polite">Aguardando consulta da integração.</div>
+      <div id="v3BrokerTransactionPreview" class="v3-note" aria-live="polite"></div>
+    </div>
+
+    <div class="v3-panel" id="v3B3ImportPanel" style="margin-top:14px">
+      <h3>Conferir extrato da B3</h3>
+      <p>Selecione as notas de corretagem da Nubank em PDF (vários arquivos ao mesmo tempo) ou um CSV da B3. Compare o custo das compras com suas posições cadastradas, sem sobrescrever dados.</p>
+      <label class="v3-b3-upload"><span>Selecionar PDFs Nubank ou CSV B3</span><input id="v3B3File" type="file" accept=".csv,.pdf,text/csv,application/pdf" multiple></label>
+      <div id="v3B3Preview" class="v3-note" aria-live="polite">Nenhum arquivo selecionado. Selecione as notas PDF da Nubank para conferir quanto pagou por ativo.</div>
+      <small>O arquivo é analisado localmente neste navegador e não é enviado ao servidor.</small>
+    </div>
     <div class="v3-kpis" style="margin-top:18px">
       <div class="v3-kpi"><span>Patrimônio investido</span><strong id="v3InvestTotal">—</strong></div>
       <div class="v3-kpi"><span>Custo da carteira</span><strong id="v3InvestCost">—</strong></div>
       <div class="v3-kpi"><span>Rentabilidade</span><strong id="v3InvestReturn">—</strong></div>
-      <button type="button" class="v3-kpi v3-yield-toggle" id="v3YieldToggle" aria-expanded="false" aria-controls="v3YieldBreakdown">
-        <span>Rendimentos recebidos · bolsa</span><strong id="v3InvestDividends">—</strong>
-        <small>Ver origens e pagamentos <span id="v3YieldChevron">⌄</span></small>
-      </button>
+      <div class="v3-kpi"><span>Dividendos recebidos</span><strong id="v3InvestDividends">—</strong></div>
       <div class="v3-kpi"><span>Dividendos reinvestidos</span><strong id="v3InvestReinvested">—</strong></div>
       <div class="v3-kpi"><span>Disponível para reinvestir</span><strong id="v3InvestAvailable">—</strong></div>
-    </div>
-    <div class="v3-panel v3-yield-panel" id="v3YieldBreakdown" hidden>
-      <div class="v3-row-between"><div>
-        <h3>De onde vieram os rendimentos</h3>
-        <p>Somente pagamentos recebidos registrados, por tipo de ativo. Valorização não entra nesta soma.</p>
-      </div></div>
-      <div id="v3YieldTypeFilters" class="v3-yield-filters"></div>
-      <div id="v3YieldSummary" class="v3-reconcile-results"></div>
-      <div id="v3YieldRows" class="v3-scroll"></div>
-      <small>Caixinhas, poupança e outros rendimentos bancários não são adicionados a este total até serem identificados e conciliados. Nenhum rendimento é presumido.</small>
     </div>
     <div class="v3-panel v3-reinvest-panel" style="margin-top:14px">
       <h3>Plano de aposentadoria · reinvestimento</h3>
@@ -215,8 +221,8 @@ function v3InjetarSecoes() {
       </div>
 
       <div class="v3-panel v3-span-6">
-        <h3>Registrar proventos</h3>
-        <p>Registre pagamentos confirmados de ações e FIIs. Eventos anunciados pela Brapi não são somados ao total recebido.</p>
+        <h3>Dividendos</h3>
+        <p>Registre recebidos ou anunciados. Eventos da Brapi aparecem separados quando disponíveis.</p>
         <div class="v3-import-actions">
           <button type="button" id="v3FindPierreDividends">Procurar proventos no Pierre</button>
           <small>Pré-análise do extrato bancário dos últimos 90 dias. Confira os resultados com o extrato da Nubank antes de registrar. Nenhum lançamento é criado automaticamente.</small>
@@ -231,8 +237,8 @@ function v3InjetarSecoes() {
           </label>
           <button class="full" type="submit">Registrar dividendo</button>
         </form>
-        <details class="v3-old-history" style="margin-top:16px">
-          <summary>Histórico de rendimentos registrados e eventos de mercado</summary>
+        <details class="v3-dividend-details" style="margin-top:16px">
+          <summary>Ver lista de rendimentos e eventos</summary>
           <div id="v3DividendHistory" style="margin-top:12px"></div>
         </details>
       </div>
@@ -266,30 +272,6 @@ function v3InjetarSecoes() {
         </div>
       </div>
     </div>
-        <details class="v3-tools-details">
-      <summary>Ferramentas de conferência e importação <span>PDF Nubank · B3 · Open Finance</span></summary>
-          <div class="v3-panel" style="margin-top:14px" id="v3PortfolioReconcilePanel">
-      <div class="v3-row-between">
-        <div>
-          <h3>Conferência automática da carteira</h3>
-          <p>Compara dados do conector disponível com suas posições cadastradas. Nunca substitui quantidades, custos ou preços médios.</p>
-        </div>
-        <button type="button" id="v3PortfolioReconcileRefresh" class="v3-sync-btn">Conferir agora</button>
-      </div>
-      <div id="v3PortfolioReconcileStatus" class="v3-note" aria-live="polite">Aguardando consulta da integração.</div>
-      <div id="v3BrokerTransactionPreview" class="v3-note" aria-live="polite"></div>
-    </div>
-
-    <div class="v3-panel" id="v3B3ImportPanel" style="margin-top:14px">
-      <h3>Importar notas Nubank ou extrato B3</h3>
-      <p>Selecione as notas de corretagem da Nubank em PDF (vários arquivos ao mesmo tempo) ou um CSV da B3. Compare o custo das compras com suas posições cadastradas, sem sobrescrever dados.</p>
-      <label class="v3-b3-upload"><span>Selecionar PDFs Nubank ou CSV B3</span><input id="v3B3File" type="file" accept=".csv,.pdf,text/csv,application/pdf" multiple></label>
-      <div id="v3B3Preview" class="v3-note" aria-live="polite">Nenhum arquivo selecionado. Selecione as notas PDF da Nubank para conferir quanto pagou por ativo.</div>
-      <small>O arquivo é analisado localmente neste navegador e não é enviado ao servidor.</small>
-    </div>
-
-    </details>
-
   `;
 
   const moedas = document.createElement("section");
@@ -876,51 +858,6 @@ function v3RenderizarDistribuicaoInvestimentos() {
   }
 }
 
-
-function v3CategoriaRendimento(ticker) {
-  const codigo = String(ticker || "").toUpperCase();
-  const posicao = (v3State.investimentos.posicoes || []).find(p => String(p.ticker).toUpperCase() === codigo);
-  const classe = String(posicao?.classe || "").toUpperCase();
-  if (classe === "FII" || (!classe && /^[A-Z]{4}11$/.test(codigo))) return "FII";
-  if (classe === "AÇÃO" || classe === "ACAO" || /^[A-Z]{4}[3456]$/.test(codigo)) return "Ação";
-  if (classe === "ETF") return "ETF";
-  if (classe === "BDR") return "BDR";
-  if (classe === "TESOURO") return "Tesouro";
-  return "Não classificado";
-}
-
-let v3RendimentoFiltro = "Todos";
-
-function v3RenderizarDetalheRendimentos() {
-  const filtros = document.querySelector("#v3YieldTypeFilters");
-  const resumo = document.querySelector("#v3YieldSummary");
-  const tabela = document.querySelector("#v3YieldRows");
-  if (!filtros || !resumo || !tabela) return;
-  const recebidos = (v3State.investimentos.dividendos || [])
-    .filter(d => d.recebido === true)
-    .map(d => ({...d, categoria: v3CategoriaRendimento(d.ticker)}))
-    .sort((a,b)=>String(b.data_pagamento||"").localeCompare(String(a.data_pagamento||"")));
-  const total = recebidos.reduce((sum,d)=>sum+Number(d.valor||0),0);
-  const tipos = [...new Set(recebidos.map(d=>d.categoria))].sort();
-  const opcoes = ["Todos",...tipos];
-  if(!opcoes.includes(v3RendimentoFiltro)) v3RendimentoFiltro="Todos";
-  filtros.innerHTML = opcoes.map(tipo=>`<button type="button" data-v3-rendimento-filtro="${v3Escapar(tipo)}" class="${tipo===v3RendimentoFiltro?"active":""}">${v3Escapar(tipo)}</button>`).join("");
-  const vistos = v3RendimentoFiltro === "Todos" ? recebidos : recebidos.filter(d=>d.categoria===v3RendimentoFiltro);
-  resumo.innerHTML = `<span>Total recebido na bolsa: <strong>${v3Dinheiro(total)}</strong></span>
-    <span>${recebidos.length} pagamento(s) registrado(s)</span>
-    <span>${vistos.length} exibido(s)</span>`;
-  tabela.innerHTML = vistos.length
-    ? `<table class="v3-mini-table"><thead><tr><th>Data</th><th>Origem</th><th>Tipo</th><th>Valor recebido</th></tr></thead>
-      <tbody>${vistos.map(d=>`<tr><td>${v3DataCurta(d.data_pagamento)}</td>
-      <td><strong>${v3Escapar(d.ticker)}</strong></td>
-      <td><span class="v3-yield-type">${v3Escapar(d.categoria)}</span></td>
-      <td class="v3-positive"><strong>${v3Dinheiro(d.valor)}</strong></td></tr>`).join("")}</tbody></table>`
-    : '<div class="v3-history-empty">Nenhum rendimento recebido registrado nesta categoria. A ausência de registros não significa que o banco não pagou.</div>';
-  filtros.querySelectorAll("[data-v3-rendimento-filtro]").forEach(btn=>{
-    btn.addEventListener("click",()=>{v3RendimentoFiltro=btn.dataset.v3RendimentoFiltro;v3RenderizarDetalheRendimentos();});
-  });
-}
-
 function v3RenderizarHistoricoInvestimentos() {
   const operacoesAlvo = document.querySelector("#v3OperationHistory");
   const dividendosAlvo = document.querySelector("#v3DividendHistory");
@@ -1185,7 +1122,7 @@ function v3RenderizarInvestimentos() {
   }
 
   const dividendos = (v3State.investimentos.dividendos || [])
-    .filter(d => d.recebido === true)
+    .filter(d => d.recebido !== false)
     .reduce((s, d) => s + Number(d.valor || 0), 0);
 
   const completas = posicoes.length > 0 && posicoes.every(p => Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0) > 0);
@@ -1226,7 +1163,6 @@ function v3RenderizarInvestimentos() {
     ? `${percentual}% dos dividendos recebidos foram reinvestidos em compras registradas. Saldo informativo, não saldo bancário disponível.`
     : "Ainda não há dividendos recebidos registrados. Eventos anunciados não entram nesse total.";
 
-  v3RenderizarDetalheRendimentos();
   v3RenderizarTabelaInvestimentos();
   v3RenderizarDistribuicaoInvestimentos();
   v3RenderizarHistoricoInvestimentos();
@@ -2013,16 +1949,6 @@ async function v3B3PreviewFile(file) {
 
 function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
-  document.querySelector("#v3YieldToggle")?.addEventListener("click", () => {
-    const painel = document.querySelector("#v3YieldBreakdown");
-    const botao = document.querySelector("#v3YieldToggle");
-    if (!painel || !botao) return;
-    painel.hidden = !painel.hidden;
-    botao.setAttribute("aria-expanded", String(!painel.hidden));
-    const seta = document.querySelector("#v3YieldChevron");
-    if (seta) seta.textContent = painel.hidden ? "⌄" : "⌃";
-    if (!painel.hidden) v3RenderizarDetalheRendimentos();
-  });
   document.querySelector("#v3FindPierreDividends")?.addEventListener("click", v3ProcurarProventosPierre);
   document.querySelector("#v3PortfolioReconcileRefresh")?.addEventListener("click", async () => { await v3ConferirPosicoesSemAlterar(); await v3ConferirOperacoesBelvo(); });
   document.querySelector("#v3B3File")?.addEventListener("change", e => {
