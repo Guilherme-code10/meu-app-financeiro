@@ -212,6 +212,7 @@ function v3InjetarSecoes() {
           <summary><span id="v3PierreCandidateCount">Ver possíveis rendimentos do extrato</span><span class="v3-pierre-hint">Abrir lista</span></summary>
           <div id="v3PierreDividendCandidates" aria-live="polite"><p class="v3-note">A consulta identifica candidatos no extrato, não confirma dividendos recebidos.</p></div>
         </details>
+        <div id="v3PierreRendimentoResumo" class="v3-pierre-summary" aria-live="polite"></div>
         <form id="v3DividendForm" class="v3-form-grid">
           <label><span>Ticker</span><input name="ticker" required placeholder="MXRF11"></label>
           <label><span>Valor total (R$)</span><input name="valor" type="number" step="0.01" min="0.01" required></label>
@@ -1728,11 +1729,29 @@ async function v3BuscaAutomaticaPierreQuandoInvestimentos() {
   await v3ProcurarProventosPierre();
 }
 
+function v3ClassificarCreditoRendimento(t) {
+  const texto = String([t.descricao, t.originalDescription].filter(Boolean).join(" "))
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  const conta = String(t.tipoConta || "").toUpperCase();
+  const ticker = texto.match(/\b[A-Z]{4}\d{1,2}\b/)?.[0] || null;
+  if (/REMUNER(?:ACAO)?\s*BASICA|ANIV(?:ERSARIO)?\s*(?:POUP|\.?\s*\d)|POUPANCA/.test(texto) || /SAVINGS|POUPANCA/.test(conta)) {
+    return {origem:"Poupança (provável)",grupo:"Poupança",confianca:"INDICIO",ticker:null};
+  }
+  if (/CAIXINHA|RDB|CDB|RENDIMENTO\s+(?:CDI|CONTA|APLICACAO)|JUROS\s+(?:CDB|RDB)/.test(texto)) {
+    return {origem:"Renda fixa / conta (provável)",grupo:"Renda fixa",confianca:"INDICIO",ticker:null};
+  }
+  if (ticker && /DIVIDEND|PROVENTO|JUROS\s+SOBRE\s+(?:CAPITAL|CAP)|\bJCP\b|RENDIMENTO\s+(?:FII|FUNDO\s+IMOB)/.test(texto)) {
+    return {origem:"Bolsa — "+ticker+" (conferir)",grupo:"Bolsa",confianca:"INDICIO",ticker};
+  }
+  return {origem:"Origem não identificada",grupo:"Não identificado",confianca:"INDEFINIDO",ticker:null};
+}
+
 async function v3ProcurarProventosPierre() {
   const alvo = document.querySelector("#v3PierreDividendCandidates");
   const botao = document.querySelector("#v3FindPierreDividends");
   if (!alvo) return;
   const resumo = document.querySelector("#v3PierreCandidateCount");
+  const resumoAutomatico = document.querySelector("#v3PierreRendimentoResumo");
   if (botao) botao.disabled = true;
   if (resumo) resumo.textContent = "Consultando possíveis rendimentos…";
   alvo.innerHTML = '<p class="v3-note">Consultando lançamentos bancários no Pierre…</p>';
@@ -1745,26 +1764,40 @@ async function v3ProcurarProventosPierre() {
     const dados = await v3Api(`/api/transactions?startDate=${dataInicio}&endDate=${dataFim}`);
     const regex = /dividend|dividendo|provento|rendimento(s)?\s+(fii|fundo imobili|a[cç][aã]o)|juros\s+sobre\s+capital|\bjcp\b|\bjs?cp\b/i;
     const proibidos = /pix|transfer[eê]ncia|resgate|aporte|sal[aá]rio|estorno|cashback/i;
+
+    const vistos = new Set();
     const candidatos = (dados.transacoes || []).filter(t => {
       const desc = [t.descricao, t.originalDescription, t.categoria].filter(Boolean).join(" ");
       const tipo = String(t.tipo || "").toUpperCase();
       const valor = Number(t.valor || 0);
-      return valor > 0 && !["DEBITO", "DEBIT", "OUT"].includes(tipo)
-        && regex.test(desc) && !proibidos.test(desc)
-        && !/CREDIT_CARD|CREDIT/.test(String(t.tipoConta || "").toUpperCase());
-    });
+      if (!(valor > 0) || ["DEBITO", "DEBIT", "OUT"].includes(tipo)) return false;
+      if (/CREDIT_CARD|CREDIT/.test(String(t.tipoConta || "").toUpperCase())) return false;
+      if (!regex.test(desc) || proibidos.test(desc)) return false;
+      if (t.id) {
+        const chave = String(t.accountId || "") + ":" + String(t.id);
+        if (vistos.has(chave)) return false;
+        vistos.add(chave);
+      }
+      return true;
+    }).map(t => ({...t, analise: v3ClassificarCreditoRendimento(t)}));
+    const grupos = ["Poupança", "Renda fixa", "Bolsa", "Não identificado"].map(grupo => ({
+      grupo,
+      itens: candidatos.filter(t => t.analise.grupo === grupo),
+    }));
+    if (resumoAutomatico) {
+      const labels = {"Poupança":"Poupança provável","Renda fixa":"Renda fixa provável","Bolsa":"Bolsa com ticker","Não identificado":"Origem não identificada"};
+      resumoAutomatico.innerHTML = grupos.filter(g => g.itens.length).map(g =>
+        `<div class="v3-pierre-summary-item"><span>${labels[g.grupo]}</span>
+          <strong>${g.itens.length} lançamento(s) · ${v3Dinheiro(g.itens.reduce((n,t)=>n+Number(t.valor||0),0))}</strong></div>`
+      ).join("");
+    }
     if (!candidatos.length) {
+      if (resumoAutomatico) resumoAutomatico.innerHTML = '<small>Sem novos créditos candidatos identificados pelo Pierre neste período.</small>';
       if (resumo) resumo.textContent = "Possíveis rendimentos: nenhum identificado nos últimos 90 dias";
       alvo.innerHTML = '<div class="v3-note">Nenhum possível rendimento foi identificado nos últimos 90 dias. Isso não confirma ausência de pagamentos: a descrição ou os créditos podem não estar disponíveis no Pierre.</div>';
       return;
     }
     if (resumo) resumo.textContent = `${candidatos.length} possível(is) rendimento(s) encontrado(s) — ver detalhes`;
-    const origemPossivel = t => {
-      const descricao = String([t.descricao, t.originalDescription].filter(Boolean).join(" ")).toUpperCase();
-      if (/REMUNER\\s+BASICA|ANIV\\.|POUPAN[CÇ]A/.test(descricao)) return "Poupança (provável)";
-      if (/\\b[A-Z]{4}\\d{1,2}\\b/.test(descricao) && /DIVIDEND|PROVENTO|JCP|JUROS SOBRE CAPITAL|RENDIMENTO/.test(descricao)) return "Bolsa (conferir ativo)";
-      return "Origem não identificada";
-    };
     alvo.innerHTML = `<p class="v3-subtitle">${candidatos.length} lançamento(s) possível(is) · origem ainda não confirmada</p>
       <p class="v3-note">“Rendimentos” no extrato pode ser poupança ou outro produto bancário. Não é automaticamente dividendo de ação ou FII.</p>
       <div class="v3-scroll"><table class="v3-mini-table">
@@ -1772,7 +1805,7 @@ async function v3ProcurarProventosPierre() {
         <tbody>${candidatos.slice(0, 50).map((t,i) => `<tr>
           <td>${v3Escapar(v3DataCurta(t.data))}</td>
           <td>${v3Escapar(t.descricao || t.originalDescription || "Crédito")}</td>
-          <td>${v3Escapar(origemPossivel(t))}</td>
+          <td>${v3Escapar(t.analise.origem)}</td>
           <td>${v3Dinheiro(t.valor)}</td>
           <td><button type="button" data-v3-pierre-candidate="${i}">Conferir</button></td>
         </tr>`).join("")}</tbody></table></div>
@@ -1783,7 +1816,7 @@ async function v3ProcurarProventosPierre() {
         if (!t) return;
         const form = document.querySelector("#v3DividendForm");
         if (!form) return;
-        const tickerMatch = String(t.descricao || "").toUpperCase().match(/\b[A-Z]{4}\d{1,2}\b/);
+        const tickerMatch = t.analise.grupo === "Bolsa" && t.analise.ticker ? [t.analise.ticker] : null;
         if (!tickerMatch) {
           alert("O Pierre não identificou qual ação ou FII pagou este valor. Confira no extrato da corretora antes de cadastrar como dividendo. Lançamentos bancários de poupança/caixinhas não devem ser registrados como dividendos da bolsa.");
           return;
@@ -1798,6 +1831,7 @@ async function v3ProcurarProventosPierre() {
       });
     });
   } catch (erro) {
+    if (resumoAutomatico) resumoAutomatico.textContent = "Não foi possível atualizar a classificação automática.";
     if (resumo) resumo.textContent = "Consulta de rendimentos indisponível — ver detalhes";
     alvo.innerHTML = `<div class="v3-note">Não foi possível consultar o Pierre: ${v3Escapar(erro.message)}. Nenhum dado foi alterado.</div>`;
   } finally {
