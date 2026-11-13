@@ -215,8 +215,8 @@ function v3InjetarSecoes() {
       </div>
 
       <div class="v3-panel v3-span-6">
-        <h3>Dividendos</h3>
-        <p>Registre recebidos ou anunciados. Eventos da Brapi aparecem separados quando disponíveis.</p>
+        <h3>Registrar proventos</h3>
+        <p>Registre pagamentos confirmados de ações e FIIs. Eventos anunciados pela Brapi não são somados ao total recebido.</p>
         <div class="v3-import-actions">
           <button type="button" id="v3FindPierreDividends">Procurar proventos no Pierre</button>
           <small>Pré-análise do extrato bancário dos últimos 90 dias. Confira os resultados com o extrato da Nubank antes de registrar. Nenhum lançamento é criado automaticamente.</small>
@@ -231,7 +231,10 @@ function v3InjetarSecoes() {
           </label>
           <button class="full" type="submit">Registrar dividendo</button>
         </form>
-        <div id="v3DividendHistory" style="margin-top:16px"></div>
+        <details class="v3-old-history" style="margin-top:16px">
+          <summary>Histórico de rendimentos registrados e eventos de mercado</summary>
+          <div id="v3DividendHistory" style="margin-top:12px"></div>
+        </details>
       </div>
 
       <div class="v3-panel v3-span-12">
@@ -878,7 +881,7 @@ function v3CategoriaRendimento(ticker) {
   const codigo = String(ticker || "").toUpperCase();
   const posicao = (v3State.investimentos.posicoes || []).find(p => String(p.ticker).toUpperCase() === codigo);
   const classe = String(posicao?.classe || "").toUpperCase();
-  if (classe === "FII" || /^[A-Z]{4}11$/.test(codigo) && classe !== "ETF") return "FII";
+  if (classe === "FII" || (!classe && /^[A-Z]{4}11$/.test(codigo))) return "FII";
   if (classe === "AÇÃO" || classe === "ACAO" || /^[A-Z]{4}[3456]$/.test(codigo)) return "Ação";
   if (classe === "ETF") return "ETF";
   if (classe === "BDR") return "BDR";
