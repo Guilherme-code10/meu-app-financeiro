@@ -208,7 +208,10 @@ function v3InjetarSecoes() {
           <button type="button" id="v3FindPierreDividends">Procurar proventos no Pierre</button>
           <small>Pré-análise do extrato bancário dos últimos 90 dias. Confira os resultados com o extrato da Nubank antes de registrar. Nenhum lançamento é criado automaticamente.</small>
         </div>
-        <div id="v3PierreDividendCandidates" aria-live="polite"></div>
+        <details class="v3-pierre-candidates-details" id="v3PierreCandidatesDetails">
+          <summary><span id="v3PierreCandidateCount">Ver possíveis rendimentos do extrato</span><span class="v3-pierre-hint">Abrir lista</span></summary>
+          <div id="v3PierreDividendCandidates" aria-live="polite"><p class="v3-note">A consulta identifica candidatos no extrato, não confirma dividendos recebidos.</p></div>
+        </details>
         <form id="v3DividendForm" class="v3-form-grid">
           <label><span>Ticker</span><input name="ticker" required placeholder="MXRF11"></label>
           <label><span>Valor total (R$)</span><input name="valor" type="number" step="0.01" min="0.01" required></label>
@@ -1729,7 +1732,9 @@ async function v3ProcurarProventosPierre() {
   const alvo = document.querySelector("#v3PierreDividendCandidates");
   const botao = document.querySelector("#v3FindPierreDividends");
   if (!alvo) return;
+  const resumo = document.querySelector("#v3PierreCandidateCount");
   if (botao) botao.disabled = true;
+  if (resumo) resumo.textContent = "Consultando possíveis rendimentos…";
   alvo.innerHTML = '<p class="v3-note">Consultando lançamentos bancários no Pierre…</p>';
   try {
     const hoje = new Date();
@@ -1749,19 +1754,29 @@ async function v3ProcurarProventosPierre() {
         && !/CREDIT_CARD|CREDIT/.test(String(t.tipoConta || "").toUpperCase());
     });
     if (!candidatos.length) {
-      alvo.innerHTML = '<div class="v3-note">Nenhum possível provento foi identificado nos últimos 90 dias. Isso não confirma ausência de rendimentos: a Nubank pode não enviar a descrição ou os créditos podem não estar disponíveis no Pierre.</div>';
+      if (resumo) resumo.textContent = "Possíveis rendimentos: nenhum identificado nos últimos 90 dias";
+      alvo.innerHTML = '<div class="v3-note">Nenhum possível rendimento foi identificado nos últimos 90 dias. Isso não confirma ausência de pagamentos: a descrição ou os créditos podem não estar disponíveis no Pierre.</div>';
       return;
     }
-    alvo.innerHTML = `<p class="v3-subtitle">${candidatos.length} lançamento(s) possível(is), aguardando conferência</p>
+    if (resumo) resumo.textContent = `${candidatos.length} possível(is) rendimento(s) encontrado(s) — ver detalhes`;
+    const origemPossivel = t => {
+      const descricao = String([t.descricao, t.originalDescription].filter(Boolean).join(" ")).toUpperCase();
+      if (/REMUNER\\s+BASICA|ANIV\\.|POUPAN[CÇ]A/.test(descricao)) return "Poupança (provável)";
+      if (/\\b[A-Z]{4}\\d{1,2}\\b/.test(descricao) && /DIVIDEND|PROVENTO|JCP|JUROS SOBRE CAPITAL|RENDIMENTO/.test(descricao)) return "Bolsa (conferir ativo)";
+      return "Origem não identificada";
+    };
+    alvo.innerHTML = `<p class="v3-subtitle">${candidatos.length} lançamento(s) possível(is) · origem ainda não confirmada</p>
+      <p class="v3-note">“Rendimentos” no extrato pode ser poupança ou outro produto bancário. Não é automaticamente dividendo de ação ou FII.</p>
       <div class="v3-scroll"><table class="v3-mini-table">
-        <thead><tr><th>Data</th><th>Descrição do extrato</th><th>Valor</th><th>Ação</th></tr></thead>
+        <thead><tr><th>Data</th><th>Descrição do extrato</th><th>Origem provável</th><th>Valor</th><th>Ação</th></tr></thead>
         <tbody>${candidatos.slice(0, 50).map((t,i) => `<tr>
           <td>${v3Escapar(v3DataCurta(t.data))}</td>
           <td>${v3Escapar(t.descricao || t.originalDescription || "Crédito")}</td>
+          <td>${v3Escapar(origemPossivel(t))}</td>
           <td>${v3Dinheiro(t.valor)}</td>
           <td><button type="button" data-v3-pierre-candidate="${i}">Conferir</button></td>
         </tr>`).join("")}</tbody></table></div>
-      <small>Os possíveis proventos ainda não entram nos totais. Informe o ticker correto após conferir na Nubank; não registre o mesmo pagamento duas vezes.</small>`;
+      <small>Valores candidatos não entram no total de dividendos. Somente registre como provento quando o ativo e o pagamento forem confirmados; evite duplicidades.</small>`;
     alvo.querySelectorAll("[data-v3-pierre-candidate]").forEach(botao => {
       botao.addEventListener("click", () => {
         const t = candidatos[Number(botao.dataset.v3PierreCandidate)];
@@ -1769,7 +1784,11 @@ async function v3ProcurarProventosPierre() {
         const form = document.querySelector("#v3DividendForm");
         if (!form) return;
         const tickerMatch = String(t.descricao || "").toUpperCase().match(/\b[A-Z]{4}\d{1,2}\b/);
-        form.elements.ticker.value = tickerMatch?.[0] || "";
+        if (!tickerMatch) {
+          alert("O Pierre não identificou qual ação ou FII pagou este valor. Confira no extrato da corretora antes de cadastrar como dividendo. Lançamentos bancários de poupança/caixinhas não devem ser registrados como dividendos da bolsa.");
+          return;
+        }
+        form.elements.ticker.value = tickerMatch[0];
         form.elements.valor.value = Number(t.valor).toFixed(2);
         form.elements.dataPagamento.value = String(t.data || "").slice(0,10);
         form.elements.status.value = "RECEBIDO";
@@ -1779,6 +1798,7 @@ async function v3ProcurarProventosPierre() {
       });
     });
   } catch (erro) {
+    if (resumo) resumo.textContent = "Consulta de rendimentos indisponível — ver detalhes";
     alvo.innerHTML = `<div class="v3-note">Não foi possível consultar o Pierre: ${v3Escapar(erro.message)}. Nenhum dado foi alterado.</div>`;
   } finally {
     if (botao) botao.disabled = false;
