@@ -160,9 +160,22 @@ function v3InjetarSecoes() {
       </div>
 
       <div class="v3-panel v3-span-4">
-        <div class="v3-row-between"><h3>Carteira Nubank</h3><span class="v3-bank-badge v3-bank-nubank">Nubank</span></div>
-        <p>Clique no ticker para abrir o gráfico.</p>
+        <div class="v3-row-between"><h3>Minha carteira</h3><span class="v3-bank-badge v3-bank-nubank">Nubank + Inter</span></div>
+        <p>Seus investimentos por instituição. Clique nos ativos da bolsa para abrir o gráfico.</p>
+        <div class="v3-portfolio-group-label">Bolsa · Nubank</div>
         <div id="v3Holdings" class="v3-holdings"><div class="v3-skeleton"></div></div>
+        <div id="v3InterPortfolioCard" class="v3-inter-portfolio-card" hidden>
+          <div class="v3-portfolio-group-label">Renda fixa · Banco Inter</div>
+          <div class="v3-inter-portfolio-header">
+            <div>
+              <strong>Poupança</strong>
+              <div class="meta">Saldo informado, não rentabilidade</div>
+            </div>
+            <strong id="v3InterPortfolioValue">—</strong>
+          </div>
+          <small id="v3InterPortfolioDate">Aguardando registro do Inter.</small>
+          <small>Rendimento não informado pelo print; não presumimos R$ 0,00.</small>
+        </div>
       </div>
 
       <div class="v3-panel v3-span-6">
@@ -2300,20 +2313,28 @@ async function v3CarregarInterPoupanca() {
   const valor=document.querySelector("#v3InterSavingsValue");
   const data=document.querySelector("#v3InterSavingsDate");
   const status=document.querySelector("#v3InterSavingsStatus");
+  const cartao=document.querySelector("#v3InterPortfolioCard");
+  const valorCarteira=document.querySelector("#v3InterPortfolioValue");
+  const dataCarteira=document.querySelector("#v3InterPortfolioDate");
   if(!valor)return;
   try {
     const dados=await v3Api("/api/v3/investimentos/externos");
     const inter=(dados.investimentos||[]).find(x=>x.instituicao==="Banco Inter" && x.produto==="Poupança");
     if(!inter) {
       valor.textContent="Sem registro";
+      if(cartao)cartao.hidden=true;
       if(data)data.textContent="Nenhum saldo da poupança Inter foi informado.";
       return;
     }
     valor.textContent=v3Dinheiro(inter.saldo_observado);
     if(data)data.textContent="Referência: "+v3DataCurta(inter.data_referencia)+" · "+(String(inter.fonte||"").startsWith("PRINT")?"informado pelo print":"atualizado manualmente");
+    if(valorCarteira)valorCarteira.textContent=v3Dinheiro(inter.saldo_observado);
+    if(dataCarteira)dataCarteira.textContent="Saldo de "+v3DataCurta(inter.data_referencia)+" · não é cotação em tempo real";
+    if(cartao)cartao.hidden=false;
     if(status)status.style.display="none";
   } catch(err) {
     valor.textContent="Indisponível";
+    if(cartao)cartao.hidden=true;
     if(data)data.textContent="Não foi possível consultar o registro.";
     if(status) {status.textContent=err.message;status.style.display="block";}
   }
