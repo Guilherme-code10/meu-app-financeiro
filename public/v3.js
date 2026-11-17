@@ -269,6 +269,32 @@ function v3InjetarSecoes() {
         </div>
       </div>
     </div>
+    <div class="v3-panel v3-inter-savings-panel" id="v3OtherInvestments" style="margin-top:18px">
+      <div class="v3-row-between">
+        <div>
+          <h3>Outros investimentos · Banco Inter</h3>
+          <p>Poupança separada da carteira de ações e FIIs da Nubank.</p>
+        </div>
+        <span class="v3-bank-badge">Inter</span>
+      </div>
+      <div class="v3-inter-savings-balance">
+        <div>
+          <small>Poupança Inter · saldo observado</small>
+          <strong id="v3InterSavingsValue">Carregando…</strong>
+          <small id="v3InterSavingsDate">Consulte o saldo atualizado no banco.</small>
+        </div>
+        <details class="v3-inter-edit">
+          <summary>Atualizar saldo</summary>
+          <form id="v3InterSavingsForm" class="v3-form-grid">
+            <label><span>Saldo atual no Inter (R$)</span>
+              <input type="number" name="saldo" min="0" max="100000000" step="0.01" required placeholder="2000,00"></label>
+            <button type="submit">Salvar valor observado</button>
+          </form>
+        </details>
+      </div>
+      <small>Este saldo não entra no patrimônio da bolsa ou na rentabilidade das ações. Não é somado automaticamente ao patrimônio geral para evitar duplicação caso a conta já esteja no Pierre. Os rendimentos da poupança não são comprovados pelo saldo.</small>
+      <p id="v3InterSavingsStatus" class="v3-note" aria-live="polite" style="display:none"></p>
+    </div>
     <div class="v3-panel" style="margin-top:14px" id="v3PortfolioReconcilePanel">
       <div class="v3-row-between">
         <div>
@@ -2085,6 +2111,7 @@ async function v3NuImportarPagamentos(){
 
 function v3ConfigurarEventos() {
   v3IniciarAtualizacaoAutomatica();
+  document.querySelector("#v3InterSavingsForm")?.addEventListener("submit",v3AtualizarInterPoupanca);
   document.querySelector("#v3NuPayoutPreviewBtn")?.addEventListener("click",v3NuPreviaPagamentos);
   document.querySelector("#v3NuPayoutImportBtn")?.addEventListener("click",v3NuImportarPagamentos);
   document.querySelector("#v3NuPayoutText")?.addEventListener("input",()=>{
@@ -2268,6 +2295,50 @@ function v3ConfigurarEventos() {
   });
 }
 
+
+async function v3CarregarInterPoupanca() {
+  const valor=document.querySelector("#v3InterSavingsValue");
+  const data=document.querySelector("#v3InterSavingsDate");
+  const status=document.querySelector("#v3InterSavingsStatus");
+  if(!valor)return;
+  try {
+    const dados=await v3Api("/api/v3/investimentos/externos");
+    const inter=(dados.investimentos||[]).find(x=>x.instituicao==="Banco Inter" && x.produto==="Poupança");
+    if(!inter) {
+      valor.textContent="Sem registro";
+      if(data)data.textContent="Nenhum saldo da poupança Inter foi informado.";
+      return;
+    }
+    valor.textContent=v3Dinheiro(inter.saldo_observado);
+    if(data)data.textContent="Referência: "+v3DataCurta(inter.data_referencia)+" · "+(String(inter.fonte||"").startsWith("PRINT")?"informado pelo print":"atualizado manualmente");
+    if(status)status.style.display="none";
+  } catch(err) {
+    valor.textContent="Indisponível";
+    if(data)data.textContent="Não foi possível consultar o registro.";
+    if(status) {status.textContent=err.message;status.style.display="block";}
+  }
+}
+async function v3AtualizarInterPoupanca(evento) {
+  evento.preventDefault();
+  const form=evento.currentTarget;
+  const btn=form.querySelector("button[type=submit]");
+  const value=Number(form.elements.saldo.value);
+  if(!Number.isFinite(value)||value<0)return;
+  if(btn)btn.disabled=true;
+  try {
+    await v3Api("/api/v3/investimentos/externos/inter-poupanca",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({saldo:value}),
+    });
+    await v3CarregarInterPoupanca();
+    form.closest("details")?.removeAttribute("open");
+    form.reset();
+  }catch(err){
+    const status=document.querySelector("#v3InterSavingsStatus");
+    if(status){status.style.display="block";status.textContent="Não foi possível atualizar: "+err.message;}
+  }finally{if(btn)btn.disabled=false;}
+}
+
 async function v3CarregarTudo() {
   v3DecorarCartoes();
   v3Simular();
@@ -2276,6 +2347,7 @@ async function v3CarregarTudo() {
 
   await Promise.allSettled([
     v3CarregarInvestimentos(),
+    v3CarregarInterPoupanca(),
     v3CarregarMoedas(),
     v3BuscarMercado(v3State.mercado.ticker, v3State.mercado.periodo),
   ]);
