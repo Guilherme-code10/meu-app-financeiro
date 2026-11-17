@@ -1426,3 +1426,15 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 }
 #investimentos #v3NuPayoutPreview {margin:12px 0;line-height:1.5;}
 #investimentos #v3NuPayoutImportBtn:disabled {opacity:.5;cursor:not-allowed;}
+
+/* Registro separado de poupança: não entra nos KPIs da bolsa. */
+#investimentos .v3-inter-savings-panel {border:1px solid rgba(255,150,45,.26);background:linear-gradient(130deg,#15131b,#18141b)}
+#investimentos .v3-inter-savings-balance {display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;margin:14px 0;}
+#investimentos .v3-inter-savings-balance>div {display:flex;flex-direction:column;gap:5px;}
+#investimentos .v3-inter-savings-balance strong {color:#fff;font-size:24px;}
+#investimentos .v3-inter-savings-panel small {color:#bcb5c8;line-height:1.55;}
+#investimentos .v3-inter-edit {border:1px solid #634b38;border-radius:10px;padding:10px 12px;min-width:210px}
+#investimentos .v3-inter-edit summary {cursor:pointer;color:#ffb978;font-weight:700;}
+#investimentos .v3-inter-edit form {margin-top:12px}
+#investimentos .v3-inter-edit input {max-width:190px;}
+#investimentos .v3-inter-edit button {width:100%}
