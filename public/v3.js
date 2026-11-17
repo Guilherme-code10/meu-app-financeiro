@@ -4,7 +4,7 @@
    ========================================================= */
 
 const v3State = {
-  investimentos: { posicoes: [], operacoes: [], dividendos: [], cotacoes: new Map() },
+  investimentos: { posicoes: [], operacoes: [], dividendos: [], cotacoes: new Map(), externos: null, externosErro: null },
   moedas: { contas: [], ptax: null },
   mercado: { ticker: "MXRF11", periodo: "1M", dados: null },
   integracoes: null,
@@ -62,7 +62,7 @@ function v3InjetarNavegacao() {
   const btnInvest = document.createElement("button");
   btnInvest.className = "nav-item";
   btnInvest.dataset.section = "investimentos";
-  btnInvest.innerHTML = '📈 <span>Investimentos Nubank</span>';
+  btnInvest.innerHTML = '📈 <span>Investimentos</span>';
 
   const btnMoedas = document.createElement("button");
   btnMoedas.className = "nav-item";
@@ -87,9 +87,9 @@ function v3InjetarSecoes() {
   investimentos.innerHTML = `
     <div class="section-title">
       <div>
-        <p class="eyebrow">NUBANK · BOLSA</p>
-        <h2>Investimentos Nubank</h2>
-        <p>Sua carteira de bolsa na Nubank, com ações, FIIs e ETFs, preço médio, histórico e dados de mercado identificados pela fonte.</p>
+        <p class="eyebrow">VISÃO GERAL · INVESTIMENTOS</p>
+        <h2>Investimentos</h2>
+        <p>Acompanhe seus investimentos na Nubank e no Banco Inter, com valores separados por instituição e categoria.</p>
       </div>
     </div>
 
@@ -105,10 +105,10 @@ function v3InjetarSecoes() {
     </div>
 
     <div class="v3-kpis" style="margin-top:18px">
-      <div class="v3-kpi"><span>Patrimônio investido</span><strong id="v3InvestTotal">—</strong></div>
-      <div class="v3-kpi"><span>Custo da carteira</span><strong id="v3InvestCost">—</strong></div>
-      <div class="v3-kpi"><span>Rentabilidade</span><strong id="v3InvestReturn">—</strong></div>
-      <div class="v3-kpi"><span>Dividendos recebidos</span><strong id="v3InvestDividends">—</strong></div>
+      <div class="v3-kpi v3-kpi-portfolio"><span>Patrimônio em investimentos</span><strong id="v3InvestTotal">—</strong><small id="v3InvestTotalDetail">Bolsa + poupança Inter · carregando saldos</small></div>
+      <div class="v3-kpi"><span>Custo da bolsa</span><strong id="v3InvestCost">—</strong></div>
+      <div class="v3-kpi"><span>Variação da bolsa</span><strong id="v3InvestReturn">—</strong></div>
+      <div class="v3-kpi"><span>Proventos recebidos · bolsa</span><strong id="v3InvestDividends">—</strong></div>
       <div class="v3-kpi"><span>Dividendos reinvestidos</span><strong id="v3InvestReinvested">—</strong></div>
       <div class="v3-kpi"><span>Disponível para reinvestir</span><strong id="v3InvestAvailable">—</strong></div>
     </div>
@@ -1182,17 +1182,40 @@ function v3RenderizarInvestimentos() {
     .filter(d => d.recebido !== false)
     .reduce((s, d) => s + Number(d.valor || 0), 0);
 
-  const completas = posicoes.length > 0 && posicoes.every(p => Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0) > 0);
-  const total = completas ? mercado : null;
+  const faltantes = posicoes.filter(p => !(Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0) > 0));
+  const completas = faltantes.length === 0 && posicoes.length > 0;
+  // O saldo externo é um saldo observado, não o custo de uma operação em bolsa.
+  // A soma é apenas da seção Investimentos: não alteramos Contas nem Dashboard,
+  // onde a mesma poupança pode constar como conta bancária no Pierre.
+  const externos = v3State.investimentos.externos;
+  const externoCarregado = Array.isArray(externos);
+  const saldoExternos = externoCarregado ? externos.reduce((total, item) => {
+    const valor = Number(item.saldo_observado);
+    return total + (Number.isFinite(valor) && valor >= 0 ? valor : 0);
+  }, 0) : 0;
+  const somaConhecida = mercado + saldoExternos;
+  const total = completas && externoCarregado ? somaConhecida : null;
   const retorno = completas ? mercado - custo : null;
   const retornoPct = completas && custo ? (retorno / custo) * 100 : null;
 
   const totalEl = document.querySelector("#v3InvestTotal");
+  const detailEl = document.querySelector("#v3InvestTotalDetail");
   const costEl = document.querySelector("#v3InvestCost");
   const returnEl = document.querySelector("#v3InvestReturn");
   const divEl = document.querySelector("#v3InvestDividends");
 
-  if (totalEl) totalEl.textContent = completas ? v3Dinheiro(total) : "Parcial · cotações pendentes";
+  if (totalEl) {
+    totalEl.textContent = externoCarregado ? v3Dinheiro(somaConhecida) : "Conferindo saldo do Inter…";
+  }
+  if (detailEl) {
+    const partes = [`Bolsa: ${v3Dinheiro(mercado)}`, externoCarregado
+      ? `Inter: ${v3Dinheiro(saldoExternos)}`
+      : "Inter: aguardando consulta"];
+    if (faltantes.length) partes.push(`Parcial · ${faltantes.length} cotação(ões) pendente(s)`);
+    if (!externoCarregado && v3State.investimentos.externosErro) partes.push("Falha ao consultar Inter");
+    if (!faltantes.length && externoCarregado) partes.push("Total completo dos saldos registrados");
+    detailEl.textContent = partes.join(" · ");
+  }
   if (costEl) costEl.textContent = v3Dinheiro(custo);
   if (returnEl) {
     returnEl.textContent = completas ? `${v3Dinheiro(retorno)} (${retornoPct.toFixed(2)}%)` : "Indisponível · cotações pendentes";
@@ -2319,7 +2342,10 @@ async function v3CarregarInterPoupanca() {
   if(!valor)return;
   try {
     const dados=await v3Api("/api/v3/investimentos/externos");
-    const inter=(dados.investimentos||[]).find(x=>x.instituicao==="Banco Inter" && x.produto==="Poupança");
+    v3State.investimentos.externos=Array.isArray(dados.investimentos) ? dados.investimentos : [];
+    v3State.investimentos.externosErro=null;
+    v3RenderizarInvestimentos();
+    const inter=v3State.investimentos.externos.find(x=>x.instituicao==="Banco Inter" && x.produto==="Poupança");
     if(!inter) {
       valor.textContent="Sem registro";
       if(cartao)cartao.hidden=true;
@@ -2333,6 +2359,9 @@ async function v3CarregarInterPoupanca() {
     if(cartao)cartao.hidden=false;
     if(status)status.style.display="none";
   } catch(err) {
+    v3State.investimentos.externos=null;
+    v3State.investimentos.externosErro=err.message;
+    v3RenderizarInvestimentos();
     valor.textContent="Indisponível";
     if(cartao)cartao.hidden=true;
     if(data)data.textContent="Não foi possível consultar o registro.";
@@ -2390,7 +2419,7 @@ if (typeof navegar === "function") {
   navegar = function v3Navegar(secao) {
     v3NavegarBase(secao);
     const titulo = document.querySelector("#pageTitle");
-    if (titulo && secao === "investimentos") titulo.textContent = "Investimentos Nubank";
+    if (titulo && secao === "investimentos") titulo.textContent = "Investimentos";
     if (secao === "investimentos") v3BuscaAutomaticaPierreQuandoInvestimentos().catch(() => {});
     if (titulo && secao === "moedas") titulo.textContent = "Bancos internacionais";
   };
