@@ -610,6 +610,36 @@ function criarRouterV3({ supabaseAdmin }) {
     res.json({ sucesso: true, inseridos: data || [] });
   });
 
+
+  // Produtos fora da bolsa: saldos informados, sem confundir com custo de ações
+  // e sem somar ao patrimônio consolidado (pode constar em Contas/Pierre).
+  router.get("/investimentos/externos", async (req, res) => {
+    const {data,error} = await supabaseAdmin.from("investimentos_externos")
+      .select("instituicao,produto,saldo_observado,data_referencia,fonte")
+      .eq("user_id",req.usuario.id).order("instituicao");
+    if(error) return responderErroBanco(res,error);
+    return res.json({sucesso:true,investimentos:data||[]});
+  });
+
+  router.post("/investimentos/externos/inter-poupanca", async (req, res) => {
+    try {
+      const saldo = Number(req.body?.saldo);
+      if(req.body?.saldo === "" || req.body?.saldo == null ||
+         !Number.isFinite(saldo) || saldo<0 || saldo>100000000 ||
+         Math.abs(saldo*100-Math.round(saldo*100))>0.00001) {
+        return res.status(400).json({sucesso:false,erro:"Saldo inválido. Informe o valor exibido no Inter em reais."});
+      }
+      const dataHoje = new Date().toISOString().slice(0,10);
+      const {data,error} = await supabaseAdmin.from("investimentos_externos")
+        .upsert({user_id:req.usuario.id,instituicao:"Banco Inter",produto:"Poupança",
+          saldo_observado:Number(saldo.toFixed(2)),data_referencia:dataHoje,fonte:"MANUAL_INTER",
+          atualizado_em:new Date().toISOString()},{onConflict:"user_id,instituicao,produto"})
+        .select("instituicao,produto,saldo_observado,data_referencia,fonte").single();
+      if(error) return responderErroBanco(res,error);
+      res.json({sucesso:true,investimento:data});
+    }catch(err){res.status(400).json({sucesso:false,erro:err.message});}
+  });
+
   router.get("/investimentos", async (req, res) => {
     const [posicoes, operacoes, dividendos] = await Promise.all([
       supabaseAdmin
