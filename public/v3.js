@@ -122,7 +122,7 @@ function v3InjetarSecoes() {
     <div class="v3-panel v3-live-table-panel" style="margin-top:18px">
       <div class="v3-row-between">
         <div>
-          <h3>Cotações da carteira</h3>
+          <h3>Cotações da bolsa</h3>
           <p>Preço de mercado, valor atual e resultado por ativo.</p>
         </div>
         <span class="v3-auto-badge" id="v3InvestAutoStatus">● Atualização automática · 15 min</span>
@@ -209,7 +209,7 @@ function v3InjetarSecoes() {
 
 
       <div class="v3-panel v3-span-6">
-        <h3>Distribuição da carteira</h3>
+        <h3>Distribuição da bolsa</h3>
         <p id="v3AllocationMeta">Aguardando posições.</p>
         <div id="v3PortfolioDistribution" class="v3-allocation"></div>
       </div>
@@ -486,9 +486,9 @@ function v3InjetarDashboard() {
       <small>Contas + investimentos + dólares − faturas atuais. Limites não entram.</small>
     </article>
     <article class="card">
-      <span>Investimentos Nubank</span>
+      <span>Investimentos</span>
       <strong id="v3DashboardInvestments">—</strong>
-      <small>Cotações de mercado disponíveis, sem valores fictícios.</small>
+      <small id="v3DashboardInvestmentsDetail">Bolsa + poupança do Inter · saldo observado</small>
     </article>
     <article class="card">
       <span>Bancos internacionais</span>
@@ -1756,7 +1756,22 @@ async function v3AtualizarDashboard() {
   const inv = document.querySelector("#v3DashboardInvestments");
   const usdEl = document.querySelector("#v3DashboardUsd");
   if (net) net.textContent = `${v3Dinheiro(patrimonioConhecido)}${dadosPendentes ? " · parcial" : ""}`;
-  if (inv) inv.textContent = cotacoesCompletas ? v3Dinheiro(investimentos) : "Parcial · cotações pendentes";
+  // Exibição de carteira: bolsa + saldos externos. Não adicionar esse saldo
+  // novamente ao patrimônio líquido geral, pois pode constar em Contas.
+  const externosCarteira = v3State.investimentos.externos;
+  const saldoCarteiraExterna = Array.isArray(externosCarteira)
+    ? externosCarteira.reduce((acc, p) => {
+      const n = Number(p.saldo_observado);
+      return acc + (Number.isFinite(n) && n >= 0 ? n : 0);
+    }, 0) : 0;
+  if (inv) inv.textContent = Array.isArray(externosCarteira)
+    ? v3Dinheiro(investimentos + saldoCarteiraExterna) + (cotacoesCompletas ? "" : " · parcial")
+    : "Conferindo investimentos…";
+  const detalheInvest = document.querySelector("#v3DashboardInvestmentsDetail");
+  if (detalheInvest) {
+    detalheInvest.textContent = `Bolsa ${v3Dinheiro(investimentos)} · Inter ${Array.isArray(externosCarteira) ? v3Dinheiro(saldoCarteiraExterna) : "aguardando"}` +
+      (cotacoesCompletas ? "" : " · há cotações pendentes");
+  }
   if (usdEl) usdEl.textContent = usd && !cambioDisponivel ? `${v3Dinheiro(usd)} USD · câmbio pendente` : v3Dinheiro(dolares || 0);
 
   const ativos = Math.max(0, contas) + Math.max(0, investimentos) + Math.max(0, dolares || 0);
@@ -2381,6 +2396,7 @@ async function v3AtualizarInterPoupanca(evento) {
       body:JSON.stringify({saldo:value}),
     });
     await v3CarregarInterPoupanca();
+    await v3AtualizarDashboard();
     form.closest("details")?.removeAttribute("open");
     form.reset();
   }catch(err){
