@@ -1457,3 +1457,22 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 #investimentos .v3-inter-portfolio-header strong { color:#fff; }
 #investimentos .v3-inter-portfolio-header > strong { font-size:19px; }
 #investimentos .v3-inter-portfolio-card small { display:block;color:#bcb2c6;margin-top:8px;line-height:1.5; }
+
+
+/* Portfolio values: bank subtotal and quote-completeness appear below total. */
+#investimentos .v3-kpi-portfolio #v3InvestTotalDetail {
+  display:block;
+  margin-top:9px;
+  font-size:12px;
+  line-height:1.55;
+  color:#c5bbd3;
+  font-weight:500;
+  overflow-wrap:anywhere;
+}
+#dashboard #v3DashboardInvestmentsDetail {
+  display:block;
+  margin-top:7px;
+  line-height:1.5;
+  color:#bdb4ce;
+  overflow-wrap:anywhere;
+}
