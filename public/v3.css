@@ -1438,3 +1438,22 @@ tbody tr:hover { background: rgba(124, 58, 237, .05) !important; }
 #investimentos .v3-inter-edit form {margin-top:12px}
 #investimentos .v3-inter-edit input {max-width:190px;}
 #investimentos .v3-inter-edit button {width:100%}
+
+
+/* Inter savings in the portfolio alongside, but not included in, stock metrics. */
+#investimentos .v3-portfolio-group-label {
+  font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+  font-weight: 800; color: #aa9abe; margin: 14px 0 9px;
+}
+#investimentos .v3-inter-portfolio-card {
+  padding: 14px; border: 1px solid rgba(255,158,70,.33);
+  border-radius: 12px; background: linear-gradient(120deg,#1d1718,#201923);
+}
+#investimentos .v3-inter-portfolio-card[hidden] { display:none !important; }
+#investimentos .v3-inter-portfolio-card .v3-portfolio-group-label { color:#ffbd78;margin:0 0 9px; }
+#investimentos .v3-inter-portfolio-header {
+  display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;
+}
+#investimentos .v3-inter-portfolio-header strong { color:#fff; }
+#investimentos .v3-inter-portfolio-header > strong { font-size:19px; }
+#investimentos .v3-inter-portfolio-card small { display:block;color:#bcb2c6;margin-top:8px;line-height:1.5; }
