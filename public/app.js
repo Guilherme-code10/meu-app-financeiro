@@ -11502,6 +11502,101 @@ function mostrarParcelas() {
   }
 
   // ==========================================
+  // PARCELAS A PAGAR ATÉ O MÊS SELECIONADO
+  // (conta o acumulado de hoje até o mês escolhido, mês a mês)
+  // ==========================================
+
+  const elementoAteMes = document.querySelector("#parcelasAteMes");
+
+  if (elementoAteMes) {
+    if (mesSelecionado === "TODOS") {
+      elementoAteMes.style.display = "none";
+      elementoAteMes.innerHTML = "";
+    } else {
+      const nomeDoMes = (chave) => {
+        const [ano, numeroMes] = chave.split("-");
+        const nome = new Date(Number(ano), Number(numeroMes) - 1, 1)
+          .toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+        return nome.charAt(0).toUpperCase() + nome.slice(1);
+      };
+
+      const agora = new Date();
+      const mesAtualChave =
+        `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}`;
+
+      const porMes = new Map();
+      const comprasComParcela = new Set();
+      let atrasadasQuantidade = 0;
+      let atrasadasCentavos = 0;
+
+      comprasNormalizadas.forEach((compra) => {
+        if (
+          contaSelecionada !== "TODAS" &&
+          String(compra.cartaoId) !== String(contaSelecionada)
+        ) {
+          return;
+        }
+
+        compra.parcelas.forEach((parcela) => {
+          if (parcelaEstaPaga(parcela)) return;
+
+          const chave = String(parcela.vencimento || parcela.dueDate || "").substring(0, 7);
+
+          if (!/^\d{4}-\d{2}$/.test(chave) || chave > mesSelecionado) return;
+
+          const centavos = Math.round(Math.abs(Number(parcela.valor || 0)) * 100);
+
+          if (chave < mesAtualChave) {
+            atrasadasQuantidade += 1;
+            atrasadasCentavos += centavos;
+            return;
+          }
+
+          const atual = porMes.get(chave) || { quantidade: 0, centavos: 0 };
+          atual.quantidade += 1;
+          atual.centavos += centavos;
+          porMes.set(chave, atual);
+          comprasComParcela.add(compra._id);
+        });
+      });
+
+      const mesesOrdenados = [...porMes.keys()].sort();
+      const totalQuantidade = mesesOrdenados.reduce((s, m) => s + porMes.get(m).quantidade, 0);
+      const totalCentavos = mesesOrdenados.reduce((s, m) => s + porMes.get(m).centavos, 0);
+
+      if (mesSelecionado < mesAtualChave) {
+        elementoAteMes.innerHTML = `
+          <div class="meta">${escapar(nomeDoMes(mesSelecionado))} já passou: não há parcelas futuras até lá.</div>
+        `;
+      } else {
+        elementoAteMes.innerHTML = `
+          <div class="desc">
+            Até ${escapar(nomeDoMes(mesSelecionado))}:
+            ${totalQuantidade} ${totalQuantidade === 1 ? "parcela" : "parcelas"} a pagar
+            · ${dinheiro(totalCentavos / 100)}
+            em ${comprasComParcela.size} ${comprasComParcela.size === 1 ? "compra" : "compras"}
+          </div>
+          ${mesesOrdenados
+            .map((chave) => `
+              <div class="meta">
+                ${escapar(nomeDoMes(chave))}:
+                ${porMes.get(chave).quantidade}
+                ${porMes.get(chave).quantidade === 1 ? "parcela" : "parcelas"}
+                · ${dinheiro(porMes.get(chave).centavos / 100)}
+              </div>
+            `)
+            .join("")}
+          ${atrasadasQuantidade
+            ? `<div class="meta">Fora da conta acima: ${atrasadasQuantidade} ${atrasadasQuantidade === 1 ? "parcela de mês anterior" : "parcelas de meses anteriores"} ainda sem baixa (${dinheiro(atrasadasCentavos / 100)}).</div>`
+            : ""}
+        `;
+      }
+
+      elementoAteMes.style.display = "flex";
+    }
+  }
+
+  // ==========================================
   // LISTA VAZIA
   // ==========================================
 
