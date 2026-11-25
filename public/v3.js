@@ -34,9 +34,13 @@ function v3Numero(valor, casas = 2) {
 }
 
 function v3Escapar(valor) {
-  const div = document.createElement("div");
-  div.textContent = String(valor ?? "");
-  return div.innerHTML;
+  // Escapa também aspas, pois o resultado é usado dentro de atributos HTML.
+  return String(valor ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function v3ClasseVariacao(valor) {
