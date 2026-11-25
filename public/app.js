@@ -7450,7 +7450,7 @@ async function adicionarDinheiroCaixinha(id) {
     return;
   }
 
-  const valor = Number(String(valorInformado).replace(",", "."));
+  const valor = converterNumeroBR(valorInformado);
 
   if (!Number.isFinite(valor) || valor <= 0) {
     alert("Digite um valor válido maior que zero.");
@@ -7519,7 +7519,7 @@ async function retirarDinheiroCaixinha(id) {
     return;
   }
 
-  const valor = Number(String(valorInformado).replace(",", "."));
+  const valor = converterNumeroBR(valorInformado);
 
   if (!Number.isFinite(valor) || valor <= 0) {
     alert("Digite um valor válido maior que zero.");
@@ -7583,6 +7583,11 @@ function converterNumeroBR(valor) {
 
   if (texto.includes(",")) {
     return Number(texto.replace(/\./g, "").replace(",", "."));
+  }
+
+  // "1.500" ou "1.250.000" (ponto só como separador de milhar) → 1500 / 1250000.
+  if (/^\d{1,3}(\.\d{3})+$/.test(texto)) {
+    return Number(texto.replace(/\./g, ""));
   }
 
   return Number(texto);
@@ -10621,25 +10626,34 @@ function configurarDatas() {
 // INICIAR APLICAÇÃO
 // ==========================================
 
+// iniciarAplicacao roda a cada login (sem recarregar a página). Os eventos
+// só podem ser registrados uma vez, senão cada envio de formulário dispara
+// várias vezes e duplica lançamentos.
+let eventosDaAplicacaoConfigurados = false;
+
 async function iniciarAplicacao() {
   configurarDatas();
 
   mostrarContasFixas();
 
-  configurarNavegacao();
+  if (!eventosDaAplicacaoConfigurados) {
+    eventosDaAplicacaoConfigurados = true;
 
-  configurarBotaoAtualizar();
+    configurarNavegacao();
 
-  configurarFiltro();
+    configurarBotaoAtualizar();
 
-  configurarFormularioContaFixa();
-  configurarNavegacaoContasFixas();
+    configurarFiltro();
 
-  configurarPlanejamentoFuturo();
+    configurarFormularioContaFixa();
+    configurarNavegacaoContasFixas();
 
-  configurarFormularioCaixinha();
+    configurarPlanejamentoFuturo();
 
-  configurarCardTotalCaixinhas();
+    configurarFormularioCaixinha();
+
+    configurarCardTotalCaixinhas();
+  }
 
   await sincronizarClassificacoesFinanceiras();
 
