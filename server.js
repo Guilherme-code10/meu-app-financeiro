@@ -1624,7 +1624,7 @@ async function listarFechamentosPierre() {
   return promessa;
 }
 
-app.get("/api/bills", exigirAdmin, async (req, res) => {
+async function consultarFaturas(req, res) {
   try {
     const accountId = req.query.accountId || null;
 
@@ -1657,8 +1657,15 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
 
     const resumoPorConta = new Map();
     function incorporarResumos(dados, idEsperado = null, cartao = null) {
-      if (dados?.success === false) return;
       const entradas = Array.isArray(dados?.data) ? dados.data : [];
+      console.info("[PIERRE_FATURAS] resposta", JSON.stringify({
+        individual: Boolean(idEsperado), success: dados?.success ?? null,
+        formato: Array.isArray(dados?.data) ? "array" : typeof dados?.data,
+        quantidade: entradas.length,
+        campos: entradas[0] && typeof entradas[0] === "object" ? Object.keys(entradas[0]).slice(0, 40) : [],
+        comValor: entradas.filter(x => (x?.approx_current_bill_amount ?? x?.approxCurrentBillAmount) != null).length
+      }));
+      if (dados?.success === false) return;
       for (const resumo of entradas) {
         const id = String(resumo?.account_id || resumo?.accountId || "");
         const bruto = resumo?.approx_current_bill_amount ?? resumo?.approxCurrentBillAmount;
@@ -1725,6 +1732,7 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
         }
       }
       const semResumo = faltantes.filter(c => !resumoPorConta.has(String(c.id || c.accountId)));
+      console.info("[PIERRE_FATURAS] cobertura", JSON.stringify({cartoesAtivos: ids.size, resumosValidos: resumoPorConta.size, faltantes: semResumo.length, consultasRejeitadas: respostas.filter(x => x.status === "rejected").length}));
       if (semResumo.length) {
         avisosFaturas.push("Sem resumo atual para " + semResumo.length + " cartão(ões). Confira no banco.");
       }
@@ -1878,7 +1886,8 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
       erro: erro.message,
     });
   }
-});
+}
+app.get("/api/bills", exigirAdmin, consultarFaturas);
 
 // ==========================================
 // TRANSAÇÕES
@@ -5648,6 +5657,27 @@ const servidor = app.listen(PORT, HOST, () => {
   console.log("");
 
   console.log("Conexão com o Pierre preparada.");
+
+  // Verificação de leitura em produção: usa a mesma rotina da rota autenticada.
+  // Não publica rota de diagnóstico, não registra valores, IDs ou credenciais.
+  void (async () => {
+    let status = 200;
+    const resposta = {
+      status(codigo) { status = codigo; return this; },
+      json(dados) {
+        const resumos = Array.isArray(dados?.resumos) ? dados.resumos : [];
+        const faturas = Array.isArray(dados?.faturas) ? dados.faturas : [];
+        console.info("[PIERRE_FATURAS] teste_real", JSON.stringify({
+          status, sucesso: dados?.sucesso === true, parcial: dados?.parcial === true,
+          faturas: faturas.length, resumos: resumos.length,
+          comLimite: resumos.filter(r => r.credit_limit != null).length,
+          comDisponivel: resumos.filter(r => r.available_credit_limit != null).length
+        }));
+      }
+    };
+    try { await consultarFaturas({query: {}}, resposta); }
+    catch { console.warn("[PIERRE_FATURAS] teste_real falhou"); }
+  })();
 
   console.log("");
 });
