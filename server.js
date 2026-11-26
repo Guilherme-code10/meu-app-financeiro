@@ -1817,9 +1817,15 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
     }
 
     // ==========================================
-    // ORDENAR FATURAS
+    // ORDENAR FATURAS E SINALIZAR FALTA DE RESUMO ATUAL
     // ==========================================
 
+    if (!resumos.length) {
+      avisosFaturas.push("O Pierre não informou o resumo da fatura atual. Valores exibidos podem ser estimativas ou faturas anteriores.");
+    }
+    if (!faturas.length) {
+      avisosFaturas.push("Nenhuma fatura foi retornada ou estava salva; verifique a conexão do cartão.");
+    }
     faturas.sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
 
     // ==========================================
