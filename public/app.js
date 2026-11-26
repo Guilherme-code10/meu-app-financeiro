@@ -7849,80 +7849,21 @@ async function excluirCaixinha(id) {
 // ==========================================
 
 function obterFaturaDestaqueDoCartao(faturas) {
-  if (!Array.isArray(faturas) || !faturas.length) {
-    return null;
-  }
-
-  const hoje = new Date();
-
-  let anoVencimento = hoje.getFullYear();
-  let mesVencimento = hoje.getMonth();
-
-  // Depois do dia 10, a fatura anterior já foi paga
-  // e passamos a mostrar a fatura aberta seguinte.
-  if (hoje.getDate() > 10) {
-    mesVencimento += 1;
-
-    if (mesVencimento > 11) {
-      mesVencimento = 0;
-      anoVencimento += 1;
-    }
-  }
-
-  const candidatas = faturas.filter((fatura) => {
-    if (!fatura?.dueDate) {
-      return false;
-    }
-
-    const dataTexto = String(fatura.dueDate).substring(0, 10);
-    const partes = dataTexto.split("-");
-
-    if (partes.length !== 3) {
-      return false;
-    }
-
-    const ano = Number(partes[0]);
-    const mes = Number(partes[1]) - 1;
-
-    return (
-      ano === anoVencimento &&
-      mes === mesVencimento
-    );
-  });
-
-  if (candidatas.length) {
-    // Prefere a fatura real à virtual.
-    return (
-      candidatas.find((fatura) => fatura.virtual !== true) ||
-      candidatas[0]
-    );
-  }
-
-  // Fallback: procura a próxima fatura futura.
-  const ordenadas = [...faturas].sort(
-    (a, b) =>
-      new Date(a.dueDate) -
-      new Date(b.dueDate),
-  );
-
-  const hojeInicio = new Date(
-    hoje.getFullYear(),
-    hoje.getMonth(),
-    hoje.getDate(),
-  );
-
-  const futura = ordenadas.find((fatura) => {
-    const vencimento = new Date(fatura.dueDate);
-
-    return (
-      !Number.isNaN(vencimento.getTime()) &&
-      vencimento >= hojeInicio
-    );
-  });
-
-  return futura || ordenadas.at(-1) || null;
+  if (!Array.isArray(faturas) || !faturas.length) return null;
+  // Exibe apenas faturas reais com vencimento futuro próximo. Não usa
+  // a fatura antiga nem faturas virtuais como valor da fatura atual.
+  const agora = new Date();
+  const inicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const limite = new Date(inicio);
+  limite.setDate(limite.getDate() + 65);
+  return faturas
+    .filter(f => {
+      if (!f?.dueDate || f.virtual === true) return false;
+      const data = new Date(String(f.dueDate).slice(0, 10) + "T12:00:00");
+      return !Number.isNaN(data.getTime()) && data >= inicio && data <= limite;
+    })
+    .sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate))[0] || null;
 }
-
 
 function obterNomeMesFatura(fatura) {
   if (!fatura?.dueDate) {
@@ -8056,147 +7997,14 @@ function obterValorParcelasDaFatura(cartao, fatura) {
 
 
 function obterValorCorretoFatura(cartao, fatura) {
-  if (!cartao || !fatura) {
-    return 0;
-  }
-
-  // ==========================================
-  // FATURA REAL DO BANCO
-  // ==========================================
-
-  const valorBanco =
-    Number(
-      fatura.totalAmount ||
-      fatura.valor ||
-      0
-    );
-
-  if (
-    fatura.virtual !== true &&
-    valorBanco > 0
-  ) {
-    return valorBanco;
-  }
-
-  // ==========================================
-  // FATURA VIRTUAL:
-  // CALCULAR TRANSAÇÕES DO CARTÃO CORRETO
-  // ==========================================
-
-  if (fatura.billClosingDate) {
-    const fechamento =
-      new Date(
-        fatura.billClosingDate
-      );
-
-    if (
-      !Number.isNaN(
-        fechamento.getTime()
-      )
-    ) {
-      const inicio =
-        new Date(
-          fechamento
-        );
-
-      inicio.setMonth(
-        inicio.getMonth() - 1
-      );
-
-      const totalTransacoes =
-        (state.transacoes || [])
-          .filter(
-            (transacao) => {
-              // O ponto mais importante:
-              // comparar pelo ID do cartão,
-              // e não somente pelo nome do banco.
-              if (
-                String(
-                  transacao.accountId || ""
-                ) !==
-                String(
-                  cartao.id || ""
-                )
-              ) {
-                return false;
-              }
-
-              if (
-                String(
-                  transacao.tipoConta || ""
-                ).toUpperCase() !==
-                "CREDIT"
-              ) {
-                return false;
-              }
-
-              if (
-                String(
-                  transacao.tipo || ""
-                ).toUpperCase() !==
-                "DEBIT"
-              ) {
-                return false;
-              }
-
-              const data =
-                new Date(
-                  transacao.data
-                );
-
-              if (
-                Number.isNaN(
-                  data.getTime()
-                )
-              ) {
-                return false;
-              }
-
-              return (
-                data > inicio &&
-                data <= fechamento
-              );
-            },
-          )
-          .reduce(
-            (total, transacao) =>
-              total +
-              Math.abs(
-                Number(
-                  transacao.valor || 0
-                )
-              ),
-            0,
-          );
-
-      if (
-        totalTransacoes > 0
-      ) {
-        return totalTransacoes;
-      }
-    }
-  }
-
-  // ==========================================
-  // FALLBACK:
-  // PARCELAS IDENTIFICADAS
-  // ==========================================
-
-  const valorParcelas =
-    obterValorParcelasDaFatura(
-      cartao,
-      fatura
-    );
-
-  if (
-    valorParcelas > 0
-  ) {
-    return valorParcelas;
-  }
-
-  return valorBanco;
+  // Sem transações oficiais vinculadas à fatura, somar lançamentos soltos,
+  // parcelas e saldo total do cartão gera totais incorretos.
+  if (!cartao || !fatura || fatura.virtual === true) return null;
+  const bruto = fatura.totalAmount ?? fatura.valor;
+  if (bruto == null || bruto === "") return null;
+  const valor = Number(bruto);
+  return Number.isFinite(valor) ? Math.abs(valor) : null;
 }
-
 
 // Como cada cartão aparece (tela Cartões > "Seus cartões"):
 // SEPARADO, SOMAR (na fatura de outro cartão) ou ESCONDER.
@@ -8241,30 +8049,30 @@ function cartaoItauAuxiliar(cartao) {
 }
 
 // Valor da fatura atual de UM cartão (sem somar outros)
-function valorFaturaDoCartao(cartao) {
-  const faturas = (state.faturas || [])
-    .filter((fatura) => String(fatura.accountId) === String(cartao.id))
-    .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
-
-  const faturaAtual = obterFaturaDestaqueDoCartao(faturas);
-
-  const resumoAtual = (state.resumos || []).find(
-    (resumo) => String(resumo.account_id || resumo.accountId || "") === String(cartao.id),
+function obterValorResumoAtualPorCartao(cartao) {
+  const resumo = (state.resumos || []).find(
+    r => String(r.account_id || r.accountId || "") === String(cartao?.id),
   );
-
-  if (resumoAtual) {
-    return Math.abs(
-      Number(resumoAtual.approx_current_bill_amount ?? resumoAtual.approxCurrentBillAmount ?? 0),
-    );
-  }
-
-  if (faturaAtual) {
-    return obterValorCorretoFatura(cartao, faturaAtual);
-  }
-
-  return Math.abs(Number(cartao.saldo || 0));
+  const bruto = resumo?.approx_current_bill_amount ?? resumo?.approxCurrentBillAmount;
+  if (bruto == null || bruto === "") return null;
+  const valor = Number(bruto);
+  return Number.isFinite(valor) ? Math.abs(valor) : null;
 }
 
+function formatarValorInformado(valor) {
+  if (valor == null || valor === "" || !Number.isFinite(Number(valor))) return "Não informado";
+  return dinheiro(Number(valor));
+}
+
+// Retorna null quando a fatura do ciclo não foi fornecida pelo Pierre.
+// Não confundir falta de dados com uma fatura de R$ 0,00.
+function valorFaturaDoCartao(cartao) {
+  const resumo = obterValorResumoAtualPorCartao(cartao);
+  if (resumo != null) return resumo;
+  const faturas = (state.faturas || []).filter(f => String(f.accountId) === String(cartao.id));
+  const fatura = obterFaturaDestaqueDoCartao(faturas);
+  return fatura ? obterValorCorretoFatura(cartao, fatura) : null;
+}
 
 function mostrarCartoesEFaturas() {
   const container = document.querySelector("#creditCards");
@@ -8308,53 +8116,26 @@ function mostrarCartoesEFaturas() {
             ) === String(cartao.id)
         );
 
-      const valorResumo =
-        Number(
-          resumoAtual?.approx_current_bill_amount ??
-          resumoAtual?.approxCurrentBillAmount ??
-          0
-        );
+      const valorResumo = obterValorResumoAtualPorCartao(cartao);
 
-      const limiteCartao =
-        Number(
-          resumoAtual?.credit_limit ??
-          resumoAtual?.creditLimit ??
-          cartao.limite ??
-          0
-        );
-
-      const limiteDisponivelCartao =
-        Number(
-          resumoAtual?.available_credit_limit ??
-          resumoAtual?.availableCreditLimit ??
-          cartao.limiteDisponivel ??
-          0
-        );
+      const limiteCartao = resumoAtual?.credit_limit ??
+        resumoAtual?.creditLimit ?? cartao.limite ?? null;
+      const limiteDisponivelCartao = resumoAtual?.available_credit_limit ??
+        resumoAtual?.availableCreditLimit ?? cartao.limiteDisponivel ?? null;
+      const ultimaFaturaHistorica = faturas
+        .filter(f => f.virtual !== true && f.dueDate && f.totalAmount != null)
+        .sort((a,b) => new Date(b.dueDate)-new Date(a.dueDate))[0] || null;
 
       const somados =
         cartoesSomadosEm(cartao);
 
-      const valorProprio =
-        resumoAtual
-          ? Math.abs(valorResumo)
-          : faturaAtual
-            ? obterValorCorretoFatura(
-                cartao,
-                faturaAtual
-              )
-            : Math.abs(
-                Number(
-                  cartao.saldo || 0
-                )
-              );
-
-      const valorFatura =
-        valorProprio +
-        somados.reduce(
-          (soma, outro) =>
-            soma + valorFaturaDoCartao(outro),
-          0,
-        );
+      const valoresDaFatura = [
+        valorFaturaDoCartao(cartao),
+        ...somados.map(outro => valorFaturaDoCartao(outro)),
+      ];
+      const valorFatura = valoresDaFatura.every(v => v != null && Number.isFinite(v))
+        ? valoresDaFatura.reduce((acc,v) => acc + v, 0)
+        : null;
 
       const textoSomados =
         somados.length
@@ -8393,7 +8174,7 @@ function mostrarCartoesEFaturas() {
               </div>
 
               <div class="credit-card-value">
-                ${dinheiro(valorFatura)}
+                ${valorFatura == null ? "Aguardando fatura" : dinheiro(valorFatura)}
               </div>
 
               ${
@@ -8404,15 +8185,11 @@ function mostrarCartoesEFaturas() {
 
               <div class="meta">
                 ${
-                  resumoAtual
-                    ? "Estimativa da fatura atual (Pierre)"
-                    : faturaAtual?.virtual
-                      ? "Fatura projetada · valor não oficial"
-                      : faturaAtual?.sincronizada
-                        ? "Fatura salva anteriormente · confira a atualização"
-                        : faturaAtual
-                          ? obterNomeMesFatura(faturaAtual) + " · banco"
-                          : "Saldo do cartão · não equivale à fatura"
+                  valorResumo != null
+                    ? "Resumo aproximado da fatura atual (Pierre)"
+                    : faturaAtual
+                      ? obterNomeMesFatura(faturaAtual) + (faturaAtual.sincronizada ? " · fatura sincronizada" : " · banco")
+                      : "Fatura atual indisponível na integração"
                 }
               </div>
 
@@ -8421,11 +8198,9 @@ function mostrarCartoesEFaturas() {
                   ? `
                     <div class="meta">
                       ${
-                        faturaAtual.virtual
-                          ? "🟡 Projeção de fatura — confira no banco"
-                          : faturaAtual.sincronizada
-                            ? "🟡 Valor sincronizado anteriormente"
-                            : "Fatura informada pelo banco"
+                        faturaAtual.sincronizada
+                          ? "🟡 Fatura sincronizada anteriormente"
+                          : "Fatura recuperada do banco"
                       }
                       · Vence em
                       ${dataBR(faturaAtual.dueDate)}
@@ -8434,14 +8209,18 @@ function mostrarCartoesEFaturas() {
                   : ""
               }
 
+              ${!faturaAtual && ultimaFaturaHistorica ? `
+                <div class="meta">
+                  Última fatura recebida: ${dinheiro(Math.abs(Number(ultimaFaturaHistorica.totalAmount) || 0))}
+                  · vencimento ${dataBR(ultimaFaturaHistorica.dueDate)} (histórico)
+                </div>` : ""}
+
               <div class="meta">
-                Limite:
-                ${dinheiro(limiteCartao)}
+                Limite: ${formatarValorInformado(limiteCartao)}
               </div>
 
               <div class="meta">
-                Disponível:
-                ${dinheiro(limiteDisponivelCartao)}
+                Disponível: ${formatarValorInformado(limiteDisponivelCartao)}
               </div>
 
               <div class="credit-card-footer">
