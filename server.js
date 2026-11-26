@@ -1686,7 +1686,7 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
         cartao?.accountMarketingName, cartao?.marketingName,
         cartao?.connectorName, cartao?.providerCode,
       ].filter(Boolean).join(" ").normalize("NFD")
-       .replace(/[\u0300-\u036f]/g, "").toUpperCase();
+       .replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[_-]/g, " ");
       if (/MERCADO PAGO/.test(texto)) return 8;
       if (/C6/.test(texto) && /BANDEIRADO/.test(texto)) return 4;
       if (/NUBANK/.test(texto) && /GOLD/.test(texto)) return 5;
@@ -1869,7 +1869,7 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
     // ==========================================
 
     if (!resumos.length) {
-      avisosFaturas.push("O Pierre não informou o resumo da fatura atual. Valores exibidos podem ser estimativas ou faturas anteriores.");
+      avisosFaturas.push("O Pierre não informou resumos de fatura aberta; somente histórico de faturas fechadas está disponível.");
     }
     if (!faturas.length) {
       avisosFaturas.push("Nenhuma fatura foi retornada ou estava salva; verifique a conexão do cartão.");
