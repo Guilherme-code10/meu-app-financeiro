@@ -36,11 +36,11 @@ test.before(async () => {
 
 test.after(() => servidor?.kill());
 
-test("JS versionado vai comprimido e com cache longo", async () => {
+test("JS versionado vai comprimido e sempre conferido", async () => {
   const r = await fetch(BASE + "/v4.js?v=teste", { headers: { "accept-encoding": "gzip" } });
   assert.equal(r.status, 200);
   assert.equal(r.headers.get("content-encoding"), "gzip");
-  assert.match(r.headers.get("cache-control"), /max-age=2592000/);
+  assert.equal(r.headers.get("cache-control"), "no-cache");
   assert.match(r.headers.get("content-type"), /javascript/);
   assert.match(await r.text(), /MEU FINANCEIRO V4/);
 });

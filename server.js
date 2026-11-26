@@ -81,10 +81,12 @@ app.use((req, res, next) => {
   res.set("Content-Encoding", "gzip");
   res.set("Vary", "Accept-Encoding");
   res.set("ETag", item.etag);
-  res.set(
-    "Cache-Control",
-    ext === ".html" || !req.query.v ? "no-cache" : "public, max-age=2592000, immutable",
-  );
+  // Sempre conferir com o servidor (responde 304 quando nada mudou).
+  // Antes JS/CSS ficavam 30 dias guardados como "imutáveis" e, quando um
+  // arquivo mudava sem trocar o ?v= no index.html, o navegador continuava
+  // usando a versão velha (ex.: tela de cartões antiga mostrando
+  // "Fatura projetada" com valores errados).
+  res.set("Cache-Control", "no-cache");
 
   if (req.get("if-none-match") === item.etag) return res.status(304).end();
   res.set("Content-Length", String(item.corpo.length));
