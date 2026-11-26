@@ -3311,18 +3311,15 @@ function obterValorFaturaDashboard(fatura) {
         String(fatura.accountId)
     );
 
+  if (fatura.virtual === true) return null;
   if (!cartao) {
-    return Number(
-      fatura.totalAmount ||
-      fatura.valor ||
-      0
-    );
+    const bruto = fatura.totalAmount ?? fatura.valor;
+    if (bruto == null || bruto === "") return null;
+    const valor = Number(bruto);
+    return Number.isFinite(valor) ? Math.abs(valor) : null;
   }
 
-  return obterValorCorretoFatura(
-    cartao,
-    fatura
-  );
+  return obterValorCorretoFatura(cartao, fatura);
 }
 
 // ==========================================
@@ -3348,7 +3345,7 @@ function obterResumoFaturasMesAtual() {
 
   const faturasMes =
     state.faturas.filter((fatura) => {
-      if (!fatura?.dueDate) {
+      if (!fatura?.dueDate || fatura.virtual === true) {
         return false;
       }
 
@@ -3440,20 +3437,17 @@ function obterResumoFaturasMesAtual() {
   const faturas =
     [...faturasPorCartao.values()];
 
-  const total =
-    faturas.reduce(
-      (soma, fatura) =>
-        soma +
-        obterValorFaturaDashboard(
-          fatura,
-        ),
-      0,
-    );
-
+  const valores = faturas.map(f => obterValorFaturaDashboard(f));
+  const total = valores.reduce((soma,v) => soma + (v == null ? 0 : v), 0);
+  const comValor = new Set(faturas.filter((_,i) => valores[i] != null).map(f => String(f.accountId)));
+  const pendentes = (state.cartoes || [])
+    .filter(c => modoCartao(c) !== "ESCONDER" && !comValor.has(String(c.id)))
+    .length;
   return {
     total,
-    quantidade:
-      faturas.length,
+    quantidade: valores.filter(v => v != null).length,
+    pendentes,
+    incompleto: pendentes > 0,
     faturas,
     anoVencimento,
     mesVencimento,
@@ -3523,15 +3517,15 @@ function atualizarCompromissosMes() {
     );
 
   if (faturasElemento) {
-    faturasElemento.textContent =
-      dinheiro(faturas.total);
+    faturasElemento.textContent = faturas.incompleto
+      ? (faturas.total > 0 ? dinheiro(faturas.total) + " · parcial" : "Aguardando faturas")
+      : dinheiro(faturas.total);
   }
 
   if (quantidadeElemento) {
     quantidadeElemento.textContent =
-      `${faturas.quantidade} fatura${
-        faturas.quantidade === 1 ? "" : "s"
-      } do ciclo`;
+      `${faturas.quantidade} fatura${faturas.quantidade === 1 ? "" : "s"} informada${faturas.quantidade === 1 ? "" : "s"}` +
+      (faturas.pendentes ? ` · ${faturas.pendentes} pendente(s)` : "");
   }
 
   if (fixasElemento) {
@@ -3549,23 +3543,17 @@ function atualizarCompromissosMes() {
   }
 
   if (totalElemento) {
-    totalElemento.textContent =
-      dinheiro(total);
+    totalElemento.textContent = faturas.incompleto
+      ? `Pelo menos ${dinheiro(total)}`
+      : dinheiro(total);
   }
 
   if (saldoElemento) {
-    saldoElemento.textContent =
-      dinheiro(saldoDepois);
-
-    saldoElemento.classList.toggle(
-      "income",
-      saldoDepois >= 0,
-    );
-
-    saldoElemento.classList.toggle(
-      "expense",
-      saldoDepois < 0,
-    );
+    saldoElemento.textContent = faturas.incompleto
+      ? "Indisponível · faltam faturas"
+      : dinheiro(saldoDepois);
+    saldoElemento.classList.toggle("income", !faturas.incompleto && saldoDepois >= 0);
+    saldoElemento.classList.toggle("expense", !faturas.incompleto && saldoDepois < 0);
   }
 }
 
