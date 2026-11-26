@@ -3504,6 +3504,199 @@ ignoradas.forEach((item) => {
 // ADICIONAR RENDIMENTO À CAIXINHA
 // ==========================================
 
+// ==========================================
+// RENDIMENTOS AUTOMÁTICOS DAS CAIXINHAS
+// O Mercado Pago rende cada cofrinho separadamente e o extrato do Pierre
+// mostra só "Rendimentos", sem dizer de qual cofrinho. O app busca esses
+// rendimentos, sugere a caixinha pela proporção do saldo (a taxa é a mesma
+// para todos) e você confirma. Cada rendimento guarda o id da transação do
+// Pierre, então nunca entra duas vezes. Tabelas: supabase/rendimentos_automaticos.sql
+// ==========================================
+
+// Saldos conciliados até 10/11/2026 (mesma data-base da sincronização):
+// rendimentos anteriores já foram lançados à mão.
+const RENDIMENTOS_DESDE = "2026-11-11";
+
+function ehRendimentoPierre(transacao) {
+  const texto = normalizarTexto(transacao?.description || transacao?.descricao || "");
+  return texto.includes("rendimento") && Number(transacao?.amount) > 0;
+}
+
+function idTransacaoPierre(transacao) {
+  return String(transacao?.id || transacao?.transaction_id || transacao?.transactionId || "");
+}
+
+function dataTransacaoPierre(transacao) {
+  return String(transacao?.date || transacao?.transaction_date || transacao?.transactionDate || transacao?.postedAt || "").slice(0, 10);
+}
+
+// Sugestão: o rendimento de cada cofrinho é proporcional ao saldo (a taxa é a
+// mesma para todos). Então, em cada dia, o maior rendimento vai para a caixinha
+// com mais saldo, o segundo para a segunda, e assim por diante. Só entram
+// caixinhas com saldo e, se houver histórico, só as que já receberam rendimento.
+function sugerirCaixinhas(rendimentosDoDia, caixinhas, comHistorico = new Set()) {
+  let candidatas = caixinhas.filter((c) => Number(c.saldo) > 0);
+  if (comHistorico.size && candidatas.some((c) => comHistorico.has(c.id))) {
+    candidatas = candidatas.filter((c) => comHistorico.has(c.id));
+  }
+  candidatas.sort((a, b) => Number(b.saldo) - Number(a.saldo));
+  const ordenados = [...rendimentosDoDia].sort((a, b) => b.valor - a.valor);
+  const sugestoes = new Map();
+  ordenados.forEach((r, i) => {
+    if (candidatas[i]) sugestoes.set(r.transacaoId, candidatas[i].id);
+  });
+  return sugestoes;
+}
+
+async function buscarRendimentosPendentes() {
+  const fim = new Date();
+  fim.setDate(fim.getDate() + 1);
+
+  const [respostaPierre, contasPierre, caixinhasRes, lancadosRes, ignoradosRes, historicoRes] = await Promise.all([
+    pierreRequest("get-transactions", {
+      startDate: RENDIMENTOS_DESDE,
+      endDate: fim.toISOString().slice(0, 10),
+      format: "raw",
+    }),
+    pierreRequest("get-accounts").catch(() => ({ data: [] })),
+    supabaseAdmin.from("caixinhas").select("id, nome, saldo").order("nome"),
+    supabaseAdmin.from("rendimentos_caixinhas").select("transacao_pierre_id").not("transacao_pierre_id", "is", null),
+    supabaseAdmin.from("rendimentos_ignorados").select("transacao_pierre_id"),
+    supabaseAdmin.from("rendimentos_caixinhas").select("caixinha_id"),
+  ]);
+
+  for (const r of [caixinhasRes, lancadosRes, ignoradosRes, historicoRes]) if (r.error) throw r.error;
+  const comHistorico = new Set((historicoRes.data || []).map((r) => r.caixinha_id));
+
+  const jaTratados = new Set([
+    ...(lancadosRes.data || []).map((r) => r.transacao_pierre_id),
+    ...(ignoradosRes.data || []).map((r) => r.transacao_pierre_id),
+  ]);
+
+  const contas = new Map(
+    (Array.isArray(contasPierre?.data) ? contasPierre.data : []).map((c) => [
+      String(c.id),
+      c.connectorName || c.marketingName || c.customName || c.name || "",
+    ]),
+  );
+
+  const transacoes = Array.isArray(respostaPierre?.data) ? respostaPierre.data : [];
+  const pendentes = transacoes
+    .filter(ehRendimentoPierre)
+    .map((t) => ({
+      transacaoId: idTransacaoPierre(t),
+      data: dataTransacaoPierre(t),
+      valor: Math.round(Number(t.amount) * 100) / 100,
+      descricao: String(t.description || "Rendimento"),
+      banco: contas.get(String(t.accountId)) || "",
+    }))
+    .filter((r) => r.transacaoId && r.data >= RENDIMENTOS_DESDE && !jaTratados.has(r.transacaoId))
+    .sort((a, b) => (a.data === b.data ? b.valor - a.valor : b.data.localeCompare(a.data)));
+
+  const caixinhas = caixinhasRes.data || [];
+  const porDia = new Map();
+  pendentes.forEach((r) => porDia.set(r.data, [...(porDia.get(r.data) || []), r]));
+  for (const lista of porDia.values()) {
+    const sugestoes = sugerirCaixinhas(lista, caixinhas, comHistorico);
+    lista.forEach((r) => (r.caixinhaSugerida = sugestoes.get(r.transacaoId) || null));
+  }
+
+  return { pendentes, caixinhas };
+}
+
+app.get("/api/caixinhas/rendimentos-pendentes", exigirAdmin, async (_req, res) => {
+  try {
+    const { pendentes, caixinhas } = await buscarRendimentosPendentes();
+    res.json({
+      sucesso: true,
+      desde: RENDIMENTOS_DESDE,
+      pendentes,
+      caixinhas: caixinhas.map((c) => ({ id: c.id, nome: c.nome, saldo: Number(c.saldo) || 0 })),
+    });
+  } catch (erro) {
+    console.error("Erro ao buscar rendimentos pendentes:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível buscar os rendimentos agora." });
+  }
+});
+
+// Recebe [{ transacaoId, caixinhaId }] ou [{ transacaoId, ignorar: true }].
+// O valor sempre vem do Pierre (nunca do navegador).
+app.post("/api/caixinhas/rendimentos-pendentes/confirmar", exigirAdmin, async (req, res) => {
+  try {
+    const itens = Array.isArray(req.body?.itens) ? req.body.itens.slice(0, 200) : [];
+    if (!itens.length) {
+      return res.status(400).json({ sucesso: false, erro: "Nenhum rendimento informado." });
+    }
+
+    const { pendentes, caixinhas } = await buscarRendimentosPendentes();
+    const porId = new Map(pendentes.map((p) => [p.transacaoId, p]));
+    const saldos = new Map(caixinhas.map((c) => [c.id, Number(c.saldo) || 0]));
+    const nomes = new Map(caixinhas.map((c) => [c.id, c.nome]));
+
+    const lancados = [];
+    const ignorados = [];
+    const recusados = [];
+
+    for (const item of itens) {
+      const pendente = porId.get(String(item?.transacaoId || ""));
+      if (!pendente) {
+        recusados.push({ transacaoId: item?.transacaoId, motivo: "Já lançado, ignorado ou não encontrado no Pierre." });
+        continue;
+      }
+
+      if (item.ignorar === true) {
+        const { error } = await supabaseAdmin
+          .from("rendimentos_ignorados")
+          .upsert({ transacao_pierre_id: pendente.transacaoId }, { onConflict: "transacao_pierre_id" });
+        if (error) throw error;
+        ignorados.push(pendente.transacaoId);
+        porId.delete(pendente.transacaoId);
+        continue;
+      }
+
+      const caixinhaId = String(item?.caixinhaId || "");
+      if (!saldos.has(caixinhaId)) {
+        recusados.push({ transacaoId: pendente.transacaoId, motivo: "Caixinha não encontrada." });
+        continue;
+      }
+
+      const { error: erroInsert } = await supabaseAdmin.from("rendimentos_caixinhas").insert([
+        {
+          caixinha_id: caixinhaId,
+          valor: pendente.valor,
+          descricao: `Rendimento ${pendente.banco || "automático"} · ${pendente.data.split("-").reverse().join("/")}`,
+          transacao_pierre_id: pendente.transacaoId,
+          created_at: `${pendente.data}T12:00:00Z`,
+        },
+      ]);
+      if (erroInsert) {
+        // 23505 = já existe (outro aparelho confirmou ao mesmo tempo)
+        if (erroInsert.code === "23505") {
+          recusados.push({ transacaoId: pendente.transacaoId, motivo: "Já lançado." });
+          continue;
+        }
+        throw erroInsert;
+      }
+
+      const novoSaldo = Math.round((saldos.get(caixinhaId) + pendente.valor) * 100) / 100;
+      const { error: erroSaldo } = await supabaseAdmin
+        .from("caixinhas")
+        .update({ saldo: novoSaldo, updated_at: new Date().toISOString() })
+        .eq("id", caixinhaId);
+      if (erroSaldo) throw erroSaldo;
+
+      saldos.set(caixinhaId, novoSaldo);
+      porId.delete(pendente.transacaoId);
+      lancados.push({ transacaoId: pendente.transacaoId, caixinha: nomes.get(caixinhaId), valor: pendente.valor });
+    }
+
+    res.json({ sucesso: true, lancados, ignorados, recusados });
+  } catch (erro) {
+    console.error("Erro ao confirmar rendimentos:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível lançar os rendimentos." });
+  }
+});
+
 app.post("/api/caixinhas/:id/rendimento", exigirAdmin, async (req, res) => {
   try {
     const { id } = req.params;

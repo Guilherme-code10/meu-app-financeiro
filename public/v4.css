@@ -734,3 +734,41 @@ body.v4 .v4i-tip b { color: #fff; }
   body.v4 .v4i-asset b { grid-column: 3; grid-row: 1; }
   body.v4 .v4i-evo { height: 180px; }
 }
+
+/* =========================================================
+   CAIXINHAS — RENDIMENTOS PARA CONFERIR (v4-rendimentos.js)
+   ========================================================= */
+body.v4 .v4r { margin-bottom: 18px; border-color: rgba(139, 92, 246, .35); }
+body.v4 .v4r-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 20px; margin-bottom: 8px; }
+body.v4 .v4r-head h2 { margin: 0; font-size: 19px; }
+body.v4 .v4r-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; max-width: 60ch; }
+body.v4 .v4r-lista { list-style: none; margin: 0; padding: 0; }
+body.v4 .v4r-dia { margin: 14px 0 2px; font-size: 13px; font-weight: 700; color: #a78bfa; }
+body.v4 .v4r-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px) auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--v4-line); }
+body.v4 .v4r-info strong { display: block; color: var(--green); font-size: 16px; font-variant-numeric: tabular-nums; }
+body.v4 .v4r-info small { display: block; color: var(--muted); font-size: 12.5px; }
+body.v4 .v4r-item select { min-height: 42px; }
+body.v4 .v4r-ok { margin: 0; color: var(--green); font-weight: 600; }
+body.v4 .v4r-erro { color: var(--red); font-size: 14px; margin: 6px 0; }
+body.v4 .v4r-selo { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #7c3aed; color: #fff; font-size: 11.5px; font-weight: 700; display: inline-grid; place-items: center; }
+@media (max-width: 768px) {
+  body.v4 .v4r-head .primary { width: 100%; }
+  body.v4 .v4r-item { grid-template-columns: minmax(0, 1fr) auto; }
+  body.v4 .v4r-item select { grid-column: 1 / -1; grid-row: 2; }
+  body.v4 .v4r-item .v4r-btn { grid-column: 2; grid-row: 1; }
+}
+body.v4 .v4r-btn {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 11px;
+  border: 1px solid rgba(139, 92, 246, .45);
+  background: rgba(124, 58, 237, .14);
+  color: #ddd2ff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+}
+body.v4 .v4r-btn:hover { background: rgba(124, 58, 237, .28); }
+body.v4 .v4r-btn:disabled { opacity: .5; cursor: progress; }
