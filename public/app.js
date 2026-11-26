@@ -8901,34 +8901,58 @@ async function carregarDados() {
 
     parametrosParcelamentos.set("endDate", formatarData(fimParcelamentos));
 
+    // Uma falha isolada do Pierre (especialmente get-bills/get-bill-summary)
+    // não deve derrubar contas, transações ou caixinhas.
+    const resultados = await Promise.allSettled([
+      buscarDados("/api/accounts"),
+      buscarDados(`/api/transactions?${parametros.toString()}`),
+      buscarDados(`/api/installments?${parametrosParcelamentos.toString()}`),
+      buscarDados("/api/bills"),
+    ]);
     const [dadosContas, dadosTransacoes, dadosParcelamentos, dadosFaturas] =
-      await Promise.all([
-        buscarDados("/api/accounts"),
+      resultados.map(r => r.status === "fulfilled" ? r.value : null);
+    if (resultados.every(r => r.status === "rejected")) {
+      throw resultados[0].reason;
+    }
 
-        buscarDados(`/api/transactions?${parametros.toString()}`),
+    if (dadosContas) {
+      state.contas = dadosContas.contas || [];
+      state.cartoes = dadosContas.cartoes || [];
+      state.investimentos = dadosContas.investimentos || [];
+    }
 
-        buscarDados(`/api/installments?${parametrosParcelamentos.toString()}`),
-
-        buscarDados("/api/bills"),
-      ]);
-
-    state.contas = dadosContas.contas || [];
-
-    state.cartoes = dadosContas.cartoes || [];
-
-    state.investimentos = dadosContas.investimentos || [];
-
-    state.transacoes = dadosTransacoes.transacoes || [];
-
-    state.parcelamentos = dadosParcelamentos.compras || [];
-
-    state.faturas = dadosFaturas.faturas || [];
-
-    state.resumos = dadosFaturas.resumos || [];
+    if (dadosTransacoes) state.transacoes = dadosTransacoes.transacoes || [];
+    if (dadosParcelamentos) state.parcelamentos = dadosParcelamentos.compras || [];
+    if (dadosFaturas) {
+      state.faturas = dadosFaturas.faturas || [];
+      state.resumos = dadosFaturas.resumos || [];
+    }
 
     mostrarContas();
 
     mostrarCartoesEFaturas();
+
+    // Avisa claramente que a fatura pode estar indisponível ou antiga.
+    const avisosFaturas = dadosFaturas?.avisos || (
+      dadosFaturas ? [] : ["A consulta de faturas falhou. Outras áreas continuam disponíveis; confira os valores no banco."]
+    );
+    const secaoCartoes = document.querySelector("#cartoes");
+    if (secaoCartoes) {
+      let aviso = secaoCartoes.querySelector("#faturasPierreWarning");
+      if (avisosFaturas.length) {
+        if (!aviso) {
+          aviso = document.createElement("div");
+          aviso.id = "faturasPierreWarning";
+          aviso.className = "v3-note";
+          aviso.setAttribute("role", "status");
+          secaoCartoes.prepend(aviso);
+        }
+        aviso.textContent = "⚠️ Faturas: " + avisosFaturas.join(" ");
+        aviso.style.display = "block";
+      } else if (aviso) {
+        aviso.style.display = "none";
+      }
+    }
 
     atualizarDashboard();
 
@@ -8942,7 +8966,8 @@ async function carregarDados() {
 
     if (connectionText) {
       connectionText.textContent =
-        `${state.contas.length} contas · ` + `${state.cartoes.length} cartões`;
+        `${state.contas.length} contas · ` + `${state.cartoes.length} cartões` +
+        (resultados.some(r => r.status === "rejected") || dadosFaturas?.parcial ? " · atualização parcial" : "");
     }
   } catch (erro) {
     console.error("Erro ao carregar dados:", erro);
