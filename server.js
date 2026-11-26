@@ -1155,11 +1155,12 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
 
         moeda: cartao.currencyCode || "BRL",
 
-        limite: Number(credito.creditLimit || credito.limit || 0),
+        // Ausência de limite no Open Finance não equivale a limite zero.
+        limite: credito.creditLimit == null && credito.limit == null
+          ? null : Number(credito.creditLimit ?? credito.limit),
 
-        limiteDisponivel: Number(
-          credito.availableCreditLimit || credito.availableLimit || 0,
-        ),
+        limiteDisponivel: credito.availableCreditLimit == null && credito.availableLimit == null
+          ? null : Number(credito.availableCreditLimit ?? credito.availableLimit),
 
         vencimento: credito.balanceDueDate || null,
 
