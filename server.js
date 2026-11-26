@@ -1177,32 +1177,35 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
     const registros = Array.isArray(dados.data) ? dados.data : [];
 
     const contasBancarias = registros.filter(
-      (conta) => conta.type === "BANK" && conta.itemIsActive !== false,
+      (conta) => (conta.type || conta.accountType) === "BANK" &&
+        conta.itemIsActive !== false && conta.isActive !== false,
     );
 
     const cartoes = registros.filter(
-      (conta) => conta.type === "CREDIT" && conta.itemIsActive !== false,
+      (conta) => (conta.type || conta.accountType) === "CREDIT" &&
+        conta.itemIsActive !== false && conta.isActive !== false,
     );
 
     const investimentos = registros.filter(
-      (conta) => conta.type === "INVESTMENT" && conta.itemIsActive !== false,
+      (conta) => (conta.type || conta.accountType) === "INVESTMENT" &&
+        conta.itemIsActive !== false && conta.isActive !== false,
     );
 
     const contas = contasBancarias.map((conta) => ({
-      id: conta.id,
+      id: conta.id || conta.accountId,
 
-      nome: conta.customName || conta.name || "Conta bancária",
+      nome: conta.customName || conta.accountName || conta.name || "Conta bancária",
 
       banco:
-        conta.connectorName || conta.marketingName || "Banco não informado",
+        conta.connectorName || conta.accountMarketingName || conta.marketingName || conta.providerCode || "Banco não informado",
 
-      tipo: conta.type,
+      tipo: conta.type || conta.accountType,
 
-      subtipo: conta.subtype || "Não informado",
+      subtipo: conta.subtype || conta.accountSubtype || "Não informado",
 
-      saldo: Number(conta.balance || 0),
+      saldo: Number(conta.balance ?? conta.accountBalance ?? 0),
 
-      moeda: conta.currencyCode || "BRL",
+      moeda: conta.currencyCode || conta.accountCurrencyCode || "BRL",
 
       ativa: conta.itemIsActive !== false,
     }));
@@ -1211,20 +1214,20 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
       const credito = cartao.creditData || {};
 
       return {
-        id: cartao.id,
+        id: cartao.id || cartao.accountId,
 
-        nome: cartao.customName || cartao.name || "Cartão",
+        nome: cartao.customName || cartao.accountName || cartao.name || "Cartão",
 
         banco:
-          cartao.connectorName || cartao.marketingName || "Banco não informado",
+          cartao.connectorName || cartao.accountMarketingName || cartao.marketingName || cartao.providerCode || "Banco não informado",
 
-        tipo: cartao.type,
+        tipo: cartao.type || cartao.accountType,
 
-        subtipo: cartao.subtype || "CREDIT_CARD",
+        subtipo: cartao.subtype || cartao.accountSubtype || "CREDIT_CARD",
 
-        saldo: Number(cartao.balance || 0),
+        saldo: Number(cartao.balance ?? cartao.accountBalance ?? 0),
 
-        moeda: cartao.currencyCode || "BRL",
+        moeda: cartao.currencyCode || cartao.accountCurrencyCode || "BRL",
 
         // Ausência de limite no Open Finance não equivale a limite zero.
         limite: credito.creditLimit == null && credito.limit == null
@@ -1237,7 +1240,7 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
 
         fechamento: credito.balanceCloseDate || null,
 
-        ativa: cartao.itemIsActive !== false,
+        ativa: cartao.itemIsActive !== false && cartao.isActive !== false,
 
         // V3: expõe somente metadados não sensíveis.
         // Mesmo que a origem forneça um número, nunca devolvemos mais que os 4 finais.
@@ -1272,22 +1275,22 @@ app.get("/api/accounts", exigirAdmin, async (req, res) => {
     });
 
     const investimentosFormatados = investimentos.map((investimento) => ({
-      id: investimento.id,
+      id: investimento.id || investimento.accountId,
 
-      nome: investimento.customName || investimento.name || "Investimento",
+      nome: investimento.customName || investimento.accountName || investimento.name || "Investimento",
 
       banco:
         investimento.connectorName ||
-        investimento.marketingName ||
+        investimento.accountMarketingName || investimento.marketingName || investimento.providerCode ||
         "Instituição não informada",
 
-      tipo: investimento.type,
+      tipo: investimento.type || investimento.accountType,
 
-      subtipo: investimento.subtype || "Não informado",
+      subtipo: investimento.subtype || investimento.accountSubtype || "Não informado",
 
-      saldo: Number(investimento.balance || 0),
+      saldo: Number(investimento.balance ?? investimento.accountBalance ?? 0),
 
-      moeda: investimento.currencyCode || "BRL",
+      moeda: investimento.currencyCode || investimento.accountCurrencyCode || "BRL",
     }));
 
     const saldoTotalContas = contas.reduce(
