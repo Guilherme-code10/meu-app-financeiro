@@ -8863,25 +8863,50 @@ function configurarBotaoAtualizar() {
 
       botaoAtualizar.textContent = "↻ Sincronizando...";
 
-      const resultado = await sincronizarCaixinhas();
+      // Primeiro solicitar ao Pierre a atualização real do Open Finance.
+      // Antes o botão só ignorava o cache local por 60 segundos.
+      let resultadoPierre = null;
+      let erroPierre = null;
+      try {
+        resultadoPierre = await buscarDados("/api/pierre/sincronizar", { method: "POST" });
+      } catch (erro) {
+        erroPierre = erro.message;
+        console.warn("Atualização Pierre não concluída:", erro);
+      }
 
+      let resultadoCaixinhas = null;
+      let erroCaixinhas = null;
+      try {
+        resultadoCaixinhas = await sincronizarCaixinhas();
+      } catch (erro) {
+        erroCaixinhas = erro.message;
+        console.warn("Caixinhas não sincronizadas:", erro);
+      }
       await carregarDados();
 
-      const quantidade = resultado?.sincronizadas?.length || 0;
-
-      if (quantidade > 0) {
-        alert(
-          `Sincronização concluída!\n\n` +
-            `${quantidade} nova${quantidade === 1 ? "" : "s"} movimentação${
-              quantidade === 1 ? "" : "ões"
-            } sincronizada${quantidade === 1 ? "" : "s"}.`,
-        );
+      const detalhes = [];
+      if (resultadoPierre?.recente) {
+        detalhes.push("Pierre: bancos atualizados recentemente.");
+      } else if (resultadoPierre?.sucesso) {
+        detalhes.push("Pierre: " + (resultadoPierre.atualizadas || 0) +
+          " conexão(ões) atualizada(s), " + (resultadoPierre.emAndamento || 0) +
+          " em processamento.");
+        if (resultadoPierre.precisamAcao) {
+          detalhes.push(resultadoPierre.precisamAcao +
+            " conexão(ões) exigem ação no Pierre/Open Finance.");
+        }
+        if (resultadoPierre.falhas) {
+          detalhes.push(resultadoPierre.falhas +
+            " conexão(ões) apresentaram falha ou atualização parcial.");
+        }
       } else {
-        alert(
-          "Sincronização concluída!\n\n" +
-            "Nenhuma nova movimentação encontrada.",
-        );
+        detalhes.push("Pierre: " + (erroPierre || "não foi possível confirmar a atualização."));
       }
+      const quantidade = resultadoCaixinhas?.sincronizadas?.length || 0;
+      detalhes.push("Caixinhas: " + quantidade + " nova(s) movimentação(ões) sincronizada(s).");
+      if (erroCaixinhas) detalhes.push("Caixinhas: " + erroCaixinhas);
+      detalhes.push("As faturas ainda dependem dos dados liberados pelos bancos no Open Finance.");
+      alert("Atualização solicitada.\n\n" + detalhes.join("\n"));
     } catch (erro) {
       console.error("Erro ao atualizar:", erro);
 
