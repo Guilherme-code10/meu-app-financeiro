@@ -2615,7 +2615,7 @@ app.get("/api/health", async (req, res) => {
 
 app.get("/api/caixinhas", exigirAdmin, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("caixinhas")
       .select("*")
       .order("saldo", { ascending: false })
@@ -2672,7 +2672,7 @@ app.post("/api/caixinhas", exigirAdmin, async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("caixinhas")
       .insert([
         {
@@ -2748,7 +2748,7 @@ app.post("/api/caixinhas/:id/movimentacoes", exigirAdmin, async (req, res) => {
       });
     }
 
-    const { data: caixinha, error: erroCaixinha } = await supabase
+    const { data: caixinha, error: erroCaixinha } = await supabaseAdmin
       .from("caixinhas")
       .select("id, saldo")
       .eq("id", id)
@@ -2783,7 +2783,7 @@ app.post("/api/caixinhas/:id/movimentacoes", exigirAdmin, async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("movimentacoes_caixinhas")
       .insert([
         {
@@ -2803,7 +2803,7 @@ app.post("/api/caixinhas/:id/movimentacoes", exigirAdmin, async (req, res) => {
       throw error;
     }
 
-    const { data: caixinhaAtualizada, error: erroAtualizacao } = await supabase
+    const { data: caixinhaAtualizada, error: erroAtualizacao } = await supabaseAdmin
       .from("caixinhas")
       .update({
         saldo: novoSaldo,
@@ -2846,7 +2846,7 @@ app.post("/api/caixinhas/sincronizar", exigirAdmin, async (req, res) => {
   try {
     console.log("🔄 Iniciando sincronização das caixinhas...");
 
-    const { data: caixinhas, error: erroCaixinhas } = await supabase
+    const { data: caixinhas, error: erroCaixinhas } = await supabaseAdmin
       .from("caixinhas")
       .select("id, nome, saldo");
 
@@ -2868,7 +2868,7 @@ app.post("/api/caixinhas/sincronizar", exigirAdmin, async (req, res) => {
 
     console.log(`📦 ${caixinhas.length} caixinhas encontradas.`);
 
-    let { data: controleSincronizacao, error: erroControle } = await supabase
+    let { data: controleSincronizacao, error: erroControle } = await supabaseAdmin
       .from("sincronizacoes")
       .select("id, ultima_sincronizacao")
       .eq("id", 1)
@@ -2879,7 +2879,7 @@ app.post("/api/caixinhas/sincronizar", exigirAdmin, async (req, res) => {
     }
 
     if (!controleSincronizacao) {
-      const { data: novoControle, error: erroCriarControle } = await supabase
+      const { data: novoControle, error: erroCriarControle } = await supabaseAdmin
         .from("sincronizacoes")
         .insert([
           {
@@ -3069,7 +3069,7 @@ const dataFimFormatada = dataFim
       // ==========================================
 
       const { data: movimentacaoExistente, error: erroMovimentacaoExistente } =
-        await supabase
+        await supabaseAdmin
           .from("movimentacoes_caixinhas")
           .select("id")
           .eq("transacao_pierre_id", String(transacaoId))
@@ -3212,7 +3212,7 @@ const dataFimFormatada = dataFim
   }
 );
 
-      const { data: movimentacao, error: erroInsercao } = await supabase
+      const { data: movimentacao, error: erroInsercao } = await supabaseAdmin
         .from("movimentacoes_caixinhas")
         .insert([
           {
@@ -3247,7 +3247,7 @@ const dataFimFormatada = dataFim
       }
 
       const { data: caixinhaAtualizada, error: erroAtualizacao } =
-        await supabase
+        await supabaseAdmin
           .from("caixinhas")
           .update({
             saldo: novoSaldo,
@@ -3285,7 +3285,7 @@ const dataFimFormatada = dataFim
     // SALVAR ÚLTIMA SINCRONIZAÇÃO
     // ==========================================
 
-    const { error: erroSalvarSincronizacao } = await supabase
+    const { error: erroSalvarSincronizacao } = await supabaseAdmin
       .from("sincronizacoes")
       .update({
         ultima_sincronizacao: agora.toISOString(),
@@ -3371,7 +3371,7 @@ app.post("/api/caixinhas/:id/rendimento", exigirAdmin, async (req, res) => {
       });
     }
 
-    const { data: caixinha, error: erroCaixinha } = await supabase
+    const { data: caixinha, error: erroCaixinha } = await supabaseAdmin
       .from("caixinhas")
       .select("id, nome, saldo")
       .eq("id", id)
@@ -3385,7 +3385,7 @@ app.post("/api/caixinhas/:id/rendimento", exigirAdmin, async (req, res) => {
       });
     }
 
-    const { data: rendimento, error: erroRendimento } = await supabase
+    const { data: rendimento, error: erroRendimento } = await supabaseAdmin
       .from("rendimentos_caixinhas")
       .insert([
         {
@@ -3407,7 +3407,7 @@ app.post("/api/caixinhas/:id/rendimento", exigirAdmin, async (req, res) => {
 
     const novoSaldo = saldoAtual + valorNumerico;
 
-    const { data: caixinhaAtualizada, error: erroAtualizacao } = await supabase
+    const { data: caixinhaAtualizada, error: erroAtualizacao } = await supabaseAdmin
       .from("caixinhas")
       .update({
         saldo: novoSaldo,
@@ -3471,7 +3471,7 @@ app.put(
         });
       }
 
-      const { data: movimentacao, error: erroMovimentacao } = await supabase
+      const { data: movimentacao, error: erroMovimentacao } = await supabaseAdmin
         .from("movimentacoes_caixinhas")
         .select("id, caixinha_id, tipo, valor, descricao, transacao_pierre_id")
         .eq("id", movimentacaoId)
@@ -3492,7 +3492,7 @@ app.put(
         });
       }
 
-      const { data: caixinha, error: erroCaixinha } = await supabase
+      const { data: caixinha, error: erroCaixinha } = await supabaseAdmin
         .from("caixinhas")
         .select("id, saldo")
         .eq("id", id)
@@ -3529,7 +3529,7 @@ app.put(
       }
 
       const { data: movimentacaoAtualizada, error: erroAtualizacao } =
-        await supabase
+        await supabaseAdmin
           .from("movimentacoes_caixinhas")
           .update({
             tipo,
@@ -3545,7 +3545,7 @@ app.put(
         throw erroAtualizacao;
       }
 
-      const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+      const { data: caixinhaAtualizada, error: erroSaldo } = await supabaseAdmin
         .from("caixinhas")
         .update({
           saldo: novoSaldo,
@@ -3616,7 +3616,7 @@ app.put(
       let efeitoAntigo;
 
       if (origem === "RENDIMENTO") {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("rendimentos_caixinhas")
           .select("id, caixinha_id, valor, descricao")
           .eq("id", lancamentoId)
@@ -3632,7 +3632,7 @@ app.put(
 
         efeitoAntigo = Number(data.valor || 0);
       } else if (origem === "MOVIMENTACAO") {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("movimentacoes_caixinhas")
           .select(
             "id, caixinha_id, tipo, valor, descricao, transacao_pierre_id",
@@ -3666,7 +3666,7 @@ app.put(
         });
       }
 
-      const { data: caixinha, error: erroCaixinha } = await supabase
+      const { data: caixinha, error: erroCaixinha } = await supabaseAdmin
         .from("caixinhas")
         .select("id, saldo")
         .eq("id", id)
@@ -3713,7 +3713,7 @@ app.put(
             ? "ENTRADA"
             : tipoDestino;
 
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
           .from("movimentacoes_caixinhas")
           .update({
             tipo: tipoBanco,
@@ -3728,7 +3728,7 @@ app.put(
         origem === "RENDIMENTO" &&
         tipoDestino === "RENDIMENTO"
       ) {
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
           .from("rendimentos_caixinhas")
           .update({
             valor: valorNumerico,
@@ -3743,7 +3743,7 @@ app.put(
         tipoDestino === "RENDIMENTO"
       ) {
         const { data: novoRendimento, error: erroInsercao } =
-          await supabase
+          await supabaseAdmin
             .from("rendimentos_caixinhas")
             .insert([
               {
@@ -3757,14 +3757,14 @@ app.put(
 
         if (erroInsercao) throw erroInsercao;
 
-        const { error: erroExclusao } = await supabase
+        const { error: erroExclusao } = await supabaseAdmin
           .from("movimentacoes_caixinhas")
           .delete()
           .eq("id", lancamentoId)
           .eq("caixinha_id", id);
 
         if (erroExclusao) {
-          await supabase
+          await supabaseAdmin
             .from("rendimentos_caixinhas")
             .delete()
             .eq("id", novoRendimento.id);
@@ -3778,7 +3778,7 @@ app.put(
             : tipoDestino;
 
         const { data: novaMovimentacao, error: erroInsercao } =
-          await supabase
+          await supabaseAdmin
             .from("movimentacoes_caixinhas")
             .insert([
               {
@@ -3793,14 +3793,14 @@ app.put(
 
         if (erroInsercao) throw erroInsercao;
 
-        const { error: erroExclusao } = await supabase
+        const { error: erroExclusao } = await supabaseAdmin
           .from("rendimentos_caixinhas")
           .delete()
           .eq("id", lancamentoId)
           .eq("caixinha_id", id);
 
         if (erroExclusao) {
-          await supabase
+          await supabaseAdmin
             .from("movimentacoes_caixinhas")
             .delete()
             .eq("id", novaMovimentacao.id);
@@ -3810,7 +3810,7 @@ app.put(
       }
 
       const { data: caixinhaAtualizada, error: erroSaldo } =
-        await supabase
+        await supabaseAdmin
           .from("caixinhas")
           .update({
             saldo: novoSaldo,
@@ -3849,7 +3849,7 @@ app.delete(
     try {
       const { id, movimentacaoId } = req.params;
 
-      const { data: movimentacao, error: erroMovimentacao } = await supabase
+      const { data: movimentacao, error: erroMovimentacao } = await supabaseAdmin
         .from("movimentacoes_caixinhas")
         .select("id, caixinha_id, tipo, valor, transacao_pierre_id")
         .eq("id", movimentacaoId)
@@ -3870,7 +3870,7 @@ app.delete(
         });
       }
 
-      const { data: caixinha, error: erroCaixinha } = await supabase
+      const { data: caixinha, error: erroCaixinha } = await supabaseAdmin
         .from("caixinhas")
         .select("id, saldo")
         .eq("id", id)
@@ -3900,7 +3900,7 @@ app.delete(
         });
       }
 
-      const { error: erroExclusao } = await supabase
+      const { error: erroExclusao } = await supabaseAdmin
         .from("movimentacoes_caixinhas")
         .delete()
         .eq("id", movimentacaoId)
@@ -3910,7 +3910,7 @@ app.delete(
         throw erroExclusao;
       }
 
-      const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+      const { data: caixinhaAtualizada, error: erroSaldo } = await supabaseAdmin
         .from("caixinhas")
         .update({
           saldo: novoSaldo,
@@ -3966,7 +3966,7 @@ app.put(
         });
       }
 
-      const { data: rendimento, error: erroRendimento } = await supabase
+      const { data: rendimento, error: erroRendimento } = await supabaseAdmin
         .from("rendimentos_caixinhas")
         .select("id, caixinha_id, valor, descricao")
         .eq("id", rendimentoId)
@@ -3980,7 +3980,7 @@ app.put(
         });
       }
 
-      const { data: caixinha, error: erroCaixinha } = await supabase
+      const { data: caixinha, error: erroCaixinha } = await supabaseAdmin
         .from("caixinhas")
         .select("id, saldo")
         .eq("id", id)
@@ -4009,7 +4009,7 @@ app.put(
 
       if (converterParaSaldoInicial === true) {
         const { data: novaMovimentacao, error: erroInsercao } =
-          await supabase
+          await supabaseAdmin
             .from("movimentacoes_caixinhas")
             .insert([
               {
@@ -4026,14 +4026,14 @@ app.put(
           throw erroInsercao;
         }
 
-        const { error: erroExcluirRendimento } = await supabase
+        const { error: erroExcluirRendimento } = await supabaseAdmin
           .from("rendimentos_caixinhas")
           .delete()
           .eq("id", rendimentoId)
           .eq("caixinha_id", id);
 
         if (erroExcluirRendimento) {
-          await supabase
+          await supabaseAdmin
             .from("movimentacoes_caixinhas")
             .delete()
             .eq("id", novaMovimentacao.id);
@@ -4041,7 +4041,7 @@ app.put(
           throw erroExcluirRendimento;
         }
 
-        const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+        const { data: caixinhaAtualizada, error: erroSaldo } = await supabaseAdmin
           .from("caixinhas")
           .update({
             saldo: novoSaldo,
@@ -4064,7 +4064,7 @@ app.put(
       }
 
       const { data: rendimentoAtualizado, error: erroAtualizacao } =
-        await supabase
+        await supabaseAdmin
           .from("rendimentos_caixinhas")
           .update({
             valor: valorNumerico,
@@ -4079,7 +4079,7 @@ app.put(
         throw erroAtualizacao;
       }
 
-      const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+      const { data: caixinhaAtualizada, error: erroSaldo } = await supabaseAdmin
         .from("caixinhas")
         .update({
           saldo: novoSaldo,
@@ -4121,7 +4121,7 @@ app.delete(
     try {
       const { id, rendimentoId } = req.params;
 
-      const { data: rendimento, error: erroRendimento } = await supabase
+      const { data: rendimento, error: erroRendimento } = await supabaseAdmin
         .from("rendimentos_caixinhas")
         .select("id, caixinha_id, valor")
         .eq("id", rendimentoId)
@@ -4135,7 +4135,7 @@ app.delete(
         });
       }
 
-      const { data: caixinha, error: erroCaixinha } = await supabase
+      const { data: caixinha, error: erroCaixinha } = await supabaseAdmin
         .from("caixinhas")
         .select("id, saldo")
         .eq("id", id)
@@ -4159,7 +4159,7 @@ app.delete(
         });
       }
 
-      const { error: erroExclusao } = await supabase
+      const { error: erroExclusao } = await supabaseAdmin
         .from("rendimentos_caixinhas")
         .delete()
         .eq("id", rendimentoId)
@@ -4169,7 +4169,7 @@ app.delete(
         throw erroExclusao;
       }
 
-      const { data: caixinhaAtualizada, error: erroSaldo } = await supabase
+      const { data: caixinhaAtualizada, error: erroSaldo } = await supabaseAdmin
         .from("caixinhas")
         .update({
           saldo: novoSaldo,
@@ -4227,7 +4227,7 @@ app.put("/api/caixinhas/:id", exigirAdmin, async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("caixinhas")
       .update({
         nome: nome.trim(),
@@ -4271,7 +4271,7 @@ app.delete("/api/caixinhas/:id", exigirAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { error: erroMovimentacoes } = await supabase
+    const { error: erroMovimentacoes } = await supabaseAdmin
       .from("movimentacoes_caixinhas")
       .delete()
       .eq("caixinha_id", id);
@@ -4280,7 +4280,7 @@ app.delete("/api/caixinhas/:id", exigirAdmin, async (req, res) => {
       throw erroMovimentacoes;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("caixinhas")
       .delete()
       .eq("id", id)
@@ -4320,7 +4320,7 @@ app.get("/api/caixinhas/:id/dashboard", exigirAdmin, async (req, res) => {
     // BUSCAR CAIXINHA
     // ==========================================
 
-    const { data: caixinha, error: erroCaixinha } = await supabase
+    const { data: caixinha, error: erroCaixinha } = await supabaseAdmin
       .from("caixinhas")
       .select("id, nome, descricao, saldo, meta, created_at, updated_at")
       .eq("id", id)
@@ -4340,7 +4340,7 @@ app.get("/api/caixinhas/:id/dashboard", exigirAdmin, async (req, res) => {
     const {
       data: movimentacoes,
       error: erroMovimentacoes,
-    } = await supabase
+    } = await supabaseAdmin
       .from("movimentacoes_caixinhas")
       .select(
         "id, caixinha_id, tipo, valor, descricao, transacao_pierre_id, created_at",
@@ -4361,7 +4361,7 @@ app.get("/api/caixinhas/:id/dashboard", exigirAdmin, async (req, res) => {
     const {
       data: rendimentos,
       error: erroRendimentos,
-    } = await supabase
+    } = await supabaseAdmin
       .from("rendimentos_caixinhas")
       .select("id, caixinha_id, valor, descricao, created_at")
       .eq("caixinha_id", id)
