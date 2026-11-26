@@ -1368,6 +1368,96 @@ app.post("/api/bills/sync-pierre", exigirAdmin, async (req, res) => {
 // ou ESCONDER. Tabela: supabase/cartoes_agrupamento.sql
 // ==========================================
 
+// ==========================================
+// DIAGNÓSTICO DAS FATURAS
+// Quando a tela Cartões abre, o app manda o valor que mostrou para cada
+// cartão; o servidor junta com o que o Pierre devolve (contas de crédito,
+// faturas, resumo e soma das compras por cartão) e guarda uma foto em
+// diagnostico_faturas para conferir por que um valor não bate com o banco.
+// Não guarda número de cartão (só os 4 finais que o app já mostra).
+// ==========================================
+
+app.post("/api/cartoes/diagnostico", exigirAdmin, async (req, res) => {
+  try {
+    const mostrados = Array.isArray(req.body?.cartoes) ? req.body.cartoes.slice(0, 30) : [];
+    const hoje = new Date();
+    const inicio = new Date(hoje);
+    inicio.setDate(inicio.getDate() - 75);
+    const fim = new Date(hoje);
+    fim.setDate(fim.getDate() + 1);
+
+    const [contas, faturas, resumo, transacoes] = await Promise.all([
+      pierreRequest("get-accounts"),
+      pierreRequest("get-bills", {}),
+      pierreRequest("get-bill-summary", {}).catch((e) => ({ erro: e.message })),
+      pierreRequest("get-transactions", {
+        startDate: inicio.toISOString().slice(0, 10),
+        endDate: fim.toISOString().slice(0, 10),
+        format: "raw",
+      }).catch((e) => ({ erro: e.message })),
+    ]);
+
+    const credito = (Array.isArray(contas?.data) ? contas.data : []).filter((c) => c.type === "CREDIT");
+    const listaFaturas = Array.isArray(faturas?.data) ? faturas.data : [];
+    const listaResumo = Array.isArray(resumo?.data) ? resumo.data : [];
+    const listaTx = Array.isArray(transacoes?.data) ? transacoes.data : [];
+
+    const porConta = credito.map((c) => {
+      const cd = c.creditData || {};
+      const faturasConta = listaFaturas
+        .filter((f) => String(f.accountId) === String(c.id))
+        .sort((a, b) => String(b.dueDate).localeCompare(String(a.dueDate)))
+        .slice(0, 4)
+        .map((f) => ({
+          fechamento: String(f.billClosingDate || "").slice(0, 10),
+          vencimento: String(f.dueDate || "").slice(0, 10),
+          total: f.totalAmount,
+          minimo: f.minimumPaymentAmount,
+          status: f.status,
+        }));
+      const ultimoFechamento = faturasConta[0]?.fechamento || null;
+      const txConta = listaTx.filter((t) => String(t.accountId) === String(c.id));
+      const desdeFechamento = ultimoFechamento
+        ? txConta.filter((t) => String(t.date || "").slice(0, 10) > ultimoFechamento)
+        : [];
+      const soma = (l) => Math.round(l.reduce((s, t) => s + Number(t.amount || 0), 0) * 100) / 100;
+      const r = listaResumo.find((x) => String(x.account_id || x.accountId) === String(c.id));
+      return {
+        id: c.id,
+        nome: c.customName || c.name,
+        banco: c.connectorName || c.marketingName,
+        subtipo: c.subtype,
+        ativa: c.itemIsActive !== false,
+        saldoPierre: c.balance,
+        limite: cd.creditLimit ?? cd.limit ?? null,
+        limiteDisponivel: cd.availableCreditLimit ?? cd.availableLimit ?? null,
+        fechamentoCartao: cd.balanceCloseDate || null,
+        vencimentoCartao: cd.balanceDueDate || null,
+        final: String(cd.lastFourDigits || cd.last4 || c.number || "").replace(/\D/g, "").slice(-4) || null,
+        resumo: r ? { aproxFaturaAtual: r.approx_current_bill_amount ?? r.approxCurrentBillAmount, limite: r.credit_limit ?? r.creditLimit } : null,
+        faturas: faturasConta,
+        compras75dias: { quantidade: txConta.length, soma: soma(txConta) },
+        comprasDesdeUltimoFechamento: { quantidade: desdeFechamento.length, soma: soma(desdeFechamento) },
+        mostradoNoApp: mostrados.find((m) => String(m.id) === String(c.id)) || null,
+      };
+    });
+
+    const dados = {
+      geradoEm: hoje.toISOString(),
+      erros: { resumo: resumo?.erro || null, transacoes: transacoes?.erro || null },
+      cartoes: porConta,
+    };
+
+    const { error } = await supabaseAdmin.from("diagnostico_faturas").insert([{ dados }]);
+    if (error) throw error;
+
+    res.json({ sucesso: true });
+  } catch (erro) {
+    console.error("Erro no diagnóstico de faturas:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível gerar o diagnóstico." });
+  }
+});
+
 app.get("/api/cartoes/agrupamento", exigirAdmin, async (_req, res) => {
   try {
     const { data, error } = await supabaseAdmin.from("cartoes_agrupamento").select("account_id, modo, somar_em");

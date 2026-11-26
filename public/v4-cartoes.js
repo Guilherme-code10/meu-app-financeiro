@@ -98,11 +98,37 @@
     painel.open = aberto;
   }
 
+  // Diagnóstico: uma vez por abertura do app, manda o valor mostrado de cada
+  // cartão para o servidor comparar com o que o Pierre devolve.
+  let diagnosticoEnviado = false;
+  function enviarDiagnostico() {
+    if (diagnosticoEnviado || !(state.cartoes || []).length || !(state.faturas || []).length) return;
+    diagnosticoEnviado = true;
+    const cartoes = state.cartoes.map((c) => {
+      const config = agrupamentoCartoes[String(c.id)] || { modo: "SEPARADO" };
+      const temResumo = (state.resumos || []).some((r) => String(r.account_id || r.accountId || "") === String(c.id));
+      return {
+        id: c.id,
+        modo: modoCartao(c),
+        configurado: config.modo || "SEPARADO",
+        somarEm: config.somarEm || null,
+        valorProprio: Math.round(valorFaturaDoCartao(c) * 100) / 100,
+        fonte: temResumo ? "resumo" : "fatura/transacoes",
+      };
+    });
+    buscarDados("/api/cartoes/diagnostico", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cartoes }),
+    }).catch((erro) => console.warn("Diagnóstico das faturas:", erro.message));
+  }
+
   const original = mostrarCartoesEFaturas;
   mostrarCartoesEFaturas = function v4MostrarCartoes(...args) {
     const r = original.apply(this, args);
     try {
       desenhar();
+      enviarDiagnostico();
     } catch (erro) {
       console.warn("Seus cartões:", erro);
     }
