@@ -1651,123 +1651,32 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
     // Mantemos somente faturas vindas do Pierre ou salvas previamente.
 
     // ==========================================
-    // FATURA ABERTA: UMA CONSULTA POR ACCOUNT ID
-    // get-bill-summary devolve estimativa, nunca uma fatura oficial.
-    // O Pierre só usa fallback de fechamento quando este não é informado.
+    // RESUMO DE FATURA ABERTA: restaurar consulta geral como primeira opção.
+    // Somente valores retornados pelo Pierre; nunca converter ausência em zero.
     // ==========================================
 
     const resumoPorConta = new Map();
-    let contasCredito = [];
-
-    try {
-      const respostaContas = await pierreRequest("get-accounts");
-      const contasBrutas = Array.isArray(respostaContas?.data) ? respostaContas.data : [];
-      const ids = new Set();
-
-      contasCredito = contasBrutas.filter(c => {
-        const id = String(c?.id || c?.accountId || "");
-        const tipo = String(c?.type || c?.accountType || "").toUpperCase();
-        if (!id || tipo !== "CREDIT" || c?.itemIsActive === false || c?.isActive === false) return false;
-        if (accountId && id !== String(accountId)) return false;
-        if (ids.has(id)) return false;
-        ids.add(id);
-        return true;
-      });
-    } catch (erroContas) {
-      console.warn("Pierre get-accounts indisponível para faturas:", erroContas.message);
-      avisosFaturas.push("Não foi possível identificar os cartões para consultar as faturas atuais individualmente.");
-    }
-
-    // Consulta exclusivamente de leitura da configuração de fechamento.
-    // Não modificamos os dias salvos no Pierre sem a confirmação do usuário.
-    let fechamentosPierre = new Map();
-    try {
-      if (contasCredito.length) {
-        const configurados = await listarFechamentosPierre();
-        fechamentosPierre = new Map(configurados.map(c => [
-          String(c?.id || c?.accountId || ""),
-          {
-            tem: c?.hasClosingDate === true && c?.isActive !== false,
-            dia: Number(c?.closingDay),
-          }
-        ]));
-      }
-    } catch (erroFechamentos) {
-      console.warn("Não foi possível listar dias de fechamento do Pierre:", erroFechamentos.message);
-      avisosFaturas.push("Não foi possível verificar os dias de fechamento cadastrados no Pierre.");
-    }
-
-    // Dias informados pelo suporte Pierre em 26/11/2026, usados só como
-    // referência provisória para calcular o valor aproximado. Confirme-os
-    // na fatura do próprio banco antes de cadastrá-los permanentemente.
-    function fechamentoDeReferencia(cartao) {
-      const texto = [
-        cartao?.customName, cartao?.accountName, cartao?.name,
-        cartao?.accountMarketingName, cartao?.marketingName,
-        cartao?.connectorName, cartao?.providerCode,
-      ].filter(Boolean).join(" ").normalize("NFD")
-       .replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[_-]/g, " ");
-      if (/MERCADO PAGO/.test(texto)) return 8;
-      if (/C6/.test(texto) && /BANDEIRADO/.test(texto)) return 3;
-      if (/NUBANK/.test(texto) && /GOLD/.test(texto)) return 5;
-      if (/INTER/.test(texto) && /PRIME DUO/.test(texto)) return 5;
-      if (/ITAU/.test(texto) && /CLICK/.test(texto)) return 2;
-      if (/ITAU/.test(texto) && /MASTERCARD PLATINUM/.test(texto) && !/CLICK/.test(texto)) return 1;
-      return null;
-    }
-
-    if (contasCredito.length) {
-      const resultados = await Promise.allSettled(contasCredito.map(cartao => {
-        const id = String(cartao.id || cartao.accountId);
-        const registro = fechamentosPierre.get(id);
-        const diaConfirmado = registro?.tem && Number.isInteger(registro?.dia)
-          && registro.dia >= 1 && registro.dia <= 31 ? registro.dia : null;
-        const diaReferencia = fechamentoDeReferencia(cartao);
-        const dia = diaConfirmado ?? diaReferencia;
-        const params = dia ? {accountId: id, closingDay: dia} : {accountId: id};
-        return pierreRequest("get-bill-summary", params);
-      }));
-
-      for (let i = 0; i < resultados.length; i++) {
-        const card = contasCredito[i];
-        const id = String(card.id || card.accountId);
-        const registro = fechamentosPierre.get(id);
-        const confirmado = registro?.tem && Number.isInteger(registro?.dia)
-          && registro.dia >= 1 && registro.dia <= 31;
-        const dia = confirmado ? registro.dia : fechamentoDeReferencia(card);
-        const resposta = resultados[i];
-        if (resposta.status !== "fulfilled") {
-          console.warn("Resumo de fatura indisponível para um cartão:", resposta.reason?.message);
-          continue;
-        }
-        const dados = resposta.value;
-        if (dados?.success === false) {
-          console.warn("Pierre get-bill-summary retornou success=false.");
-          continue;
-        }
-        const entradas = Array.isArray(dados?.data) ? dados.data : [];
-        const resumo = entradas.find(x =>
-          String(x?.account_id || x?.accountId || "") === id &&
-          x?.approx_current_bill_amount != null &&
-          String(x.approx_current_bill_amount).trim() !== "" &&
-          Number.isFinite(Number(x.approx_current_bill_amount))
-        );
-        if (!resumo) continue;
-
+    function incorporarResumos(dados, idEsperado = null, cartao = null) {
+      if (dados?.success === false) return;
+      const entradas = Array.isArray(dados?.data) ? dados.data : [];
+      for (const resumo of entradas) {
+        const id = String(resumo?.account_id || resumo?.accountId || "");
+        const bruto = resumo?.approx_current_bill_amount ?? resumo?.approxCurrentBillAmount;
+        if (!id || (accountId && id !== String(accountId)) ||
+            (idEsperado && id !== idEsperado) || resumoPorConta.has(id) ||
+            bruto == null || String(bruto).trim() === "" ||
+            !Number.isFinite(Number(bruto))) continue;
+        const periodoValido = resumo.period_start && resumo.period_end &&
+          String(resumo.period_start).slice(0, 10) < String(resumo.period_end).slice(0, 10);
         resumoPorConta.set(id, {
           ...resumo,
           account_id: id,
-          credit_limit: resumo.credit_limit ?? card.creditData?.creditLimit ?? null,
-          available_credit_limit: resumo.available_credit_limit ?? card.creditData?.availableCreditLimit ?? null,
-          // A Pierre pode retornar o vencimento como ambos os limites do período.
-          // Não inventar datas nem alterar o valor calculado pela origem.
-          period_start: resumo.period_start && resumo.period_end && String(resumo.period_start).slice(0, 10) < String(resumo.period_end).slice(0, 10) ? resumo.period_start : null,
-          period_end: resumo.period_start && resumo.period_end && String(resumo.period_start).slice(0, 10) < String(resumo.period_end).slice(0, 10) ? resumo.period_end : null,
-          // Zero retornado pelo Pierre é uma fatura real sem compras na janela.
-          approx_current_bill_amount: Number(resumo.approx_current_bill_amount),
-          fonte_fechamento: confirmado ? "CADASTRADO_PIERRE" :
-            dia ? "REFERENCIA_SUPORTE" : "FALLBACK_PIERRE",
-          closing_day: Number(resumo.closing_day || dia || 0) || null,
+          approx_current_bill_amount: Number(bruto),
+          credit_limit: resumo.credit_limit ?? resumo.creditLimit ?? cartao?.creditData?.creditLimit ?? cartao?.creditData?.limit ?? null,
+          available_credit_limit: resumo.available_credit_limit ?? resumo.availableCreditLimit ?? cartao?.creditData?.availableCreditLimit ?? cartao?.creditData?.availableLimit ?? null,
+          period_start: periodoValido ? resumo.period_start : null,
+          period_end: periodoValido ? resumo.period_end : null,
+          closing_day: Number(resumo.closing_day ?? resumo.closingDay) || null,
           notice: String(dados.notice || ""),
           transactionsInfo: String(dados.transactionsInfo || ""),
           recommendations: String(dados.recommendations || ""),
@@ -1775,20 +1684,56 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
           tipo_valor: "ESTIMATIVA_FATURA_ABERTA",
         });
       }
+    }
 
-      if (resumoPorConta.size) {
-        avisosFaturas.push("Faturas em aberto são estimativas do Pierre, não valores oficiais. Compras recentes e parcelas podem demorar para entrar.");
+    try {
+      const geral = await pierreRequest("get-bill-summary", accountId ? { accountId } : {});
+      incorporarResumos(geral);
+    } catch (erroResumo) {
+      console.warn("Pierre get-bill-summary geral indisponível:", erroResumo.message);
+    }
+
+    // Quando faltar algum cartão, consultar somente o accountId, como antes.
+    // A falta de configuração de fechamento não deve impedir a consulta geral.
+    try {
+      const respostaContas = await pierreRequest("get-accounts");
+      const contasBrutas = Array.isArray(respostaContas?.data) ? respostaContas.data : [];
+      const ids = new Set();
+      const faltantes = contasBrutas.filter(c => {
+        const id = String(c?.id || c?.accountId || "");
+        const tipo = String(c?.type || c?.accountType || "").toUpperCase();
+        if (!id || tipo !== "CREDIT" || c?.itemIsActive === false ||
+            c?.isActive === false || (accountId && id !== String(accountId)) ||
+            ids.has(id)) return false;
+        ids.add(id);
+        const existente = resumoPorConta.get(id);
+        if (existente) {
+          existente.credit_limit ??= c.creditData?.creditLimit ?? c.creditData?.limit ?? null;
+          existente.available_credit_limit ??= c.creditData?.availableCreditLimit ?? c.creditData?.availableLimit ?? null;
+          return false;
+        }
+        return true;
+      }).slice(0, 20);
+      const respostas = await Promise.allSettled(faltantes.map(c =>
+        pierreRequest("get-bill-summary", { accountId: String(c.id || c.accountId) })
+      ));
+      for (let i = 0; i < respostas.length; i++) {
+        const resposta = respostas[i];
+        const c = faltantes[i];
+        if (resposta.status === "fulfilled") {
+          incorporarResumos(resposta.value, String(c.id || c.accountId), c);
+        }
       }
-      const semResumo = contasCredito.filter(c => !resumoPorConta.has(String(c.id || c.accountId)));
+      const semResumo = faltantes.filter(c => !resumoPorConta.has(String(c.id || c.accountId)));
       if (semResumo.length) {
-        avisosFaturas.push("Sem resumo de fatura atual para " + semResumo.length +
-          " cartão(ões). Não serão usados valores inventados.");
+        avisosFaturas.push("Sem resumo atual para " + semResumo.length + " cartão(ões). Confira no banco.");
       }
-      const referencias = [...resumoPorConta.values()].filter(r => r.fonte_fechamento !== "CADASTRADO_PIERRE");
-      if (referencias.length) {
-        avisosFaturas.push("O dia de fechamento de " + referencias.length +
-          " cartão(ões) ainda deve ser confirmado na fatura do banco; a estimativa usa referência do suporte ou fallback do Pierre.");
-      }
+    } catch (erroContas) {
+      console.warn("Consulta complementar das faturas indisponível:", erroContas.message);
+      avisosFaturas.push("Não foi possível complementar todos os resumos de cartão.");
+    }
+    if (resumoPorConta.size) {
+      avisosFaturas.push("Faturas em aberto são estimativas do Pierre, sujeitas ao atraso do Open Finance.");
     }
 
     const resumos = [...resumoPorConta.values()];
