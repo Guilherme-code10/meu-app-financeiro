@@ -1749,6 +1749,7 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
         const resumo = entradas.find(x =>
           String(x?.account_id || x?.accountId || "") === id &&
           x?.approx_current_bill_amount != null &&
+          String(x.approx_current_bill_amount).trim() !== "" &&
           Number.isFinite(Number(x.approx_current_bill_amount))
         );
         if (!resumo) continue;
@@ -1756,6 +1757,12 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
         resumoPorConta.set(id, {
           ...resumo,
           account_id: id,
+          credit_limit: resumo.credit_limit ?? card.creditData?.creditLimit ?? null,
+          available_credit_limit: resumo.available_credit_limit ?? card.creditData?.availableCreditLimit ?? null,
+          // A Pierre pode retornar o vencimento como ambos os limites do período.
+          // Não inventar datas nem alterar o valor calculado pela origem.
+          period_start: resumo.period_start && resumo.period_end && String(resumo.period_start).slice(0, 10) < String(resumo.period_end).slice(0, 10) ? resumo.period_start : null,
+          period_end: resumo.period_start && resumo.period_end && String(resumo.period_start).slice(0, 10) < String(resumo.period_end).slice(0, 10) ? resumo.period_end : null,
           // Zero retornado pelo Pierre é uma fatura real sem compras na janela.
           approx_current_bill_amount: Number(resumo.approx_current_bill_amount),
           fonte_fechamento: confirmado ? "CADASTRADO_PIERRE" :
