@@ -382,3 +382,265 @@ body.v4 #plano .v4p-idea p { margin: 2px 0 0; color: var(--muted); font-size: 13
   body.v4 #plano .v4p-chips { gap: 6px; }
   body.v4 #plano .v4p-chips button { padding: 0 12px; font-size: 13px; }
 }
+
+/* =========================================================
+   TODAS AS TELAS — padrão único de títulos, painéis,
+   indicadores, formulários, botões, listas e tabelas
+   ========================================================= */
+
+/* Título da seção: o título da página já está no topo,
+   então a seção mostra só a descrição + filtros ao lado */
+body.v4 .section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin: 0 0 18px;
+}
+body.v4 .section-title > div:first-child { flex: 1 1 320px; }
+body.v4 .section-title .eyebrow { display: none; }
+body.v4 .section-title h2.v4-dup { display: none; }
+body.v4 .section-title p { margin: 0; color: var(--muted); }
+
+/* Rótulos pequenos dentro de painéis: sem caixa-alta espaçada */
+body.v4 .panel .eyebrow,
+body.v4 .v3-panel .eyebrow {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #a78bfa;
+  margin-bottom: 4px;
+}
+
+/* Painéis do V3 com o mesmo acabamento dos painéis do app */
+body.v4 .v3-panel {
+  padding: 22px 24px;
+  border-radius: var(--v4-radius);
+}
+body.v4 .v3-note {
+  font-size: 13.5px;
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+
+/* Indicadores (todas as telas): mesmo tamanho e peso */
+body.v4 .section:not(#dashboard) .card,
+body.v4 .v3-kpi,
+body.v4 .mini-finance-card {
+  min-height: 0;
+  padding: 16px 18px;
+  border-radius: 16px;
+}
+body.v4 .section:not(#dashboard) .card span,
+body.v4 .v3-kpi span,
+body.v4 .mini-finance-card span { font-size: 13px; }
+body.v4 .section:not(#dashboard) .card strong,
+body.v4 .v3-kpi strong,
+body.v4 .mini-finance-card strong {
+  font-size: 22px;
+  line-height: 1.2;
+  margin: 6px 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+body.v4 .section:not(#dashboard) .cards,
+body.v4 .v3-kpis {
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* Formulários */
+body.v4 .main label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #b9b6c8;
+}
+body.v4 .main input:not([type="checkbox"]):not([type="radio"]),
+body.v4 .main select,
+body.v4 .main textarea {
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 400;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+body.v4 .main input::placeholder,
+body.v4 .main textarea::placeholder { font-weight: 400; color: #6f6c80; }
+
+/* Botões: primário roxo e secundário discreto, todos com a mesma altura */
+body.v4 .main button.primary,
+body.v4 .main .form-panel button[type="submit"] {
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+body.v4 .main .link-btn,
+body.v4 .main button.secondary,
+body.v4 .main .v3-sync-btn,
+body.v4 .main .caixinha-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: none;
+}
+body.v4 .main .delete-btn {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #f87171;
+  font-size: 13.5px;
+  padding: 0 6px;
+}
+
+/* Seletor de mês das contas fixas: uma linha só */
+body.v4 #fixedMonthPanel { padding: 12px 14px; }
+body.v4 #fixedMonthPanel .panel-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+}
+body.v4 #fixedMonthPanel h2 { font-size: 18px; }
+body.v4 #fixedMonthPanel p { font-size: 13px; }
+
+/* Lista de contas fixas */
+body.v4 .fixed-item {
+  padding: 14px 16px;
+  border-radius: 14px;
+  gap: 10px 14px;
+}
+body.v4 .fixed-item strong { font-size: 15.5px; }
+body.v4 .fixed-item .meta,
+body.v4 .fixed-item small { font-size: 13px; }
+body.v4 .fixed-item button.primary,
+body.v4 .fixed-item button:not(.delete-btn) {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 13.5px;
+  border-radius: 10px;
+}
+
+/* Cartões de crédito: menos texto gritando */
+body.v4 #cartoes .card-header { margin-bottom: 10px; }
+body.v4 #cartoes h3 { font-size: 20px; }
+body.v4 #cartoes .credit-card-value { font-size: 30px; letter-spacing: -.02em; }
+body.v4 #cartoes p,
+body.v4 #cartoes .meta { font-size: 14px; line-height: 1.45; }
+body.v4 #cartoes .credit-card-footer button,
+body.v4 #cartoes .credit-card-footer a { font-size: 15px; }
+
+/* Contas bancárias */
+body.v4 .account-card { padding: 20px 22px; }
+body.v4 .account-card .badge {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+body.v4 .account-balance { font-size: 28px; letter-spacing: -.02em; }
+
+/* Tabelas */
+body.v4 .main table th {
+  font-size: 12px;
+  letter-spacing: .02em;
+  text-transform: none;
+  color: #8f8ca2;
+}
+body.v4 .main table td { font-variant-numeric: tabular-nums; }
+body.v4 #transacoes table td:last-child,
+body.v4 #transacoes table th:last-child { text-align: right; white-space: nowrap; }
+
+/* ---------- CELULAR (todas as telas) ---------- */
+@media (max-width: 768px) {
+  /* período: uma linha compacta, sem a bolha */
+  body.v4 .financial-period {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  body.v4 .dashboard-month-navigation {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+  }
+  body.v4 .dashboard-month-navigation span { flex-basis: 100%; font-size: 12px; }
+
+  body.v4 .section-title { margin-bottom: 14px; }
+
+  /* filtros de data lado a lado */
+  body.v4 #transacoes .filters {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  body.v4 #transacoes .filters button { grid-column: 1 / -1; }
+
+  body.v4 .v3-panel { padding: 16px; border-radius: 16px; }
+  body.v4 .section:not(#dashboard) .cards,
+  body.v4 .v3-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px; }
+  body.v4 .section:not(#dashboard) .card,
+  body.v4 .v3-kpi,
+  body.v4 .mini-finance-card { padding: 13px 14px; }
+  body.v4 .section:not(#dashboard) .card strong,
+  body.v4 .v3-kpi strong,
+  body.v4 .mini-finance-card strong { font-size: 18px; }
+
+  /* transações viram lista: descrição + valor, depois data · conta · categoria */
+  body.v4 #transacoes table thead { display: none; }
+  body.v4 #transacoes table,
+  body.v4 #transacoes table tbody { display: block; min-width: 0 !important; width: 100%; }
+  body.v4 #transacoes table tr {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    gap: 2px 8px;
+    padding: 12px 2px;
+    border-bottom: 1px solid var(--v4-line);
+  }
+  body.v4 #transacoes table td { padding: 0 !important; border: 0 !important; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.v4 #transacoes table td:nth-child(2) { grid-column: 1 / 4; grid-row: 1; font-size: 15px; font-weight: 600; color: var(--text); white-space: normal; }
+  body.v4 #transacoes table td:nth-child(6) { grid-column: 4; grid-row: 1; font-size: 15px; font-weight: 700; text-align: right; }
+  body.v4 #transacoes table td:nth-child(1) { grid-column: 1; grid-row: 2; }
+  body.v4 #transacoes table td:nth-child(4) { grid-column: 2; grid-row: 2; }
+  body.v4 #transacoes table td:nth-child(4)::before { content: "· "; }
+  body.v4 #transacoes table td:nth-child(3) { grid-column: 3; grid-row: 2; }
+  body.v4 #transacoes table td:nth-child(3)::before { content: "· "; }
+  body.v4 #transacoes table td:nth-child(5) { display: none; }
+  body.v4 #transacoes .table-wrap,
+  body.v4 #transacoes .table-panel { overflow: visible; padding: 4px 14px; }
+
+  /* contas fixas: mês numa linha */
+  body.v4 #fixedMonthPanel .link-btn { min-height: 38px; padding: 0 10px; font-size: 13px; }
+  body.v4 #fixedMonthPanel h2 { font-size: 16px; }
+  body.v4 #fixedMonthPanel p { display: none; }
+
+  body.v4 #cartoes .credit-card-value { font-size: 26px; }
+}
+
+@media (max-width: 768px) {
+  body.v4 .section-title > div:first-child { flex: none; }
+  body.v4 #transacoes .filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; flex-direction: unset !important; }
+  body.v4 #transacoes .filters label { width: auto !important; min-width: 0; }
+  body.v4 #transacoes table td:nth-child(6) { overflow: visible; text-overflow: clip; }
+  body.v4 #transacoes .table-wrap { border: 0 !important; background: none !important; padding: 0 !important; }
+}
+@media (max-width: 768px) {
+  body.v4 #transacoes table td.income { color: var(--green); }
+  body.v4 #transacoes table td.expense { color: var(--red); }
+  body.v4 #transacoes table td.internal { color: #a78bfa; }
+}
+@media (max-width: 768px) {
+  body.v4 #fixedMonthPanel .link-btn { white-space: nowrap; padding: 0 9px; font-size: 12.5px; }
+  body.v4 #fixedMonthPanel h2 { white-space: nowrap; font-size: 15px; }
+}

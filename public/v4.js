@@ -449,17 +449,54 @@
   // NAVEGAÇÃO: título, abas e carregamento do Plano
   // -------------------------------------------------------
 
+  const grupoDe = (secao) => (GRUPOS.find(([, secoes]) => secoes.includes(secao)) || ["Visão geral"])[0];
+
+  // Esconde o título da seção quando ele repete o título do topo
+  function marcarTitulosRepetidos() {
+    const norm = (t) => String(t || "").trim().toLowerCase();
+    document.querySelectorAll(".section").forEach((sec) => {
+      const h2 = sec.querySelector(":scope > .section-title h2");
+      if (!h2) return;
+      const botao = document.querySelector(`.nav-item[data-section="${sec.id}"] span, .nav-item[data-section="${sec.id}"]`);
+      const nomeMenu = botao ? norm(botao.textContent) : "";
+      const nomes = [nomeMenu, norm(document.querySelector("#pageTitle")?.textContent)];
+      if (sec.id === "parcelas") nomes.push("parcelamentos");
+      const igual = nomes.some((n) => n && (norm(h2.textContent) === n || norm(h2.textContent).startsWith(n)));
+      h2.classList.toggle("v4-dup", igual && sec.classList.contains("active"));
+    });
+  }
+
+  // Traduz o tipo da conta (CHECKING_ACCOUNT -> Conta corrente)
+  const TIPOS = {
+    CHECKING_ACCOUNT: "Conta corrente",
+    SAVINGS_ACCOUNT: "Poupança",
+    PAYMENT_ACCOUNT: "Conta de pagamento",
+    CREDIT_CARD: "Cartão de crédito",
+    INVESTMENT: "Investimento",
+  };
+  function traduzirTipos() {
+    document.querySelectorAll("#contas .badge").forEach((b) => {
+      const t = b.textContent.trim();
+      if (TIPOS[t]) b.textContent = TIPOS[t];
+    });
+  }
+  const secContas = document.querySelector("#contas");
+  if (secContas) new MutationObserver(traduzirTipos).observe(secContas, { childList: true, subtree: true });
+
   if (typeof navegar === "function") {
     const navegarAnterior = navegar;
     navegar = function v4Navegar(secao) {
       navegarAnterior(secao);
       marcarAba(secao);
       const titulo = document.querySelector("#pageTitle");
+      const eyebrow = document.querySelector(".topbar .eyebrow");
+      if (eyebrow) eyebrow.textContent = grupoDe(secao);
       if (secao === "plano") {
         if (titulo) titulo.textContent = "Plano";
         carregarPlano().then(desenharRota);
         requestAnimationFrame(desenharRota);
       }
+      marcarTitulosRepetidos();
     };
   }
 })();
