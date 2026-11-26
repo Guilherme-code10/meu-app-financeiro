@@ -514,6 +514,11 @@ async function buscarDados(url, opcoes = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  // Botão Atualizar: pede ao servidor para ignorar o cache curto do Pierre
+  if (window.v4ForcarAtualizacao) {
+    headers["X-Atualizar"] = "1";
+  }
+
   const resposta = await fetch(url, {
     ...opcoes,
     cache: "no-store",
@@ -8888,6 +8893,8 @@ function configurarBotaoAtualizar() {
     try {
       botaoAtualizar.disabled = true;
 
+      window.v4ForcarAtualizacao = true;
+
       botaoAtualizar.textContent = "↻ Sincronizando...";
 
       const resultado = await sincronizarCaixinhas();
@@ -8916,6 +8923,8 @@ function configurarBotaoAtualizar() {
         alert("Erro ao sincronizar:\n\n" + erro.message);
       }
     } finally {
+      window.v4ForcarAtualizacao = false;
+
       botaoAtualizar.disabled = false;
 
       botaoAtualizar.textContent = "↻ Atualizar";
@@ -10641,11 +10650,12 @@ async function iniciarAplicacao() {
 
   configurarCardTotalCaixinhas();
 
-  await sincronizarClassificacoesFinanceiras();
-
-  await carregarCompetenciasTransacoes();
-
-  await carregarOrigensEntradas();
+  // Estas três buscas não dependem uma da outra: vão juntas (mais rápido)
+  await Promise.all([
+    sincronizarClassificacoesFinanceiras(),
+    carregarCompetenciasTransacoes(),
+    carregarOrigensEntradas(),
+  ]);
 
   await carregarDados();
 

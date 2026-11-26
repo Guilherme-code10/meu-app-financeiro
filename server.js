@@ -3,6 +3,9 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const crypto = require("crypto");
+const fs = require("fs");
+const zlib = require("zlib");
+const { AsyncLocalStorage } = require("async_hooks");
 const { reconstruirParcelas, lerParcela, adicionarMeses } = require("./lib/parcelamentos");
 const { criarRouterV3 } = require("./routes/v3");
 
@@ -26,7 +29,70 @@ const PIERRE_API_URL = "https://www.pierre.finance/tools/api";
 
 app.use(express.json());
 
-app.use(express.static(path.join(__dirname, "public")));
+// Guarda, por requisição, se o usuário pediu para atualizar (ignora o cache do Pierre)
+app.use((req, _res, next) => {
+  contextoRequisicao.run({ forcarAtualizacao: req.get("x-atualizar") === "1" }, next);
+});
+
+// ==========================================
+// ARQUIVOS DO SITE (velocidade)
+// JS e CSS vão comprimidos (gzip) e, como o index.html usa ?v=, o navegador
+// pode guardá-los por 30 dias. O index.html é sempre conferido.
+// ==========================================
+
+const PASTA_PUBLICA = path.join(__dirname, "public");
+const TIPOS_TEXTO = {
+  ".js": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".json": "application/json; charset=utf-8",
+};
+const cacheGzip = new Map();
+
+app.use((req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+  if (!/\bgzip\b/.test(req.get("accept-encoding") || "")) return next();
+
+  const caminhoUrl = req.path === "/" ? "/index.html" : req.path;
+  const ext = path.extname(caminhoUrl).toLowerCase();
+  if (!TIPOS_TEXTO[ext]) return next();
+
+  const arquivo = path.join(PASTA_PUBLICA, path.normalize(caminhoUrl));
+  if (!arquivo.startsWith(PASTA_PUBLICA + path.sep)) return next();
+
+  let info;
+  try {
+    info = fs.statSync(arquivo);
+  } catch {
+    return next();
+  }
+  if (!info.isFile()) return next();
+
+  const chave = arquivo + ":" + info.mtimeMs;
+  let item = cacheGzip.get(arquivo);
+  if (!item || item.chave !== chave) {
+    const corpo = zlib.gzipSync(fs.readFileSync(arquivo), { level: 9 });
+    item = { chave, corpo, etag: '"' + crypto.createHash("sha1").update(corpo).digest("hex").slice(0, 20) + '"' };
+    cacheGzip.set(arquivo, item);
+  }
+
+  res.set("Content-Type", TIPOS_TEXTO[ext]);
+  res.set("Content-Encoding", "gzip");
+  res.set("Vary", "Accept-Encoding");
+  res.set("ETag", item.etag);
+  res.set(
+    "Cache-Control",
+    ext === ".html" || !req.query.v ? "no-cache" : "public, max-age=2592000, immutable",
+  );
+
+  if (req.get("if-none-match") === item.etag) return res.status(304).end();
+  res.set("Content-Length", String(item.corpo.length));
+  if (req.method === "HEAD") return res.end();
+  return res.end(item.corpo);
+});
+
+app.use(express.static(PASTA_PUBLICA));
 
 // ==========================================
 // AUTENTICAÇÃO
@@ -54,7 +120,7 @@ function obterTokenDaRequisicao(req) {
 // VERIFICAR USUÁRIO ADMIN
 // ==========================================
 
-async function verificarUsuarioAdmin(token) {
+async function verificarUsuarioAdminSemCache(token) {
   if (!token) {
     return {
       autorizado: false,
@@ -148,6 +214,42 @@ async function verificarUsuarioAdmin(token) {
       erro: "Erro ao validar autenticação.",
     };
   }
+}
+
+// ==========================================
+// CACHE DA VERIFICAÇÃO (velocidade)
+// Ao abrir o app, o navegador faz ~15 chamadas ao mesmo tempo e cada uma
+// verificava usuário + perfil no Supabase. Agora a sessão guarda a última
+// verificação por 60s e chamadas simultâneas esperam a mesma verificação.
+// ==========================================
+
+const TEMPO_CACHE_VERIFICACAO = 60 * 1000;
+
+async function verificarUsuarioAdmin(token) {
+  const sessao = token ? sessoes.get(token) : null;
+
+  if (!sessao || Date.now() > sessao.expiraEm) {
+    return verificarUsuarioAdminSemCache(token);
+  }
+
+  if (sessao.verificacao && sessao.verificacao.ate > Date.now()) {
+    return sessao.verificacao.resultado;
+  }
+
+  if (!sessao.verificando) {
+    sessao.verificando = verificarUsuarioAdminSemCache(token)
+      .then((resultado) => {
+        if (resultado.autorizado) {
+          sessao.verificacao = { resultado, ate: Date.now() + TEMPO_CACHE_VERIFICACAO };
+        }
+        return resultado;
+      })
+      .finally(() => {
+        sessao.verificando = null;
+      });
+  }
+
+  return sessao.verificando;
 }
 
 // ==========================================
@@ -851,7 +953,47 @@ app.post("/api/auth/logout", async (req, res) => {
 // CONEXÃO COM PIERRE
 // ==========================================
 
+// ==========================================
+// CACHE CURTO DO PIERRE (velocidade)
+// Várias telas pedem get-accounts/get-transactions quase ao mesmo tempo.
+// Respostas iguais ficam guardadas por 60s e pedidos simultâneos
+// compartilham a mesma chamada. O botão Atualizar envia X-Atualizar: 1
+// e ignora o cache.
+// ==========================================
+
+const TEMPO_CACHE_PIERRE = 60 * 1000;
+const cachePierre = new Map();
+const contextoRequisicao = new AsyncLocalStorage();
+
+function pierreForcarAtualizacao() {
+  return contextoRequisicao.getStore()?.forcarAtualizacao === true;
+}
+
 async function pierreRequest(endpoint, params = {}) {
+  const chave = endpoint + "?" + new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ""),
+  ).toString();
+
+  const guardado = cachePierre.get(chave);
+  if (!pierreForcarAtualizacao() && guardado && guardado.ate > Date.now()) {
+    return guardado.promessa;
+  }
+
+  const promessa = pierreRequestSemCache(endpoint, params);
+  cachePierre.set(chave, { promessa, ate: Date.now() + TEMPO_CACHE_PIERRE });
+  promessa.catch(() => {
+    if (cachePierre.get(chave)?.promessa === promessa) cachePierre.delete(chave);
+  });
+
+  if (cachePierre.size > 200) {
+    const agora = Date.now();
+    for (const [k, v] of cachePierre) if (v.ate <= agora) cachePierre.delete(k);
+  }
+
+  return promessa;
+}
+
+async function pierreRequestSemCache(endpoint, params = {}) {
   if (!process.env.PIERRE_API_KEY) {
     throw new Error("PIERRE_API_KEY não encontrada no arquivo .env");
   }
