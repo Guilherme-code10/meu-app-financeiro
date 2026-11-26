@@ -2873,27 +2873,6 @@ for (
 });
 
 // ==========================================
-// HEALTH
-// ==========================================
-
-app.get("/api/health", async (req, res) => {
-  try {
-    const dados = await pierreRequest("get-accounts");
-
-    res.json({
-      conectado: true,
-
-      registros: Array.isArray(dados.data) ? dados.data.length : 0,
-    });
-  } catch (erro) {
-    res.status(500).json({
-      conectado: false,
-      erro: erro.message,
-    });
-  }
-});
-
-// ==========================================
 // CAIXINHAS - BUSCAR
 // ==========================================
 
