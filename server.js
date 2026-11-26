@@ -1657,12 +1657,33 @@ async function consultarFaturas(req, res) {
 
     const resumoPorConta = new Map();
     function incorporarResumos(dados, idEsperado = null, cartao = null) {
-      const entradas = Array.isArray(dados?.data) ? dados.data : [];
+      // A consulta geral pode retornar lista; a individual retorna objeto.
+      // Percorrer somente estruturas de resposta e aceitar valores explícitos.
+      const entradas = [];
+      function coletar(no, profundidade = 0, idPai = "") {
+        if (!no || typeof no !== "object" || profundidade > 4 || no.success === false) return;
+        if (Array.isArray(no)) {
+          for (const item of no) coletar(item, profundidade + 1, idPai);
+          return;
+        }
+        const id = String(no.account_id || no.accountId || idPai || "");
+        const bruto = no.approx_current_bill_amount ?? no.approxCurrentBillAmount;
+        if (bruto != null && String(bruto).trim() !== "" && Number.isFinite(Number(bruto))) {
+          entradas.push({ ...no, account_id: id || idEsperado || "" });
+          return;
+        }
+        for (const [chave, filho] of Object.entries(no)) {
+          if (!filho || typeof filho !== "object") continue;
+          coletar(filho, profundidade + 1, id || (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(chave) ? chave : ""));
+        }
+      }
+      coletar(dados?.data);
       console.info("[PIERRE_FATURAS] resposta", JSON.stringify({
         individual: Boolean(idEsperado), success: dados?.success ?? null,
         formato: Array.isArray(dados?.data) ? "array" : typeof dados?.data,
         quantidade: entradas.length,
         campos: entradas[0] && typeof entradas[0] === "object" ? Object.keys(entradas[0]).slice(0, 40) : [],
+        camposObjeto: dados?.data && !Array.isArray(dados.data) && typeof dados.data === "object" ? Object.keys(dados.data).filter(k => /^[a-zA-Z_]{1,50}$/.test(k)).slice(0, 30) : [],
         comValor: entradas.filter(x => (x?.approx_current_bill_amount ?? x?.approxCurrentBillAmount) != null).length
       }));
       if (dados?.success === false) return;
