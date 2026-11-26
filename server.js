@@ -1559,9 +1559,12 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
         const ultimaFatura = faturasDoCartao[0];
 
         const fechamentoUltima = new Date(ultimaFatura.billClosingDate);
-
         const vencimentoUltima = new Date(ultimaFatura.dueDate);
 
+        if (!ultimaFatura.billClosingDate || !ultimaFatura.dueDate ||
+            Number.isNaN(fechamentoUltima.getTime()) || Number.isNaN(vencimentoUltima.getTime())) {
+          avisosFaturas.push("Uma fatura não tem datas válidas; não foi possível projetar o vencimento seguinte.");
+        } else {
         const proximoFechamento = adicionarUmMes(fechamentoUltima);
 
         const proximoVencimento = adicionarUmMes(vencimentoUltima);
@@ -1605,6 +1608,7 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
           };
 
           faturas.push(faturaVirtual);
+        }
         }
       }
     } else {
