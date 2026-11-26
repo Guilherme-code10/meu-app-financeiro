@@ -969,7 +969,14 @@ function pierreForcarAtualizacao() {
   return contextoRequisicao.getStore()?.forcarAtualizacao === true;
 }
 
+// Cada chamada recebe a SUA cópia: várias rotas alteram a resposta
+// (ex.: /api/bills acrescenta a próxima fatura na lista). Sem a cópia,
+// a lista guardada no cache crescia a cada pedido e as faturas duplicavam.
 async function pierreRequest(endpoint, params = {}) {
+  return structuredClone(await pierreRequestCompartilhado(endpoint, params));
+}
+
+async function pierreRequestCompartilhado(endpoint, params = {}) {
   const chave = endpoint + "?" + new URLSearchParams(
     Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ""),
   ).toString();
