@@ -1488,7 +1488,7 @@ app.post("/api/cartoes/diagnostico", exigirAdmin, async (req, res) => {
           status: f.status,
         }));
       const ultimoFechamento = faturasConta[0]?.fechamento || null;
-      const txConta = listaTx.filter((t) => String(t.accountId) === String(c.id));
+      const txConta = listaTx.filter((t) => String(t.account_id || t.accountId) === String(c.id));
       const desdeFechamento = ultimoFechamento
         ? txConta.filter((t) => String(t.date || "").slice(0, 10) > ultimoFechamento)
         : [];
@@ -1510,6 +1510,27 @@ app.post("/api/cartoes/diagnostico", exigirAdmin, async (req, res) => {
         faturas: faturasConta,
         compras75dias: { quantidade: txConta.length, soma: soma(txConta) },
         comprasDesdeUltimoFechamento: { quantidade: desdeFechamento.length, soma: soma(desdeFechamento) },
+        desdeFechamento: (() => {
+          const neg = desdeFechamento.filter((t) => Number(t.amount) < 0);
+          const pos = desdeFechamento.filter((t) => Number(t.amount) > 0);
+          const ultimoVenc = faturasConta[0]?.vencimento || "";
+          const parcelas = txConta.filter((t) => {
+            const v = String(t.installment_due_date || t.installmentDueDate || "").slice(0, 10);
+            return v && v > ultimoVenc;
+          });
+          const porVenc = {};
+          parcelas.forEach((t) => {
+            const v = String(t.installment_due_date || t.installmentDueDate).slice(0, 7);
+            porVenc[v] = Math.round(((porVenc[v] || 0) + Number(t.amount || 0)) * 100) / 100;
+          });
+          return {
+            negativos: { quantidade: neg.length, soma: soma(neg) },
+            positivos: { quantidade: pos.length, soma: soma(pos) },
+            parcelasPorMesDeVencimento: porVenc,
+          };
+        })(),
+        exemploCampos: txConta[0] ? Object.keys(txConta[0]).slice(0, 40) : [],
+        exemploCartao: txConta[0] ? (txConta[0].credit_card_data || txConta[0].creditCardData || null) : null,
         mostradoNoApp: mostrados.find((m) => String(m.id) === String(c.id)) || null,
       };
     });
@@ -3692,7 +3713,7 @@ async function buscarRendimentosPendentes() {
       data: dataTransacaoPierre(t),
       valor: Math.round(Number(t.amount) * 100) / 100,
       descricao: String(t.description || "Rendimento"),
-      banco: contas.get(String(t.accountId)) || "",
+      banco: contas.get(String(t.account_id || t.accountId)) || "",
     }))
     .filter((r) => r.transacaoId && r.data >= RENDIMENTOS_DESDE && !jaTratados.has(r.transacaoId))
     .sort((a, b) => (a.data === b.data ? b.valor - a.valor : b.data.localeCompare(a.data)));
