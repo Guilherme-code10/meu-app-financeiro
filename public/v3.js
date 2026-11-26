@@ -1723,12 +1723,21 @@ function v3Simular() {
 }
 
 function v3FaturasAtuais() {
-  if (typeof state === "undefined") return 0;
+  if (typeof state === "undefined") return null;
+  const cartoes = (state.cartoes || []).filter(c => c.ativa !== false);
+  if (!cartoes.length) return 0;
   const resumos = Array.isArray(state.resumos) ? state.resumos : [];
-  if (resumos.length) {
-    return resumos.reduce((s, r) => s + Math.abs(Number(r.approx_current_bill_amount ?? r.approxCurrentBillAmount ?? 0)), 0);
+  let total = 0;
+  for (const cartao of cartoes) {
+    if (typeof modoCartao === "function" && modoCartao(cartao) === "ESCONDER") continue;
+    const resumo = resumos.find(r =>
+      String(r.account_id || r.accountId || "") === String(cartao.id)
+    );
+    const bruto = resumo?.approx_current_bill_amount ?? resumo?.approxCurrentBillAmount;
+    if (bruto == null || bruto === "" || !Number.isFinite(Number(bruto))) return null;
+    total += Math.abs(Number(bruto));
   }
-  return 0;
+  return total;
 }
 
 async function v3AtualizarDashboard() {
@@ -1749,13 +1758,17 @@ async function v3AtualizarDashboard() {
   const cotacoesCompletas = (v3State.investimentos.posicoes || []).every(p => Number(v3State.investimentos.cotacoes.get(p.ticker)?.precoAtual || 0) > 0);
   // Mostra o subtotal verificável mesmo quando uma API de mercado falha.
   // Valores ausentes nunca são tratados como zero no rótulo de patrimônio completo.
-  const dadosPendentes = !cotacoesCompletas || (usd !== 0 && !cambioDisponivel);
-  const patrimonioConhecido = contas + investimentos + (dolares || 0) - faturas;
+  const faturasPendentes = faturas == null;
+  const dadosPendentes = !cotacoesCompletas || (usd !== 0 && !cambioDisponivel) || faturasPendentes;
+  const patrimonioConhecido = contas + investimentos + (dolares || 0) - (faturas ?? 0);
 
   const net = document.querySelector("#v3NetWorth");
   const inv = document.querySelector("#v3DashboardInvestments");
   const usdEl = document.querySelector("#v3DashboardUsd");
-  if (net) net.textContent = `${v3Dinheiro(patrimonioConhecido)}${dadosPendentes ? " · parcial" : ""}`;
+  if (net) {
+    net.textContent = `${v3Dinheiro(patrimonioConhecido)}${dadosPendentes ? " · parcial" : ""}` +
+      (faturasPendentes ? " (faturas pendentes)" : "");
+  }
   // Exibição de carteira: bolsa + saldos externos. Não adicionar esse saldo
   // novamente ao patrimônio líquido geral, pois pode constar em Contas.
   const externosCarteira = v3State.investimentos.externos;
@@ -1784,7 +1797,7 @@ async function v3AtualizarDashboard() {
   if (d) d.style.width = `${pct(dolares)}%`;
 
   const texto = document.querySelector("#v3DistributionText");
-  if (texto) texto.textContent = `Contas ${v3Dinheiro(contas)} · Investimentos ${v3Dinheiro(investimentos)} · Dólares ${(cambioDisponivel ? v3Dinheiro(dolares) : "Cotação indisponível")} · Faturas consideradas ${v3Dinheiro(faturas)}.`;
+  if (texto) texto.textContent = `Contas ${v3Dinheiro(contas)} · Investimentos ${v3Dinheiro(investimentos)} · Dólares ${(cambioDisponivel ? v3Dinheiro(dolares) : "Cotação indisponível")} · Faturas consideradas ${faturasPendentes ? "indisponíveis" : v3Dinheiro(faturas)}.`;
 }
 
 function v3IniciarAtualizacaoAutomatica() {
