@@ -1535,7 +1535,57 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
       resumos = Array.isArray(dadosResumo?.data) ? dadosResumo.data : [];
     } catch (erroResumo) {
       console.warn("Pierre get-bill-summary indisponível:", erroResumo.message);
-      avisosFaturas.push("O resumo de faturas não pôde ser consultado. Confira valores e vencimentos no banco.");
+      avisosFaturas.push("O resumo geral de faturas não pôde ser consultado. Confira valores e vencimentos no banco.");
+    }
+
+    // O Pierre só aplica o fechamento automático para uma conta sem data
+    // cadastrada quando ela é consultada individualmente. Com vários
+    // cartões o resumo geral pode vir vazio. Reconsultar apenas as contas
+    // que ainda não tiveram resumo, sempre vinculadas ao próprio accountId.
+    try {
+      const contasPierre = await pierreRequest("get-accounts");
+      const cartoesPierre = (Array.isArray(contasPierre?.data) ? contasPierre.data : [])
+        .filter(c => c?.type === "CREDIT" && c?.itemIsActive !== false && c?.id)
+        .filter(c => !accountId || String(c.id) === String(accountId));
+      const identificados = new Set(resumos.map(r => String(r.account_id || r.accountId || "")));
+      const faltantes = cartoesPierre.filter(c => !identificados.has(String(c.id))).slice(0, 20);
+      if (faltantes.length) {
+        const respostas = await Promise.allSettled(
+          faltantes.map(c => pierreRequest("get-bill-summary", { accountId: String(c.id) }))
+        );
+        let recuperados = 0;
+        for (let i = 0; i < respostas.length; i++) {
+          const resposta = respostas[i];
+          if (resposta.status !== "fulfilled") continue;
+          const idConta = String(faltantes[i].id);
+          const registros = Array.isArray(resposta.value?.data) ? resposta.value.data : [];
+          const valido = registros.find(r =>
+            String(r.account_id || r.accountId || "") === idConta &&
+            r.approx_current_bill_amount != null &&
+            Number.isFinite(Number(r.approx_current_bill_amount))
+          );
+          if (valido && !identificados.has(idConta)) {
+            resumos.push(valido);
+            identificados.add(idConta);
+            recuperados++;
+          }
+        }
+        if (recuperados) {
+          avisosFaturas.push(
+            "Foram consultados " + recuperados +
+            " cartão(ões) individualmente. Os valores da fatura atual são estimativas do Pierre, sujeitos ao atraso do Open Finance."
+          );
+        }
+        if (recuperados < faltantes.length) {
+          avisosFaturas.push(
+            "Ainda faltam resumos de " + (faltantes.length - recuperados) +
+            " cartão(ões). Nesses casos a fatura atual ficará indisponível, sem criar valores projetados."
+          );
+        }
+      }
+    } catch (erroContas) {
+      console.warn("Consulta individual de faturas indisponível:", erroContas.message);
+      avisosFaturas.push("Não foi possível buscar os cartões individualmente para conferir as faturas atuais.");
     }
 
     // ==========================================
