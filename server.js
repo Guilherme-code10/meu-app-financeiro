@@ -1503,12 +1503,18 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
     // BUSCAR FATURAS DO PIERRE
     // ==========================================
 
-    const dadosFaturas = await pierreRequest(
-      "get-bills",
-      accountId ? { accountId } : {},
-    );
-
-    let faturas = Array.isArray(dadosFaturas.data) ? dadosFaturas.data : [];
+    const avisosFaturas = [];
+    let faturas = [];
+    try {
+      const dadosFaturas = await pierreRequest(
+        "get-bills",
+        accountId ? { accountId } : {},
+      );
+      faturas = Array.isArray(dadosFaturas?.data) ? dadosFaturas.data : [];
+    } catch (erroPierre) {
+      console.warn("Pierre get-bills indisponível:", erroPierre.message);
+      avisosFaturas.push("Não foi possível consultar as faturas recentes no Pierre. Os dados disponíveis podem estar desatualizados.");
+    }
 
     // ==========================================
     // CRIAR PRÓXIMA FATURA QUANDO NECESSÁRIO
@@ -1690,12 +1696,17 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
     // RESUMO DA FATURA ATUAL
     // ==========================================
 
-    const dadosResumo = await pierreRequest(
-      "get-bill-summary",
-      accountId ? { accountId } : {},
-    );
-
-    const resumos = Array.isArray(dadosResumo.data) ? dadosResumo.data : [];
+    let resumos = [];
+    try {
+      const dadosResumo = await pierreRequest(
+        "get-bill-summary",
+        accountId ? { accountId } : {},
+      );
+      resumos = Array.isArray(dadosResumo?.data) ? dadosResumo.data : [];
+    } catch (erroResumo) {
+      console.warn("Pierre get-bill-summary indisponível:", erroResumo.message);
+      avisosFaturas.push("O resumo de faturas não pôde ser consultado. Confira valores e vencimentos no banco.");
+    }
 
     // ==========================================
     // FATURAS SINCRONIZADAS DO PAINEL DO PIERRE
@@ -1718,7 +1729,8 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
     } = await consultaSincronizadas;
 
     if (erroFaturasSincronizadas) {
-      throw erroFaturasSincronizadas;
+      console.warn("Falha ao consultar faturas salvas:", erroFaturasSincronizadas.message);
+      avisosFaturas.push("Não foi possível consultar as faturas sincronizadas anteriormente.");
     }
 
     for (const sincronizada of faturasSincronizadas || []) {
@@ -1771,6 +1783,7 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
         virtual: false,
 
         sincronizada: true,
+        atualizadaEm: sincronizada.atualizado_em || null,
 
         oficial: sincronizada.oficial === true,
 
@@ -1819,6 +1832,8 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
       quantidade: faturas.length,
 
       quantidadeResumos: resumos.length,
+      parcial: avisosFaturas.length > 0,
+      avisos: avisosFaturas,
     });
   } catch (erro) {
     console.error("Erro ao buscar faturas:", erro.message);
