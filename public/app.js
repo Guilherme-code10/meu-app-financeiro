@@ -9738,10 +9738,25 @@ function renderizarPlanejamentoFuturo() {
     const mesAtualChave =
       chaveMes(data);
 
-    const compromissos =
-      obterCompromissosReaisDoMes(
+    const contasFixasMes =
+      obterContasFixasRecorrentesDoMes(
         mesAtualChave,
       );
+
+    const totalContasFixas =
+      contasFixasMes.reduce(
+        (total, item) =>
+          total +
+          Number(item.valor || 0),
+        0,
+      );
+
+    const compromissos = [
+      ...obterCompromissosReaisDoMes(
+        mesAtualChave,
+      ),
+      ...contasFixasMes,
+    ];
 
     const parcelasCartao =
       compromissos.filter(
@@ -9773,7 +9788,8 @@ function renderizarPlanejamentoFuturo() {
 
     const totalCompromissos =
       totalParcelasCartao +
-      totalParcelasManuais;
+      totalParcelasManuais +
+      totalContasFixas;
 
     // As parcelas reais passam a fazer parte
     // das despesas do planejamento.
@@ -9791,6 +9807,19 @@ function renderizarPlanejamentoFuturo() {
       reservas;
 
     if (indice === 0) {
+      // Quadros do primeiro mês (antes ficavam sempre em R$ 0,00)
+      primeiraParcelaCartao =
+        totalParcelasCartao;
+
+      primeiraParcelaManual =
+        totalParcelasManuais;
+
+      primeiroTotalCompromissos =
+        totalCompromissos;
+
+      primeirosCompromissos =
+        [...compromissos];
+
       primeiraReceita =
         receitas;
 
@@ -9812,6 +9841,7 @@ function renderizarPlanejamentoFuturo() {
 
       totalParcelasCartao,
       totalParcelasManuais,
+      totalContasFixas,
       totalCompromissos,
       compromissos,
     });
@@ -9902,6 +9932,18 @@ function renderizarPlanejamentoFuturo() {
       );
   }
 
+  const contasFixasPlanejamentoElemento =
+    document.querySelector(
+      "#planningFixedBills",
+    );
+
+  if (contasFixasPlanejamentoElemento) {
+    contasFixasPlanejamentoElemento.textContent =
+      dinheiro(
+        meses[0]?.totalContasFixas || 0,
+      );
+  }
+
   if (parcelasManuaisElemento) {
     parcelasManuaisElemento.textContent =
       dinheiro(
@@ -9920,7 +9962,7 @@ function renderizarPlanejamentoFuturo() {
     if (!primeirosCompromissos.length) {
       compromissosLista.innerHTML = `
         <div class="empty">
-          Nenhuma parcela encontrada para este mês.
+          Nenhuma parcela ou conta fixa encontrada para este mês.
         </div>
       `;
     } else {
@@ -9935,12 +9977,16 @@ function renderizarPlanejamentoFuturo() {
             const origem =
               item.origem === "CARTAO"
                 ? "💳 Cartão"
-                : "📝 Manual";
+                : item.origem === "FIXA"
+                  ? "🔁 Conta fixa"
+                  : "📝 Manual";
 
             const parcela =
-              item.totalParcelas
-                ? `${item.parcelaAtual}/${item.totalParcelas}`
-                : "—";
+              item.origem === "FIXA"
+                ? "todo mês"
+                : item.totalParcelas
+                  ? `Parcela ${item.parcelaAtual}/${item.totalParcelas}`
+                  : "Parcela —";
 
             return `
               <div class="planning-commitment-item">
@@ -9956,7 +10002,7 @@ function renderizarPlanejamentoFuturo() {
                     ·
                     ${escapar(item.conta || "")}
                     ·
-                    Parcela ${parcela}
+                    ${parcela}
                   </small>
 
                 </div>
@@ -10410,6 +10456,25 @@ function obterParcelasManuaisDoMes(mesChave) {
   });
 
   return itens;
+}
+
+// Contas fixas que se repetem todo mês (aluguel, luz, faculdade, MEI...).
+// As parceladas ficam em obterParcelasManuaisDoMes.
+function obterContasFixasRecorrentesDoMes(mesChave) {
+  return (state.contasFixas || [])
+    .filter((conta) => {
+      const tipo = String(conta.tipo || "fixa").toLowerCase();
+      const parcelada = tipo === "parcelada" || Number(conta.totalParcelas || 0) > 0;
+      return !parcelada && conta.ativo !== false && conta.finalizada !== true;
+    })
+    .map((conta) => ({
+      id: conta.id || `${conta.name}-${mesChave}`,
+      origem: "FIXA",
+      nome: conta.name || "Conta fixa",
+      valor: Math.abs(Number(conta.amount || 0)),
+      conta: conta.category || "Conta fixa",
+      vencimento: `${mesChave}-${String(Math.min(Number(conta.day || 1), 28)).padStart(2, "0")}`,
+    }));
 }
 
 function obterCompromissosReaisDoMes(mesChave) {
