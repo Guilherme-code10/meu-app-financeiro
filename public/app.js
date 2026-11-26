@@ -1057,6 +1057,16 @@ async function carregarOrigensEntradas() {
 }
 
 
+// Entrada sem origem escolhida: "Rendimentos" já vem como Rendimento
+function origemEntradaDe(transacao, chave) {
+  if (origensEntradas[chave]) return origensEntradas[chave];
+  const texto = String(transacao?.descricao || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return texto.includes("rendimento") ? "RENDIMENTO" : "OUTRAS";
+}
+
 function nomeOrigemEntrada(origem) {
   const nomes = {
     SALARIO_CALVO:
@@ -1091,8 +1101,7 @@ async function alterarOrigemEntrada(
     );
 
   const atual =
-    origensEntradas[chave] ||
-    "OUTRAS";
+    origemEntradaDe(transacao, chave);
 
   const resposta = prompt(
     "Qual é a origem desta entrada?\n\n" +
@@ -1235,8 +1244,7 @@ function mostrarResumoOrigensEntradas(
       );
 
     const origem =
-      origensEntradas[chave] ||
-      "OUTRAS";
+      origemEntradaDe(item.transacao, chave);
 
     totais[origem] =
       (totais[origem] || 0) +
@@ -1269,8 +1277,7 @@ function mostrarResumoOrigensEntradas(
               );
 
             const origem =
-              origensEntradas[chave] ||
-              "OUTRAS";
+              origemEntradaDe(transacao, chave);
 
             return `
               <div
