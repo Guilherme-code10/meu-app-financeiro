@@ -1516,185 +1516,10 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
       avisosFaturas.push("Não foi possível consultar as faturas recentes no Pierre. Os dados disponíveis podem estar desatualizados.");
     }
 
-    // ==========================================
-    // CRIAR PRÓXIMA FATURA QUANDO NECESSÁRIO
-    // ==========================================
-
-    /*
-     * O Pierre está retornando as faturas fechadas.
-     * No caso do cartão Gold/Nubank, a última fatura
-     * retornada é:
-     *
-     * Fechamento: 05/08/2026
-     * Vencimento: 12/08/2026
-     *
-     * Portanto, a próxima fatura será:
-     *
-     * Fechamento: 05/09/2026
-     * Vencimento: 12/09/2026
-     *
-     * Criamos essa próxima fatura apenas como uma
-     * fatura virtual. Ela não é enviada para o Pierre
-     * nem gravada no banco.
-     */
-
-    function adicionarUmMes(dataOriginal) {
-      const data = new Date(dataOriginal);
-
-      data.setMonth(data.getMonth() + 1);
-
-      return data;
-    }
-
-    // ==========================================
-    // SE FOI INFORMADO UM CARTÃO ESPECÍFICO
-    // ==========================================
-
-    if (accountId) {
-      const faturasDoCartao = faturas
-        .filter((fatura) => String(fatura.accountId) === String(accountId))
-        .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
-
-      if (faturasDoCartao.length > 0) {
-        const ultimaFatura = faturasDoCartao[0];
-
-        const fechamentoUltima = new Date(ultimaFatura.billClosingDate);
-        const vencimentoUltima = new Date(ultimaFatura.dueDate);
-
-        if (!ultimaFatura.billClosingDate || !ultimaFatura.dueDate ||
-            Number.isNaN(fechamentoUltima.getTime()) || Number.isNaN(vencimentoUltima.getTime())) {
-          avisosFaturas.push("Uma fatura não tem datas válidas; não foi possível projetar o vencimento seguinte.");
-        } else {
-        const proximoFechamento = adicionarUmMes(fechamentoUltima);
-
-        const proximoVencimento = adicionarUmMes(vencimentoUltima);
-
-        const existeProxima = faturas.some((fatura) => {
-          const fechamento = new Date(fatura.billClosingDate);
-
-          return (
-            String(fatura.accountId) === String(accountId) &&
-            fechamento.getFullYear() === proximoFechamento.getFullYear() &&
-            fechamento.getMonth() === proximoFechamento.getMonth()
-          );
-        });
-
-        if (!existeProxima) {
-          const faturaVirtual = {
-            id: `virtual-${accountId}-${proximoVencimento
-              .toISOString()
-              .slice(0, 10)}`,
-
-            userId: ultimaFatura.userId,
-
-            itemId: ultimaFatura.itemId,
-
-            accountId: accountId,
-
-            billClosingDate: proximoFechamento.toISOString(),
-
-            dueDate: proximoVencimento.toISOString(),
-
-            totalAmount: "0",
-
-            totalAmountCurrencyCode:
-              ultimaFatura.totalAmountCurrencyCode || "BRL",
-
-            minimumPaymentAmount: "0",
-
-            status: "OPEN",
-
-            virtual: true,
-          };
-
-          faturas.push(faturaVirtual);
-        }
-        }
-      }
-    } else {
-      // ==========================================
-      // SEM ACCOUNT ID:
-      // CRIAR PRÓXIMA FATURA PARA CADA CARTÃO
-      // ==========================================
-
-      const contasDeCartao = [
-        ...new Set(faturas.map((fatura) => fatura.accountId).filter(Boolean)),
-      ];
-
-      for (const idCartao of contasDeCartao) {
-        const faturasDoCartao = faturas
-          .filter((fatura) => String(fatura.accountId) === String(idCartao))
-          .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
-
-        if (faturasDoCartao.length === 0) {
-          continue;
-        }
-
-        const ultimaFatura = faturasDoCartao[0];
-
-        if (!ultimaFatura.billClosingDate || !ultimaFatura.dueDate) {
-          continue;
-        }
-
-        const fechamentoUltima = new Date(ultimaFatura.billClosingDate);
-
-        const vencimentoUltima = new Date(ultimaFatura.dueDate);
-
-        if (
-          Number.isNaN(fechamentoUltima.getTime()) ||
-          Number.isNaN(vencimentoUltima.getTime())
-        ) {
-          continue;
-        }
-
-        const proximoFechamento = adicionarUmMes(fechamentoUltima);
-
-        const proximoVencimento = adicionarUmMes(vencimentoUltima);
-
-        const existeProxima = faturas.some((fatura) => {
-          const fechamento = new Date(fatura.billClosingDate);
-
-          return (
-            String(fatura.accountId) === String(idCartao) &&
-            fechamento.getFullYear() === proximoFechamento.getFullYear() &&
-            fechamento.getMonth() === proximoFechamento.getMonth()
-          );
-        });
-
-        if (existeProxima) {
-          continue;
-        }
-
-        const faturaVirtual = {
-          id: `virtual-${idCartao}-${proximoVencimento
-            .toISOString()
-            .slice(0, 10)}`,
-
-          userId: ultimaFatura.userId,
-
-          itemId: ultimaFatura.itemId,
-
-          accountId: idCartao,
-
-          billClosingDate: proximoFechamento.toISOString(),
-
-          dueDate: proximoVencimento.toISOString(),
-
-          totalAmount: "0",
-
-          totalAmountCurrencyCode:
-            ultimaFatura.totalAmountCurrencyCode || "BRL",
-
-          minimumPaymentAmount: "0",
-
-          status: "OPEN",
-
-          virtual: true,
-        };
-
-        faturas.push(faturaVirtual);
-      }
-    }
+    // Não criar faturas virtuais a partir do mês anterior.
+    // O total de uma fatura futura depende de lançamentos, pagamentos, juros
+    // e parcelas reais que nem sempre estão disponíveis via Open Finance.
+    // Mantemos somente faturas vindas do Pierre ou salvas previamente.
 
     // ==========================================
     // RESUMO DA FATURA ATUAL
@@ -1806,12 +1631,9 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
         );
       });
 
-      if (indiceExistente >= 0) {
-        faturas[indiceExistente] = {
-          ...faturas[indiceExistente],
-          ...faturaSincronizada,
-        };
-      } else {
+      if (indiceExistente < 0) {
+        // Preserva o registro do banco se ambos existirem para o mesmo mês.
+        // O snapshot salvo não deve substituir uma fatura recuperada do Pierre.
         faturas.push(faturaSincronizada);
       }
     }
