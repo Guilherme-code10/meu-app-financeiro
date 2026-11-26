@@ -8405,10 +8405,14 @@ function mostrarCartoesEFaturas() {
               <div class="meta">
                 ${
                   resumoAtual
-                    ? "Fatura atual (Pierre)"
-                    : faturaAtual
-                      ? obterNomeMesFatura(faturaAtual)
-                      : "Saldo informado pelo Pierre"
+                    ? "Estimativa da fatura atual (Pierre)"
+                    : faturaAtual?.virtual
+                      ? "Fatura projetada · valor não oficial"
+                      : faturaAtual?.sincronizada
+                        ? "Fatura salva anteriormente · confira a atualização"
+                        : faturaAtual
+                          ? obterNomeMesFatura(faturaAtual) + " · banco"
+                          : "Saldo do cartão · não equivale à fatura"
                 }
               </div>
 
@@ -8417,9 +8421,11 @@ function mostrarCartoesEFaturas() {
                   ? `
                     <div class="meta">
                       ${
-                        new Date().getDate() > 10
-                          ? "🟢 Fatura aberta"
-                          : "🟡 Fatura do fechamento"
+                        faturaAtual.virtual
+                          ? "🟡 Projeção de fatura — confira no banco"
+                          : faturaAtual.sincronizada
+                            ? "🟡 Valor sincronizado anteriormente"
+                            : "Fatura informada pelo banco"
                       }
                       · Vence em
                       ${dataBR(faturaAtual.dueDate)}
