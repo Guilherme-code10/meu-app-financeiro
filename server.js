@@ -5321,6 +5321,75 @@ app.put("/api/plano", exigirAdmin, async (req, res) => {
 });
 
 // ==========================================
+// MEU DIA (tarefas de hoje, rotina e anotações) - BUSCAR E SALVAR
+// Tabela: supabase/dia_usuario.sql
+// ==========================================
+
+function limparDia(dados) {
+  const texto = (v, max) => String(v ?? "").slice(0, max);
+  const lista = (v, max = 300) => (Array.isArray(v) ? v.slice(0, max) : []);
+  const hora = (v) => (/^\d{2}:\d{2}$/.test(String(v || "")) ? String(v) : "");
+  const data = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "");
+  const rotinaFeita = {};
+  if (dados?.rotinaFeita && typeof dados.rotinaFeita === "object") {
+    // guarda só os últimos 60 dias
+    for (const [dia, ids] of Object.entries(dados.rotinaFeita).sort().slice(-60)) {
+      if (data(dia)) rotinaFeita[dia] = lista(ids, 100).map((id) => texto(id, 40));
+    }
+  }
+  return {
+    tarefas: lista(dados?.tarefas).map((t) => ({
+      id: texto(t?.id, 40),
+      t: texto(t?.t, 200),
+      hora: hora(t?.hora),
+      data: data(t?.data),
+      feito: t?.feito === true,
+    })),
+    rotina: lista(dados?.rotina, 100).map((r) => ({
+      id: texto(r?.id, 40),
+      t: texto(r?.t, 200),
+      hora: hora(r?.hora),
+      dias: lista(r?.dias, 7).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6),
+    })),
+    rotinaFeita,
+    notas: lista(dados?.notas, 200).map((n) => ({
+      id: texto(n?.id, 40),
+      t: texto(n?.t, 1000),
+      criado: texto(n?.criado, 30),
+    })),
+  };
+}
+
+app.get("/api/dia", exigirAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("dia_usuario")
+      .select("dados")
+      .eq("user_id", req.usuario.id)
+      .maybeSingle();
+    if (error) throw error;
+    res.json({ sucesso: true, dia: data ? limparDia(data.dados) : null });
+  } catch (erro) {
+    console.error("Erro ao buscar Meu dia:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível carregar o seu dia." });
+  }
+});
+
+app.put("/api/dia", exigirAdmin, async (req, res) => {
+  try {
+    const { error } = await supabaseAdmin.from("dia_usuario").upsert(
+      { user_id: req.usuario.id, dados: limparDia(req.body?.dia), updated_at: new Date().toISOString() },
+      { onConflict: "user_id" },
+    );
+    if (error) throw error;
+    res.json({ sucesso: true });
+  } catch (erro) {
+    console.error("Erro ao salvar Meu dia:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível salvar o seu dia." });
+  }
+});
+
+// ==========================================
 // CONTAS FIXAS - BUSCAR
 // ==========================================
 

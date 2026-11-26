@@ -27,7 +27,8 @@
     painel.id = "v4Rend";
     painel.className = "panel v4r";
     painel.hidden = true;
-    titulo.insertAdjacentElement("afterend", painel);
+    // Caixinhas primeiro, rendimentos depois
+    secao.appendChild(painel);
 
     painel.addEventListener("change", (e) => {
       const sel = e.target.closest("select[data-rend]");

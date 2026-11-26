@@ -22,12 +22,13 @@
     fixas: svg('<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/>'),
     planejamento: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>'),
     caixinhas: svg('<rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M7 7V5.5A1.5 1.5 0 0 1 8.5 4h7A1.5 1.5 0 0 1 17 5.5V7"/><path d="M15.5 13.5h2"/>'),
+    dia: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
     plano: svg('<path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Z"/><path d="M9 4v13.5M15 6.5V20"/>'),
     mais: svg('<circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/>'),
   };
 
   const GRUPOS = [
-    ["Visão geral", ["dashboard"]],
+    ["Visão geral", ["dashboard", "dia"]],
     ["Dinheiro", ["contas", "cartoes", "transacoes", "parcelas", "investimentos", "moedas"]],
     ["Planejamento", ["fixas", "planejamento", "caixinhas"]],
     ["Empresa", ["plano"]],
@@ -45,6 +46,12 @@
     plano.dataset.section = "plano";
     plano.innerHTML = "<span>Plano</span>";
     nav.appendChild(plano);
+
+    const dia = document.createElement("button");
+    dia.className = "nav-item";
+    dia.dataset.section = "dia";
+    dia.innerHTML = "<span>Meu dia</span>";
+    nav.appendChild(dia);
 
     const botoes = {};
     nav.querySelectorAll(".nav-item").forEach((b) => {
@@ -339,6 +346,13 @@
   }
 
   const todas = () => TAREFAS.concat(st.tasks);
+
+  // A tela "Meu dia" mostra as próximas tarefas da empresa que estão com você
+  window.v4Plano = {
+    carregar: () => carregarPlano(),
+    pendentes: () => todas().filter((t) => !st.done[t.id]),
+    fases: FASES,
+  };
 
   function desenharChips() {
     const el = document.querySelector("#v4pChips");
