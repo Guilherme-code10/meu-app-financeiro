@@ -3330,6 +3330,34 @@ function obterResumoFaturasMesAtual() {
   const ciclo =
     obterCicloFinanceiroAtual();
 
+  // Só o ciclo financeiro presente pode usar get-bill-summary: a API
+  // descreve a fatura aberta de hoje, nunca um mês histórico ou futuro.
+  if (deslocamentoMesDashboard === 0) {
+    const ids = new Set();
+    const cartoesAtual = (state.cartoes || []).filter(cartao => {
+      const id = String(cartao?.id || "");
+      if (!id || modoCartao(cartao) === "ESCONDER" || ids.has(id)) return false;
+      ids.add(id);
+      return true;
+    });
+    const entradas = cartoesAtual.map(cartao => ({
+      accountId: cartao.id,
+      valor: obterValorResumoAtualPorCartao(cartao),
+    }));
+    const informadas = entradas.filter(c => c.valor != null);
+    const pendentes = entradas.length - informadas.length;
+    return {
+      total: informadas.reduce((s, c) => s + c.valor, 0),
+      quantidade: informadas.length,
+      pendentes,
+      incompleto: pendentes > 0,
+      estimada: true,
+      faturas: [],
+      anoVencimento: ciclo.mesReferencia === 11 ? ciclo.anoReferencia + 1 : ciclo.anoReferencia,
+      mesVencimento: (ciclo.mesReferencia + 1) % 12,
+    };
+  }
+
   // A fatura referente ao mês financeiro
   // vence no mês seguinte.
   let anoVencimento =
@@ -3518,8 +3546,8 @@ function atualizarCompromissosMes() {
 
   if (faturasElemento) {
     faturasElemento.textContent = faturas.incompleto
-      ? (faturas.total > 0 ? dinheiro(faturas.total) + " · parcial" : "Aguardando faturas")
-      : dinheiro(faturas.total);
+      ? (faturas.quantidade > 0 ? dinheiro(faturas.total) + " · parcial" : "Aguardando faturas")
+      : (faturas.estimada ? dinheiro(faturas.total) + " · estimado" : dinheiro(faturas.total));
   }
 
   if (quantidadeElemento) {
@@ -3545,13 +3573,13 @@ function atualizarCompromissosMes() {
   if (totalElemento) {
     totalElemento.textContent = faturas.incompleto
       ? `Pelo menos ${dinheiro(total)}`
-      : dinheiro(total);
+      : faturas.estimada ? `≈ ${dinheiro(total)}` : dinheiro(total);
   }
 
   if (saldoElemento) {
     saldoElemento.textContent = faturas.incompleto
       ? "Indisponível · faltam faturas"
-      : dinheiro(saldoDepois);
+      : faturas.estimada ? `≈ ${dinheiro(saldoDepois)}` : dinheiro(saldoDepois);
     saldoElemento.classList.toggle("income", !faturas.incompleto && saldoDepois >= 0);
     saldoElemento.classList.toggle("expense", !faturas.incompleto && saldoDepois < 0);
   }
