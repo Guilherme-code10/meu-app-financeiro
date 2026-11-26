@@ -8231,6 +8231,23 @@ function mostrarCartoesEFaturas() {
                   · vencimento ${dataBR(ultimaFaturaHistorica.dueDate)} (histórico)
                 </div>` : ""}
 
+              ${valorResumo != null ? `
+                <div class="meta">
+                  ${resumoAtual?.closing_day
+                    ? `Fechamento dia ${Number(resumoAtual.closing_day)}` : "Fechamento não informado"}
+                  · ${resumoAtual?.fonte_fechamento === "CADASTRADO_PIERRE"
+                    ? "cadastrado no Pierre"
+                    : "referência a confirmar com o banco"}
+                </div>
+                ${resumoAtual?.period_start && resumoAtual?.period_end ? `
+                  <div class="meta">
+                    Período considerado: ${dataBR(resumoAtual.period_start)} até ${dataBR(resumoAtual.period_end)}
+                  </div>` : ""}
+                ${resumoAtual?.transactionsInfo ? `
+                  <div class="meta">${escapar(resumoAtual.transactionsInfo)}</div>` : ""}
+                <div class="meta">Valor aproximado, sujeito a atraso do Open Finance. Parcelas futuras são previsões separadas.</div>
+              ` : ""}
+
               <div class="meta">
                 Limite: ${formatarValorInformado(limiteCartao)}
               </div>
