@@ -1708,10 +1708,10 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
       ].filter(Boolean).join(" ").normalize("NFD")
        .replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[_-]/g, " ");
       if (/MERCADO PAGO/.test(texto)) return 8;
-      if (/C6/.test(texto) && /BANDEIRADO/.test(texto)) return 4;
+      if (/C6/.test(texto) && /BANDEIRADO/.test(texto)) return 3;
       if (/NUBANK/.test(texto) && /GOLD/.test(texto)) return 5;
       if (/INTER/.test(texto) && /PRIME DUO/.test(texto)) return 5;
-      if (/ITAU/.test(texto) && /CLICK/.test(texto)) return 3;
+      if (/ITAU/.test(texto) && /CLICK/.test(texto)) return 2;
       if (/ITAU/.test(texto) && /MASTERCARD PLATINUM/.test(texto) && !/CLICK/.test(texto)) return 1;
       return null;
     }
@@ -1741,6 +1741,10 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
           continue;
         }
         const dados = resposta.value;
+        if (dados?.success === false) {
+          console.warn("Pierre get-bill-summary retornou success=false.");
+          continue;
+        }
         const entradas = Array.isArray(dados?.data) ? dados.data : [];
         const resumo = entradas.find(x =>
           String(x?.account_id || x?.accountId || "") === id &&
