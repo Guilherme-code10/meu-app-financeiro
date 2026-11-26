@@ -1591,6 +1591,39 @@ app.put("/api/cartoes/agrupamento", exigirAdmin, async (req, res) => {
   }
 });
 
+// Somente leitura: cache de 1 minuto para não repetir POST LIST_ACCOUNTS
+// a cada abertura da página, sem alterar dados do usuário no Pierre.
+let cacheListaFechamentosPierre = { expira: 0, promessa: null };
+async function listarFechamentosPierre() {
+  const agora = Date.now();
+  if (cacheListaFechamentosPierre.promessa && agora < cacheListaFechamentosPierre.expira) {
+    return cacheListaFechamentosPierre.promessa;
+  }
+  const promessa = (async () => {
+    const response = await fetch(PIERRE_API_URL + "/manage-closing-date", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + process.env.PIERRE_API_KEY,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({operation: "LIST_ACCOUNTS"}),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const body = await response.json();
+    if (body?.success !== true) throw new Error("Resposta não confirmada.");
+    return Array.isArray(body?.data?.accounts) ? body.data.accounts : [];
+  })();
+  cacheListaFechamentosPierre = { expira: agora + 60000, promessa };
+  promessa.catch(() => {
+    if (cacheListaFechamentosPierre.promessa === promessa) {
+      cacheListaFechamentosPierre = { expira: 0, promessa: null };
+    }
+  });
+  return promessa;
+}
+
 app.get("/api/bills", exigirAdmin, async (req, res) => {
   try {
     const accountId = req.query.accountId || null;
@@ -1650,20 +1683,7 @@ app.get("/api/bills", exigirAdmin, async (req, res) => {
     let fechamentosPierre = new Map();
     try {
       if (contasCredito.length) {
-        const response = await fetch(PIERRE_API_URL + "/manage-closing-date", {
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + process.env.PIERRE_API_KEY,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({operation: "LIST_ACCOUNTS"}),
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        const body = await response.json();
-        if (body?.success !== true) throw new Error("Resposta não confirmada.");
-        const configurados = Array.isArray(body?.data?.accounts) ? body.data.accounts : [];
+        const configurados = await listarFechamentosPierre();
         fechamentosPierre = new Map(configurados.map(c => [
           String(c?.id || c?.accountId || ""),
           {
