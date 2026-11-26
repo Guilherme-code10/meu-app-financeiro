@@ -8069,6 +8069,7 @@ function obterValorResumoAtualPorCartao(cartao) {
   const resumo = (state.resumos || []).find(
     r => String(r.account_id || r.accountId || "") === String(cartao?.id),
   );
+  if (resumo?.desatualizado === true) return null;
   const bruto = resumo?.approx_current_bill_amount ?? resumo?.approxCurrentBillAmount;
   if (bruto == null || bruto === "") return null;
   const valor = Number(bruto);
@@ -8134,10 +8135,8 @@ function mostrarCartoesEFaturas() {
 
       const valorResumo = obterValorResumoAtualPorCartao(cartao);
 
-      const limiteCartao = resumoAtual?.credit_limit ??
-        resumoAtual?.creditLimit ?? cartao.limite ?? null;
-      const limiteDisponivelCartao = resumoAtual?.available_credit_limit ??
-        resumoAtual?.availableCreditLimit ?? cartao.limiteDisponivel ?? null;
+      const limiteCartao = resumoAtual?.desatualizado === true ? cartao.limite ?? resumoAtual.credit_limit ?? null : resumoAtual?.credit_limit ?? resumoAtual?.creditLimit ?? cartao.limite ?? null;
+      const limiteDisponivelCartao = resumoAtual?.desatualizado === true ? cartao.limiteDisponivel ?? resumoAtual.available_credit_limit ?? null : resumoAtual?.available_credit_limit ?? resumoAtual?.availableCreditLimit ?? cartao.limiteDisponivel ?? null;
       const ultimaFaturaHistorica = faturas
         .filter(f => f.virtual !== true && f.dueDate && f.totalAmount != null)
         .sort((a,b) => new Date(b.dueDate)-new Date(a.dueDate))[0] || null;
@@ -8231,6 +8230,9 @@ function mostrarCartoesEFaturas() {
                   · vencimento ${dataBR(ultimaFaturaHistorica.dueDate)} (histórico)
                 </div>` : ""}
 
+              ${resumoAtual?.desatualizado === true ? `
+                <div class="meta">Última estimativa disponível (desatualizada): ${formatarValorInformado(resumoAtual.approx_current_bill_amount ?? resumoAtual.approxCurrentBillAmount)}${resumoAtual.consultado_em ? ` · consulta ${escapar(dataBR(resumoAtual.consultado_em))}` : ""}. Não incluída como fatura atual.</div>
+              ` : ""}
               ${valorResumo != null ? `
                 <div class="meta">
                   ${resumoAtual?.closing_day
@@ -8754,11 +8756,17 @@ async function carregarDados() {
     if (dadosParcelamentos) state.parcelamentos = dadosParcelamentos.compras || [];
     if (dadosFaturas) {
       state.faturas = dadosFaturas.faturas || [];
-      state.resumos = dadosFaturas.resumos || [];
+      const novos = Array.isArray(dadosFaturas.resumos) ? dadosFaturas.resumos : [];
+      const idsNovos = new Set(novos.map(r => String(r.account_id || r.accountId || "")));
+      const idsAtivos = new Set(state.cartoes.map(c => String(c.id)));
+      const anteriores = (state.resumos || []).filter(r => {
+        const id = String(r.account_id || r.accountId || "");
+        return id && idsAtivos.has(id) && !idsNovos.has(id);
+      });
+      state.resumos = [...novos, ...anteriores.map(r => ({...r, desatualizado: true}))];
     } else {
-      // Nunca exibir um resumo antigo como fatura atual se a API falhar.
-      state.resumos = [];
-      // Mantemos o histórico de faturas recebido anteriormente para consulta.
+      // Referência anterior, nunca computada como fatura atual.
+      state.resumos = (state.resumos || []).map(r => ({...r, desatualizado: true}));
     }
 
     mostrarContas();
