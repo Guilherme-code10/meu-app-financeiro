@@ -8294,6 +8294,13 @@ function mostrarDetalhesCartao(cartaoId) {
     </div>
 
 
+    ${!faturaDestaque ? `
+      <div class="v3-note" role="status">
+        A fatura atual deste cartão não foi informada pela integração.
+        ${faturas.length ? "Você pode consultar abaixo as faturas anteriores recebidas do banco." : "Ainda não há faturas históricas disponíveis."}
+        Não usamos projeções como valor oficial.
+      </div>` : ""}
+
     <div class="panel">
 
       <div class="panel-head">
@@ -8301,17 +8308,18 @@ function mostrarDetalhesCartao(cartaoId) {
         <div>
 
           <h2>
-            Fatura
+            Faturas disponíveis
           </h2>
 
           <p>
-            Selecione o mês que deseja consultar.
+            ${faturaDestaque ? "Consulte os vencimentos informados pelo banco." : "Histórico de faturas recebidas."}
           </p>
 
         </div>
 
         <select
           id="faturaSelecionada"
+          ${faturas.length ? "" : "disabled"}
         >
 
           ${faturas
@@ -8359,6 +8367,11 @@ function mostrarDetalhesCartao(cartaoId) {
   });
 
   const select = document.querySelector("#faturaSelecionada");
+  if (!select || !faturas.length) {
+    const vazio = document.querySelector("#faturaDetalhes");
+    if (vazio) vazio.textContent = "O Pierre não disponibilizou faturas deste cartão.";
+    return;
+  }
 
   function renderizarFatura() {
     const fatura = faturas.find(
@@ -8429,9 +8442,7 @@ function mostrarDetalhesCartao(cartaoId) {
       0,
     );
 
-    const totalDaFatura = fatura.virtual
-      ? totalCompras
-      : Number(fatura.totalAmount || fatura.valor || 0);
+    const totalDaFatura = obterValorCorretoFatura(cartao, fatura);
 
     const detalhes = document.querySelector("#faturaDetalhes");
 
@@ -8446,7 +8457,7 @@ function mostrarDetalhesCartao(cartaoId) {
           </span>
 
      <strong>
-  ${dinheiro(totalDaFatura)}
+  ${totalDaFatura == null ? "Não informado" : dinheiro(totalDaFatura)}
 </strong>
 
         </article>
