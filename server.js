@@ -4488,6 +4488,75 @@ app.get("/api/caixinhas/:id/dashboard", exigirAdmin, async (req, res) => {
 });
 
 // ==========================================
+// PLANO (checklist e ideias) - BUSCAR E SALVAR
+// Tabela: supabase/plano.sql
+// ==========================================
+
+function limparPlano(dados) {
+  const texto = (valor, max) => String(valor ?? "").slice(0, max);
+  const lista = (valor) => (Array.isArray(valor) ? valor.slice(0, 300) : []);
+  const done = {};
+
+  if (dados && typeof dados.done === "object" && !Array.isArray(dados.done)) {
+    for (const [id, marcado] of Object.entries(dados.done).slice(0, 600)) {
+      if (marcado === true) done[texto(id, 40)] = true;
+    }
+  }
+
+  return {
+    done,
+    tasks: lista(dados?.tasks).map((t) => ({
+      id: texto(t?.id, 40),
+      t: texto(t?.t, 200),
+      f: Math.min(3, Math.max(0, Number(t?.f) || 0)),
+      a: texto(t?.a, 40),
+      q: texto(t?.q, 20),
+      o: texto(t?.o, 300),
+    })),
+    ideas: lista(dados?.ideas).map((i) => ({
+      id: texto(i?.id, 40),
+      t: texto(i?.t, 200),
+      p: texto(i?.p, 300),
+    })),
+  };
+}
+
+app.get("/api/plano", exigirAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("plano_usuario")
+      .select("dados, updated_at")
+      .eq("user_id", req.usuario.id)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.json({ sucesso: true, plano: data ? limparPlano(data.dados) : null });
+  } catch (erro) {
+    console.error("Erro ao buscar plano:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível carregar o plano." });
+  }
+});
+
+app.put("/api/plano", exigirAdmin, async (req, res) => {
+  try {
+    const dados = limparPlano(req.body?.plano);
+
+    const { error } = await supabaseAdmin.from("plano_usuario").upsert(
+      { user_id: req.usuario.id, dados, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" },
+    );
+
+    if (error) throw error;
+
+    res.json({ sucesso: true });
+  } catch (erro) {
+    console.error("Erro ao salvar plano:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível salvar o plano." });
+  }
+});
+
+// ==========================================
 // CONTAS FIXAS - BUSCAR
 // ==========================================
 
