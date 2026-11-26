@@ -152,7 +152,7 @@ body.v4 .card:has(#totalBalance) { order: 1; grid-column: span 2; grid-row: span
 body.v4 .card:has(#v3NetWorth) { order: 2; grid-column: span 2; }
 body.v4 .card:has(#totalIncome) { order: 3; }
 body.v4 .card:has(#totalExpense) { order: 4; }
-body.v4 .card:has(#realNetTotal) { order: 5; }
+body.v4 .card:has(#realNetTotal) { order: 6; }
 body.v4 .card:has(#internalMovementTotal) { order: 6; }
 body.v4 .card:has(#v3DashboardInvestments) { order: 7; }
 body.v4 .card:has(#v3DashboardUsd) { order: 8; }
@@ -772,3 +772,16 @@ body.v4 .v4r-btn {
 }
 body.v4 .v4r-btn:hover { background: rgba(124, 58, 237, .28); }
 body.v4 .v4r-btn:disabled { opacity: .5; cursor: progress; }
+body.v4 .v4r > h2 { margin: 0 0 8px; font-size: 19px; }
+body.v4 .v4r-head h3 { margin: 10px 0 0; font-size: 16px; color: #fff; }
+body.v4 .v4r-recentes { margin-top: 12px; border-top: 1px solid var(--v4-line); padding-top: 10px; }
+body.v4 .v4r-recentes summary { cursor: pointer; font-weight: 700; color: var(--text); padding: 6px 0; min-height: 32px; }
+body.v4 .v4r-dica { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+body.v4 .v4r-item-ok { grid-template-columns: minmax(0, 1fr) minmax(0, 220px); }
+body.v4 .v4r-item-ok .v4r-info strong { color: var(--text); }
+body.v4 .card:has(#totalRendimentos) { order: 5; }
+body.v4 #totalRendimentos { color: #c4b5fd; }
+@media (max-width: 768px) {
+  body.v4 .v4r-item-ok { grid-template-columns: minmax(0, 1fr); }
+  body.v4 .v4r-item-ok select { grid-row: auto; }
+}

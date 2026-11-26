@@ -12,3 +12,10 @@ create table if not exists public.rendimentos_ignorados (
   created_at timestamptz not null default now()
 );
 alter table public.rendimentos_ignorados enable row level security;
+
+-- Rendimentos já lançados automaticamente uma vez (não relançar sozinho se você apagar)
+create table if not exists public.rendimentos_auto (
+  transacao_pierre_id text primary key,
+  created_at timestamptz not null default now()
+);
+alter table public.rendimentos_auto enable row level security;

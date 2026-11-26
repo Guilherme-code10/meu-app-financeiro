@@ -2513,6 +2513,17 @@ function ehInternaEvidente(transacao) {
 }
 
 
+function ehRendimento(transacao) {
+  const texto = normalizarTextoFinanceiro(
+    [transacao?.descricao, transacao?.categoria]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  return texto.includes("rendimento");
+}
+
+
 function ehEntradaExternaEvidente(
   transacao,
   analise,
@@ -2591,6 +2602,11 @@ function obterResumoFluxoMes() {
   const internasManuaisLista = [];
   const internasAutomaticasLista = [];
 
+  // Rendimentos (Mercado Pago, caixinhas...) não são renda:
+  // ficam numa conta separada e não precisam ser classificados.
+  let rendimentos = 0;
+  const rendimentosLista = [];
+
   const conciliacao =
     obterConciliacaoTransferencias();
 
@@ -2627,6 +2643,25 @@ function obterResumoFluxoMes() {
           transacao,
         )
       ) {
+        return;
+      }
+
+
+      // ======================================
+      // RENDIMENTO: SEPARADO, NÃO É RENDA
+      // ======================================
+
+      if (
+        analise.ehEntrada &&
+        ehRendimento(transacao)
+      ) {
+        rendimentos += analise.valor;
+
+        rendimentosLista.push({
+          transacao,
+          valor: analise.valor,
+        });
+
         return;
       }
 
@@ -2914,6 +2949,9 @@ function obterResumoFluxoMes() {
 
     internasManuaisLista,
     internasAutomaticasLista,
+
+    rendimentos,
+    rendimentosLista,
 
     paresDoMes,
 
@@ -5416,6 +5454,30 @@ function atualizarDashboard() {
       dinheiro(
         fluxo.entradas,
       );
+  }
+
+  const elementoRendimentos =
+    document.querySelector(
+      "#totalRendimentos",
+    );
+
+  if (elementoRendimentos) {
+    elementoRendimentos.textContent =
+      dinheiro(
+        fluxo.rendimentos || 0,
+      );
+
+    const detalhe =
+      document.querySelector(
+        "#totalRendimentosDetalhe",
+      );
+
+    if (detalhe) {
+      const n = (fluxo.rendimentosLista || []).length;
+      detalhe.textContent = n
+        ? `${n} rendimento${n === 1 ? "" : "s"} no mês · não entra na renda`
+        : "Nenhum rendimento neste mês";
+    }
   }
 
   if (elementoSaidas) {

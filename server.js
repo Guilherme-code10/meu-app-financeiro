@@ -3619,81 +3619,194 @@ app.get("/api/caixinhas/rendimentos-pendentes", exigirAdmin, async (_req, res) =
   }
 });
 
-// Recebe [{ transacaoId, caixinhaId }] ou [{ transacaoId, ignorar: true }].
-// O valor sempre vem do Pierre (nunca do navegador).
+// Lança uma lista de rendimentos pendentes. Recebe [{ transacaoId, caixinhaId }]
+// ou [{ transacaoId, ignorar: true }]. O valor sempre vem do Pierre.
+async function lancarRendimentos(itens, { pendentes, caixinhas }) {
+  const porId = new Map(pendentes.map((p) => [p.transacaoId, p]));
+  const saldos = new Map(caixinhas.map((c) => [c.id, Number(c.saldo) || 0]));
+  const nomes = new Map(caixinhas.map((c) => [c.id, c.nome]));
+  const lancados = [];
+  const ignorados = [];
+  const recusados = [];
+
+  for (const item of itens) {
+    const pendente = porId.get(String(item?.transacaoId || ""));
+    if (!pendente) {
+      recusados.push({ transacaoId: item?.transacaoId, motivo: "Já lançado, ignorado ou não encontrado no Pierre." });
+      continue;
+    }
+
+    if (item.ignorar === true) {
+      const { error } = await supabaseAdmin
+        .from("rendimentos_ignorados")
+        .upsert({ transacao_pierre_id: pendente.transacaoId }, { onConflict: "transacao_pierre_id" });
+      if (error) throw error;
+      ignorados.push(pendente.transacaoId);
+      porId.delete(pendente.transacaoId);
+      continue;
+    }
+
+    const caixinhaId = String(item?.caixinhaId || "");
+    if (!saldos.has(caixinhaId)) {
+      recusados.push({ transacaoId: pendente.transacaoId, motivo: "Caixinha não encontrada." });
+      continue;
+    }
+
+    const { error: erroInsert } = await supabaseAdmin.from("rendimentos_caixinhas").insert([
+      {
+        caixinha_id: caixinhaId,
+        valor: pendente.valor,
+        descricao: `Rendimento ${pendente.banco || "automático"} · ${pendente.data.split("-").reverse().join("/")}`,
+        transacao_pierre_id: pendente.transacaoId,
+        created_at: `${pendente.data}T12:00:00Z`,
+      },
+    ]);
+    if (erroInsert) {
+      // 23505 = já existe (outro aparelho lançou ao mesmo tempo)
+      if (erroInsert.code === "23505") {
+        recusados.push({ transacaoId: pendente.transacaoId, motivo: "Já lançado." });
+        continue;
+      }
+      throw erroInsert;
+    }
+
+    const novoSaldo = Math.round((saldos.get(caixinhaId) + pendente.valor) * 100) / 100;
+    const { error: erroSaldo } = await supabaseAdmin
+      .from("caixinhas")
+      .update({ saldo: novoSaldo, updated_at: new Date().toISOString() })
+      .eq("id", caixinhaId);
+    if (erroSaldo) throw erroSaldo;
+
+    saldos.set(caixinhaId, novoSaldo);
+    porId.delete(pendente.transacaoId);
+    lancados.push({ transacaoId: pendente.transacaoId, caixinhaId, caixinha: nomes.get(caixinhaId), valor: pendente.valor, data: pendente.data });
+  }
+
+  return { lancados, ignorados, recusados };
+}
+
 app.post("/api/caixinhas/rendimentos-pendentes/confirmar", exigirAdmin, async (req, res) => {
   try {
     const itens = Array.isArray(req.body?.itens) ? req.body.itens.slice(0, 200) : [];
     if (!itens.length) {
       return res.status(400).json({ sucesso: false, erro: "Nenhum rendimento informado." });
     }
-
-    const { pendentes, caixinhas } = await buscarRendimentosPendentes();
-    const porId = new Map(pendentes.map((p) => [p.transacaoId, p]));
-    const saldos = new Map(caixinhas.map((c) => [c.id, Number(c.saldo) || 0]));
-    const nomes = new Map(caixinhas.map((c) => [c.id, c.nome]));
-
-    const lancados = [];
-    const ignorados = [];
-    const recusados = [];
-
-    for (const item of itens) {
-      const pendente = porId.get(String(item?.transacaoId || ""));
-      if (!pendente) {
-        recusados.push({ transacaoId: item?.transacaoId, motivo: "Já lançado, ignorado ou não encontrado no Pierre." });
-        continue;
-      }
-
-      if (item.ignorar === true) {
-        const { error } = await supabaseAdmin
-          .from("rendimentos_ignorados")
-          .upsert({ transacao_pierre_id: pendente.transacaoId }, { onConflict: "transacao_pierre_id" });
-        if (error) throw error;
-        ignorados.push(pendente.transacaoId);
-        porId.delete(pendente.transacaoId);
-        continue;
-      }
-
-      const caixinhaId = String(item?.caixinhaId || "");
-      if (!saldos.has(caixinhaId)) {
-        recusados.push({ transacaoId: pendente.transacaoId, motivo: "Caixinha não encontrada." });
-        continue;
-      }
-
-      const { error: erroInsert } = await supabaseAdmin.from("rendimentos_caixinhas").insert([
-        {
-          caixinha_id: caixinhaId,
-          valor: pendente.valor,
-          descricao: `Rendimento ${pendente.banco || "automático"} · ${pendente.data.split("-").reverse().join("/")}`,
-          transacao_pierre_id: pendente.transacaoId,
-          created_at: `${pendente.data}T12:00:00Z`,
-        },
-      ]);
-      if (erroInsert) {
-        // 23505 = já existe (outro aparelho confirmou ao mesmo tempo)
-        if (erroInsert.code === "23505") {
-          recusados.push({ transacaoId: pendente.transacaoId, motivo: "Já lançado." });
-          continue;
-        }
-        throw erroInsert;
-      }
-
-      const novoSaldo = Math.round((saldos.get(caixinhaId) + pendente.valor) * 100) / 100;
-      const { error: erroSaldo } = await supabaseAdmin
-        .from("caixinhas")
-        .update({ saldo: novoSaldo, updated_at: new Date().toISOString() })
-        .eq("id", caixinhaId);
-      if (erroSaldo) throw erroSaldo;
-
-      saldos.set(caixinhaId, novoSaldo);
-      porId.delete(pendente.transacaoId);
-      lancados.push({ transacaoId: pendente.transacaoId, caixinha: nomes.get(caixinhaId), valor: pendente.valor });
-    }
-
-    res.json({ sucesso: true, lancados, ignorados, recusados });
+    const resultado = await lancarRendimentos(itens, await buscarRendimentosPendentes());
+    res.json({ sucesso: true, ...resultado });
   } catch (erro) {
     console.error("Erro ao confirmar rendimentos:", erro.message);
     res.status(500).json({ sucesso: false, erro: "Não foi possível lançar os rendimentos." });
+  }
+});
+
+// Lança sozinho cada rendimento novo que tem caixinha sugerida.
+// Cada transação só é lançada automaticamente UMA vez (rendimentos_auto):
+// se você apagar o rendimento da caixinha, ele volta para "conferir" e não
+// é relançado sozinho.
+app.post("/api/caixinhas/rendimentos-pendentes/automatico", exigirAdmin, async (_req, res) => {
+  try {
+    const contexto = await buscarRendimentosPendentes();
+    const { data: jaAuto, error } = await supabaseAdmin.from("rendimentos_auto").select("transacao_pierre_id");
+    if (error) throw error;
+    const vistos = new Set((jaAuto || []).map((r) => r.transacao_pierre_id));
+
+    const itens = contexto.pendentes
+      .filter((p) => p.caixinhaSugerida && !vistos.has(p.transacaoId))
+      .map((p) => ({ transacaoId: p.transacaoId, caixinhaId: p.caixinhaSugerida }));
+
+    const resultado = itens.length ? await lancarRendimentos(itens, contexto) : { lancados: [], ignorados: [], recusados: [] };
+
+    if (resultado.lancados.length) {
+      const { error: erroAuto } = await supabaseAdmin
+        .from("rendimentos_auto")
+        .upsert(resultado.lancados.map((l) => ({ transacao_pierre_id: l.transacaoId })), { onConflict: "transacao_pierre_id" });
+      if (erroAuto) throw erroAuto;
+    }
+
+    res.json({ sucesso: true, lancados: resultado.lancados });
+  } catch (erro) {
+    console.error("Erro ao lançar rendimentos automáticos:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível lançar os rendimentos automaticamente." });
+  }
+});
+
+// Rendimentos lançados a partir do Pierre nos últimos 30 dias (para trocar de caixinha)
+app.get("/api/caixinhas/rendimentos-recentes", exigirAdmin, async (_req, res) => {
+  try {
+    const desde = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { data, error } = await supabaseAdmin
+      .from("rendimentos_caixinhas")
+      .select("id, caixinha_id, valor, created_at, transacao_pierre_id")
+      .not("transacao_pierre_id", "is", null)
+      .gte("created_at", desde)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.json({
+      sucesso: true,
+      recentes: (data || []).map((r) => ({
+        transacaoId: r.transacao_pierre_id,
+        caixinhaId: r.caixinha_id,
+        valor: Number(r.valor) || 0,
+        data: String(r.created_at).slice(0, 10),
+      })),
+    });
+  } catch (erro) {
+    console.error("Erro ao buscar rendimentos recentes:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível buscar os rendimentos lançados." });
+  }
+});
+
+// Move um rendimento lançado para outra caixinha (ajusta os dois saldos)
+app.post("/api/caixinhas/rendimentos-recentes/mover", exigirAdmin, async (req, res) => {
+  try {
+    const transacaoId = String(req.body?.transacaoId || "");
+    const destinoId = String(req.body?.caixinhaId || "");
+    if (!transacaoId || !destinoId) {
+      return res.status(400).json({ sucesso: false, erro: "Informe o rendimento e a caixinha." });
+    }
+
+    const { data: rend, error: erroRend } = await supabaseAdmin
+      .from("rendimentos_caixinhas")
+      .select("id, caixinha_id, valor")
+      .eq("transacao_pierre_id", transacaoId)
+      .maybeSingle();
+    if (erroRend) throw erroRend;
+    if (!rend) return res.status(404).json({ sucesso: false, erro: "Rendimento não encontrado." });
+    if (rend.caixinha_id === destinoId) return res.json({ sucesso: true });
+
+    const { data: cxs, error: erroCx } = await supabaseAdmin
+      .from("caixinhas")
+      .select("id, saldo")
+      .in("id", [rend.caixinha_id, destinoId]);
+    if (erroCx) throw erroCx;
+    const origem = cxs.find((c) => c.id === rend.caixinha_id);
+    const destino = cxs.find((c) => c.id === destinoId);
+    if (!destino) return res.status(404).json({ sucesso: false, erro: "Caixinha não encontrada." });
+
+    const valor = Number(rend.valor) || 0;
+    const agora = new Date().toISOString();
+    const arred = (v) => Math.round(v * 100) / 100;
+
+    const { error: e1 } = await supabaseAdmin.from("rendimentos_caixinhas").update({ caixinha_id: destinoId }).eq("id", rend.id);
+    if (e1) throw e1;
+    if (origem) {
+      const { error: e2 } = await supabaseAdmin
+        .from("caixinhas")
+        .update({ saldo: arred((Number(origem.saldo) || 0) - valor), updated_at: agora })
+        .eq("id", origem.id);
+      if (e2) throw e2;
+    }
+    const { error: e3 } = await supabaseAdmin
+      .from("caixinhas")
+      .update({ saldo: arred((Number(destino.saldo) || 0) + valor), updated_at: agora })
+      .eq("id", destino.id);
+    if (e3) throw e3;
+
+    res.json({ sucesso: true });
+  } catch (erro) {
+    console.error("Erro ao mover rendimento:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível trocar a caixinha." });
   }
 });
 
