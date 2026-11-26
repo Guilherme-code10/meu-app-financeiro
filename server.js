@@ -1046,6 +1046,77 @@ async function pierreRequestSemCache(endpoint, params = {}) {
 }
 
 // ==========================================
+// ATUALIZAR DADOS NA ORIGEM (PIERRE)
+// A solicitação manual só ocorre quando o usuário clica em Atualizar.
+// ==========================================
+
+const INTERVALO_SINCRONIZACAO_PIERRE_MS = 90 * 1000;
+let ultimaSincronizacaoPierreEm = 0;
+let sincronizacaoPierreEmAndamento = null;
+
+app.post("/api/pierre/sincronizar", exigirAdmin, async (_req, res) => {
+  if (!process.env.PIERRE_API_KEY) {
+    return res.status(503).json({
+      sucesso: false,
+      erro: "Integração Pierre sem credencial no servidor.",
+    });
+  }
+  try {
+    const agora = Date.now();
+    if (!sincronizacaoPierreEmAndamento &&
+        ultimaSincronizacaoPierreEm &&
+        agora - ultimaSincronizacaoPierreEm < INTERVALO_SINCRONIZACAO_PIERRE_MS) {
+      return res.json({
+        sucesso: true,
+        recente: true,
+        mensagem: "Atualização dos bancos já solicitada recentemente.",
+      });
+    }
+    if (!sincronizacaoPierreEmAndamento) {
+      sincronizacaoPierreEmAndamento = (async () => {
+        const resposta = await fetch(PIERRE_API_URL + "/manual-update", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + process.env.PIERRE_API_KEY,
+            Accept: "application/json",
+          },
+          signal: AbortSignal.timeout(45000),
+        });
+        const texto = await resposta.text();
+        let dados = null;
+        try { dados = texto ? JSON.parse(texto) : null; } catch {}
+        if (!resposta.ok || dados?.success === false) {
+          throw new Error("Pierre retornou falha HTTP " + resposta.status + " na atualização.");
+        }
+        ultimaSincronizacaoPierreEm = Date.now();
+        cachePierre.clear();
+        const detalhes = dados?.details || {};
+        const contar = nome => Number(detalhes[nome]?.count || 0);
+        return {
+          sucesso: true,
+          mensagem: "Solicitação de atualização enviada ao Pierre.",
+          totalContas: Number(detalhes.totalItems || 0),
+          atualizadas: contar("completed"),
+          emAndamento: contar("inProgress"),
+          precisamAcao: contar("needsUserInput") + contar("loginErrors"),
+          falhas: contar("failed") + contar("outdated") + contar("partialSuccess"),
+        };
+      })().finally(() => {
+        sincronizacaoPierreEmAndamento = null;
+      });
+    }
+    const resultado = await sincronizacaoPierreEmAndamento;
+    return res.json(resultado);
+  } catch (erro) {
+    console.error("Falha ao pedir atualização dos bancos ao Pierre:", erro.message);
+    return res.status(502).json({
+      sucesso: false,
+      erro: "Não foi possível atualizar os bancos pelo Pierre. Confira a conexão Open Finance.",
+    });
+  }
+});
+
+// ==========================================
 // NORMALIZAR TEXTO
 // ==========================================
 
