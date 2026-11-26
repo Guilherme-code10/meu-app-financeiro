@@ -785,3 +785,31 @@ body.v4 #totalRendimentos { color: #c4b5fd; }
   body.v4 .v4r-item-ok { grid-template-columns: minmax(0, 1fr); }
   body.v4 .v4r-item-ok select { grid-row: auto; }
 }
+body.v4 .v4r-brutos { max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--v4-line); border-radius: 10px; padding: 10px 12px; color: #c9c6d6; }
+
+/* =========================================================
+   CARTÕES — "SEUS CARTÕES" (v4-cartoes.js)
+   ========================================================= */
+body.v4 .v4c { margin-bottom: 18px; padding: 0; }
+body.v4 .v4c summary { list-style: none; cursor: pointer; padding: 18px 22px; min-height: 44px; display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 17px; color: #fff; }
+body.v4 .v4c summary::-webkit-details-marker { display: none; }
+body.v4 .v4c summary::after { content: "Ajustar ▾"; font-size: 13px; font-weight: 600; color: #a78bfa; }
+body.v4 .v4c[open] summary::after { content: "Fechar ▴"; }
+body.v4 .v4c summary small { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+body.v4 .v4c-dica { margin: 0 22px 8px; color: var(--muted); font-size: 13.5px; max-width: 80ch; }
+body.v4 .v4c-dica b { color: var(--text); }
+body.v4 .v4c-erro { margin: 0 22px; color: var(--red); font-size: 13.5px; }
+body.v4 .v4c-erro:empty { display: none; }
+body.v4 .v4c-lista { list-style: none; margin: 0; padding: 0 22px 14px; }
+body.v4 .v4c-item { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 300px); gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--v4-line); }
+body.v4 .v4c-item:last-child { border-bottom: 0; }
+body.v4 .v4c-info strong { display: block; color: #fff; font-size: 15px; }
+body.v4 .v4c-info small { display: block; color: var(--muted); font-size: 12.5px; }
+body.v4 .v4c-valor { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 768px) {
+  body.v4 .v4c summary { padding: 14px 16px; }
+  body.v4 .v4c-dica, body.v4 .v4c-erro { margin-left: 16px; margin-right: 16px; }
+  body.v4 .v4c-lista { padding: 0 16px 12px; }
+  body.v4 .v4c-item { grid-template-columns: minmax(0, 1fr) auto; }
+  body.v4 .v4c-item select { grid-column: 1 / -1; }
+}

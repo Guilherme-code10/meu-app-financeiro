@@ -1360,6 +1360,51 @@ app.post("/api/bills/sync-pierre", exigirAdmin, async (req, res) => {
 // FATURAS DOS CARTÕES
 // ==========================================
 
+// ==========================================
+// CARTÕES: COMO MOSTRAR CADA CONTA DE CARTÃO
+// Um banco pode ter mais de um cartão (titular, adicional, virtual) e o
+// Pierre traz cada um como uma conta. Aqui você escolhe, por cartão:
+// SEPARADO (aparece sozinho), SOMAR (soma na fatura de outro cartão)
+// ou ESCONDER. Tabela: supabase/cartoes_agrupamento.sql
+// ==========================================
+
+app.get("/api/cartoes/agrupamento", exigirAdmin, async (_req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin.from("cartoes_agrupamento").select("account_id, modo, somar_em");
+    if (error) throw error;
+    const agrupamento = {};
+    (data || []).forEach((r) => {
+      agrupamento[r.account_id] = { modo: r.modo, somarEm: r.somar_em || null };
+    });
+    res.json({ sucesso: true, agrupamento });
+  } catch (erro) {
+    console.error("Erro ao buscar agrupamento de cartões:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível carregar os cartões." });
+  }
+});
+
+app.put("/api/cartoes/agrupamento", exigirAdmin, async (req, res) => {
+  try {
+    const accountId = String(req.body?.accountId || "").slice(0, 80);
+    const modo = String(req.body?.modo || "SEPARADO").toUpperCase();
+    const somarEm = modo === "SOMAR" ? String(req.body?.somarEm || "").slice(0, 80) : null;
+    if (!accountId || !["SEPARADO", "SOMAR", "ESCONDER"].includes(modo)) {
+      return res.status(400).json({ sucesso: false, erro: "Dados inválidos." });
+    }
+    if (modo === "SOMAR" && (!somarEm || somarEm === accountId)) {
+      return res.status(400).json({ sucesso: false, erro: "Escolha em qual cartão somar." });
+    }
+    const { error } = await supabaseAdmin
+      .from("cartoes_agrupamento")
+      .upsert({ account_id: accountId, modo, somar_em: somarEm, updated_at: new Date().toISOString() }, { onConflict: "account_id" });
+    if (error) throw error;
+    res.json({ sucesso: true });
+  } catch (erro) {
+    console.error("Erro ao salvar agrupamento de cartões:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível salvar." });
+  }
+});
+
 app.get("/api/bills", exigirAdmin, async (req, res) => {
   try {
     const accountId = req.query.accountId || null;
@@ -3616,6 +3661,44 @@ app.get("/api/caixinhas/rendimentos-pendentes", exigirAdmin, async (_req, res) =
   } catch (erro) {
     console.error("Erro ao buscar rendimentos pendentes:", erro.message);
     res.status(500).json({ sucesso: false, erro: "Não foi possível buscar os rendimentos agora." });
+  }
+});
+
+// Mostra o que o Pierre manda em cada "Rendimentos" (últimos 10), para ver se
+// existe algum campo que identifique o cofrinho. Só leitura.
+app.get("/api/caixinhas/rendimentos-brutos", exigirAdmin, async (_req, res) => {
+  try {
+    const fim = new Date();
+    fim.setDate(fim.getDate() + 1);
+    const resposta = await pierreRequest("get-transactions", {
+      startDate: RENDIMENTOS_DESDE,
+      endDate: fim.toISOString().slice(0, 10),
+      format: "raw",
+    });
+    const lista = (Array.isArray(resposta?.data) ? resposta.data : [])
+      .filter(ehRendimentoPierre)
+      .slice(0, 10)
+      .map((t) => {
+        // Achata 1 nível e esconde sequências longas de números (contas/cartões)
+        const plano = {};
+        for (const [k, v] of Object.entries(t)) {
+          if (v && typeof v === "object" && !Array.isArray(v)) {
+            for (const [k2, v2] of Object.entries(v)) {
+              if (v2 === null || typeof v2 !== "object") plano[`${k}.${k2}`] = v2;
+            }
+          } else if (!Array.isArray(v)) {
+            plano[k] = v;
+          }
+        }
+        for (const k of Object.keys(plano)) {
+          if (typeof plano[k] === "string") plano[k] = plano[k].replace(/\d{6,}/g, (m) => "•••" + m.slice(-3));
+        }
+        return plano;
+      });
+    res.json({ sucesso: true, rendimentos: lista });
+  } catch (erro) {
+    console.error("Erro ao buscar rendimentos brutos:", erro.message);
+    res.status(500).json({ sucesso: false, erro: "Não foi possível consultar o Pierre." });
   }
 });
 

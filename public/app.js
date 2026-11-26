@@ -8198,11 +8198,71 @@ function obterValorCorretoFatura(cartao, fatura) {
 }
 
 
-function cartaoItauAuxiliar(cartao) {
-  return (
-    String(cartao?.id) ===
-    "0881d673-2da4-4eb2-aff3-c2f57e259963"
+// Como cada cartão aparece (tela Cartões > "Seus cartões"):
+// SEPARADO, SOMAR (na fatura de outro cartão) ou ESCONDER.
+// Antes de carregar do servidor, mantém o cartão auxiliar do Itaú escondido.
+let agrupamentoCartoes = {
+  "0881d673-2da4-4eb2-aff3-c2f57e259963": { modo: "ESCONDER", somarEm: null },
+};
+
+async function carregarAgrupamentoCartoes() {
+  try {
+    const dados = await buscarDados("/api/cartoes/agrupamento");
+    if (dados.agrupamento && typeof dados.agrupamento === "object") {
+      agrupamentoCartoes = dados.agrupamento;
+    }
+  } catch (erro) {
+    console.error("Erro ao carregar agrupamento dos cartões:", erro);
+  }
+}
+
+function modoCartao(cartao) {
+  const config = agrupamentoCartoes[String(cartao?.id)];
+  if (!config) return "SEPARADO";
+  if (config.modo === "SOMAR") {
+    // Só soma se o cartão de destino existir e aparecer
+    const destino = (state.cartoes || []).find((c) => String(c.id) === String(config.somarEm));
+    if (!destino || modoCartao(destino) !== "SEPARADO") return "SEPARADO";
+  }
+  return config.modo || "SEPARADO";
+}
+
+function cartoesSomadosEm(cartao) {
+  return (state.cartoes || []).filter(
+    (c) =>
+      modoCartao(c) === "SOMAR" &&
+      String(agrupamentoCartoes[String(c.id)]?.somarEm) === String(cartao.id),
   );
+}
+
+// Mantido pelo nome antigo: "auxiliar" agora é qualquer cartão escondido
+function cartaoItauAuxiliar(cartao) {
+  return modoCartao(cartao) === "ESCONDER";
+}
+
+// Valor da fatura atual de UM cartão (sem somar outros)
+function valorFaturaDoCartao(cartao) {
+  const faturas = (state.faturas || [])
+    .filter((fatura) => String(fatura.accountId) === String(cartao.id))
+    .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
+
+  const faturaAtual = obterFaturaDestaqueDoCartao(faturas);
+
+  const resumoAtual = (state.resumos || []).find(
+    (resumo) => String(resumo.account_id || resumo.accountId || "") === String(cartao.id),
+  );
+
+  if (resumoAtual) {
+    return Math.abs(
+      Number(resumoAtual.approx_current_bill_amount ?? resumoAtual.approxCurrentBillAmount ?? 0),
+    );
+  }
+
+  if (faturaAtual) {
+    return obterValorCorretoFatura(cartao, faturaAtual);
+  }
+
+  return Math.abs(Number(cartao.saldo || 0));
 }
 
 
@@ -8226,9 +8286,7 @@ function mostrarCartoesEFaturas() {
   container.innerHTML = state.cartoes
     .filter(
       (cartao) =>
-        !cartaoItauAuxiliar(
-          cartao
-        )
+        modoCartao(cartao) === "SEPARADO"
     )
     .map((cartao) => {
       const faturas = state.faturas
@@ -8273,7 +8331,10 @@ function mostrarCartoesEFaturas() {
           0
         );
 
-      const valorFatura =
+      const somados =
+        cartoesSomadosEm(cartao);
+
+      const valorProprio =
         resumoAtual
           ? Math.abs(valorResumo)
           : faturaAtual
@@ -8286,6 +8347,27 @@ function mostrarCartoesEFaturas() {
                   cartao.saldo || 0
                 )
               );
+
+      const valorFatura =
+        valorProprio +
+        somados.reduce(
+          (soma, outro) =>
+            soma + valorFaturaDoCartao(outro),
+          0,
+        );
+
+      const textoSomados =
+        somados.length
+          ? `Inclui ${somados
+              .map((outro) =>
+                escapar(
+                  outro.ultimos4
+                    ? `final ${outro.ultimos4}`
+                    : outro.nome,
+                ),
+              )
+              .join(", ")}`
+          : "";
 
       return `
             <article
@@ -8303,7 +8385,7 @@ function mostrarCartoesEFaturas() {
                   </strong>
 
                   <div class="meta">
-                    ${escapar(cartao.banco)}
+                    ${escapar(cartao.banco)}${cartao.ultimos4 ? ` · final ${escapar(cartao.ultimos4)}` : ""}
                   </div>
 
                 </div>
@@ -8313,6 +8395,12 @@ function mostrarCartoesEFaturas() {
               <div class="credit-card-value">
                 ${dinheiro(valorFatura)}
               </div>
+
+              ${
+                textoSomados
+                  ? `<div class="meta">${textoSomados}</div>`
+                  : ""
+              }
 
               <div class="meta">
                 ${
@@ -10719,8 +10807,9 @@ async function iniciarAplicacao() {
 
   configurarCardTotalCaixinhas();
 
-  // Estas três buscas não dependem uma da outra: vão juntas (mais rápido)
+  // Estas buscas não dependem uma da outra: vão juntas (mais rápido)
   await Promise.all([
+    carregarAgrupamentoCartoes(),
     sincronizarClassificacoesFinanceiras(),
     carregarCompetenciasTransacoes(),
     carregarOrigensEntradas(),

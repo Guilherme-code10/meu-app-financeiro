@@ -104,7 +104,26 @@
       ${estado.erro ? `<p class="v4r-erro">${esc(estado.erro)}</p>` : ""}
       ${blocoPendentes}
       ${blocoRecentes}
+      <details class="v4r-recentes" data-brutos>
+        <summary>Ver o que o banco manda em cada rendimento</summary>
+        <p class="v4r-dica">Mostra os campos que o Pierre envia, para descobrir se dá para saber de qual cofrinho veio.</p>
+        <pre class="v4r-brutos">Carregando…</pre>
+      </details>
     `;
+    const det = painel.querySelector("[data-brutos]");
+    det?.addEventListener("toggle", async () => {
+      if (!det.open || det.dataset.ok) return;
+      det.dataset.ok = "1";
+      const pre = det.querySelector("pre");
+      try {
+        const r = await buscarDados("/api/caixinhas/rendimentos-brutos");
+        pre.textContent = (r.rendimentos || []).length
+          ? r.rendimentos.map((x) => Object.entries(x).map(([k, v]) => `${k}: ${v}`).join("\n")).join("\n\n──────\n\n")
+          : "Nenhum rendimento recebido desde 11/11.";
+      } catch (erro) {
+        pre.textContent = erro.message;
+      }
+    });
   }
 
   function agruparPorDia(lista, linha) {
