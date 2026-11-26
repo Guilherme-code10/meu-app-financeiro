@@ -81,7 +81,7 @@
             <strong>${esc(c.nome)}</strong>
             <small>${esc(c.banco)}${c.ultimos4 ? ` · final ${esc(c.ultimos4)}` : ""}${c.bandeira ? ` · ${esc(c.bandeira)}` : ""}</small>
           </div>
-          <span class="v4c-valor" title="Fatura atual só deste cartão">${esc(brl(valorFaturaDoCartao(c)))}</span>
+          <span class="v4c-valor" title="Valor mostrado para este cartão; pode ser estimativa ou último saldo, conforme os dados disponíveis">${esc(brl(valorFaturaDoCartao(c)))}</span>
           <select data-cartao="${esc(c.id)}" aria-label="Como mostrar ${esc(c.nome)}">${opcoes}</select>
         </li>`;
       })
@@ -91,7 +91,7 @@
       <summary>
         <span>Seus cartões <small>${cartoes.length} contas de cartão${varios ? " · algum banco tem mais de um" : ""}</small></span>
       </summary>
-      <p class="v4c-dica">O banco às vezes manda o mesmo cartão em mais de uma conta (titular, adicional, virtual). O valor ao lado é a fatura atual <b>só daquele</b> cartão. Se dois fazem parte da mesma fatura, escolha "Somar na fatura de…". Se um repete o outro, escolha "Esconder".</p>
+      <p class="v4c-dica">O banco às vezes manda o mesmo cartão em mais de uma conta (titular, adicional, virtual). O valor ao lado é <b>o valor disponível para essa conta</b>, que pode ser estimado quando o Pierre não fornece a fatura atual. Confira sempre o vencimento no banco. Se dois pertencem à mesma fatura, escolha "Somar na fatura de…"; se uma conta repete outra, escolha "Esconder".</p>
       <p class="v4c-erro" role="alert"></p>
       <ul class="v4c-lista">${linhas}</ul>
     `;
