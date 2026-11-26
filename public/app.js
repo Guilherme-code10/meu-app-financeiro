@@ -8755,6 +8755,10 @@ async function carregarDados() {
     if (dadosFaturas) {
       state.faturas = dadosFaturas.faturas || [];
       state.resumos = dadosFaturas.resumos || [];
+    } else {
+      // Nunca exibir um resumo antigo como fatura atual se a API falhar.
+      state.resumos = [];
+      // Mantemos o histórico de faturas recebido anteriormente para consulta.
     }
 
     mostrarContas();
