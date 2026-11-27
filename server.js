@@ -1669,9 +1669,27 @@ async function consultarFaturas(req, res) {
           return;
         }
         const id = String(no.account_id || no.accountId || idPai || "");
-        const bruto = no.approx_current_bill_amount ?? no.approxCurrentBillAmount;
+        // Formato antigo: approx_current_bill_amount.
+        // Formato atual da consulta por cartão (visto nos logs em 27/11/2026):
+        // data = { totalAmount, isOfficialBillAmount, totalTransactions, accounts, ... }
+        const formatoTotal =
+          no.totalAmount != null &&
+          (no.isOfficialBillAmount !== undefined || no.totalTransactions !== undefined);
+        const bruto =
+          no.approx_current_bill_amount ??
+          no.approxCurrentBillAmount ??
+          no.current_bill_amount ??
+          no.currentBillAmount ??
+          (formatoTotal ? no.totalAmount : undefined);
         if (bruto != null && String(bruto).trim() !== "" && Number.isFinite(Number(bruto))) {
-          entradas.push({ ...no, account_id: id || idEsperado || "" });
+          const contaInterna = Array.isArray(no.accounts) && no.accounts.length === 1 ? no.accounts[0] : null;
+          entradas.push({
+            ...(contaInterna && typeof contaInterna === "object" ? contaInterna : {}),
+            ...no,
+            approx_current_bill_amount: Math.abs(Number(bruto)),
+            // Na consulta por cartão, o cartão é o que foi pedido
+            account_id: (formatoTotal && idEsperado) || id || String(contaInterna?.account_id || contaInterna?.accountId || contaInterna?.id || "") || idEsperado || "",
+          });
           return;
         }
         for (const [chave, filho] of Object.entries(no)) {
@@ -1686,6 +1704,7 @@ async function consultarFaturas(req, res) {
         quantidade: entradas.length,
         campos: entradas[0] && typeof entradas[0] === "object" ? Object.keys(entradas[0]).slice(0, 40) : [],
         camposObjeto: dados?.data && !Array.isArray(dados.data) && typeof dados.data === "object" ? Object.keys(dados.data).filter(k => /^[a-zA-Z_]{1,50}$/.test(k)).slice(0, 30) : [],
+        camposConta: Array.isArray(dados?.data?.accounts) && dados.data.accounts[0] && typeof dados.data.accounts[0] === "object" ? Object.keys(dados.data.accounts[0]).slice(0, 30) : [],
         comValor: entradas.filter(x => (x?.approx_current_bill_amount ?? x?.approxCurrentBillAmount) != null).length
       }));
       if (dados?.success === false) return;
